@@ -603,7 +603,10 @@ describe("ChatsSidebar PR icon", () => {
 		],
 	});
 
-	it("renders a plain PR icon when the chat tracks one pull request", () => {
+	// The popover contents are visual state, covered by the
+	// WithMultiplePRs story screenshot. The non-visual contract is
+	// what screen readers announce.
+	it("announces the pull request state when the chat tracks one pull request", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar
@@ -626,14 +629,11 @@ describe("ChatsSidebar PR icon", () => {
 		);
 
 		expect(
-			screen.getByRole("img", { name: "Pull request open" }),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByTestId("chat-node-pr-trigger-one-pr"),
-		).not.toBeInTheDocument();
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("Pull request open");
 	});
 
-	it("shows a count next to the PR icon when the chat tracks multiple pull requests", () => {
+	it("announces the tracked pull request count when the chat tracks several", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
@@ -641,28 +641,8 @@ describe("ChatsSidebar PR icon", () => {
 		);
 
 		expect(
-			screen.getByRole("img", { name: "2 pull requests" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByTestId("chat-node-pr-trigger-multi-pr"),
-		).toHaveTextContent("2");
-	});
-
-	it("lists every pull request with number and title on hover", async () => {
-		const user = userEvent.setup();
-		render(
-			<Wrapper>
-				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
-			</Wrapper>,
-		);
-
-		await user.hover(screen.getByTestId("chat-node-pr-trigger-multi-pr"));
-
-		const list = await screen.findByTestId("chat-node-pr-list-multi-pr");
-		expect(list).toHaveTextContent("PR #1");
-		expect(list).toHaveTextContent("feat: add login page");
-		expect(list).toHaveTextContent("PR #2");
-		expect(list).toHaveTextContent("feat: add login tests");
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("2 pull requests");
 	});
 });
 
