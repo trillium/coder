@@ -198,6 +198,11 @@ const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 	</div>
 );
 
+// A row is a pull request only when it carries a PR number or a
+// URL that points at one; branch rows carry a /tree URL instead.
+const isPullRequestStatus = (status: TypesGen.ChatDiffStatus): boolean =>
+	Boolean(status.pr_number ?? parsePullRequestUrl(status.url));
+
 interface UserTabContentProps {
 	tab: UserRightPanelTab;
 	chatId: string;
@@ -341,14 +346,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	// The PR tab applies only when exactly one PR is tracked;
-	// several PRs show the full list instead.
-	const prStatuses = (chat.diff_statuses ?? []).filter((status) =>
-		Boolean(status.pr_number ?? parsePullRequestUrl(status.url)),
-	);
-	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
-	const parsedPrNumber = Number(parsePullRequestUrl(solePR?.url)?.number);
-	const prNumber = solePR?.pr_number ?? (parsedPrNumber || undefined);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -423,6 +420,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
+
+	// The PR tab applies only when exactly one PR is tracked;
+	// several PRs show the full list instead.
+	const prStatuses = (chat.diff_statuses ?? []).filter(isPullRequestStatus);
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+	const parsedPrNumber = Number(parsePullRequestUrl(solePR?.url)?.number);
+	const prNumber = solePR?.pr_number ?? (parsedPrNumber || undefined);
 
 	const shouldShowSidebar = showSidebarPanel;
 

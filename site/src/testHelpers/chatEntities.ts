@@ -162,8 +162,8 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	created_at: MOCK_TIMESTAMP,
 };
 
-// A tracked ref with an open PR on coder/coder.
-export const MockChatDiffStatus: ChatDiffStatus = {
+// Base PR fixture; tests spread variants through mockChatDiffStatus.
+const MockChatDiffStatus: ChatDiffStatus = {
 	chat_id: MockChat.id,
 	remote_origin: "https://github.com/coder/coder",
 	git_branch: "feat/example",
