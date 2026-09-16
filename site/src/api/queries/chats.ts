@@ -574,8 +574,11 @@ const mergeDiffStatuses = (
 	if (removedRef) {
 		merged.delete(diffStatusRefKey(removedRef));
 	}
-	// The server orders the list: the first row is the primary. Keep
-	// the server order rather than the cache order.
+	// The embedded primary can be older than cached rows by
+	// delivery delay; only adopt it when the cache missed its row.
+	if (primary && !merged.has(diffStatusRefKey(primary))) {
+		merged.set(diffStatusRefKey(primary), primary);
+	}
 	const statuses = [...merged.values()];
 	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
 	if (primaryKey) {

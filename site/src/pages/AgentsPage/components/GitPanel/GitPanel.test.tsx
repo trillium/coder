@@ -126,7 +126,9 @@ describe("GitPanel per-ref views", () => {
 	});
 
 	it("adopts the first refs when they arrive after mount", async () => {
-		const user = userEvent.setup();
+		const getDiff = vi
+			.spyOn(API.experimental, "getChatDiffContents")
+			.mockResolvedValue(diffContents("test-chat"));
 
 		const view = renderPanel({ remoteDiffStats: undefined });
 
@@ -154,14 +156,16 @@ describe("GitPanel per-ref views", () => {
 			</Wrapper>,
 		);
 
-		const switcher = await screen.findByRole("button", {
-			name: "Switch git view",
-		});
-
-		await user.click(switcher);
-		const menu = await screen.findByRole("menu");
-		within(menu).getByText("PR #23020");
-		within(menu).getByText("PR #23021");
+		// The first arriving ref drives the default fetch.
+		await waitFor(() =>
+			expect(getDiff).toHaveBeenCalledWith(
+				"test-chat",
+				expect.objectContaining({
+					remote_origin: "https://github.com/coder/coder",
+					git_branch: "feat/first",
+				}),
+			),
+		);
 	});
 
 	it("shows the selected PR's title when the primary is a branch", async () => {

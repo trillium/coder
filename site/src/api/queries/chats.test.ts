@@ -3254,6 +3254,72 @@ describe("mergeWatchedChatSummary", () => {
 		expect(byBranch.get("feature-b")).toBe(refB);
 	});
 
+	it("adopts the embedded primary when the cache missed its row", () => {
+		const makeRef = (git_branch: string, additions = 1) => ({
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch,
+			url: `https://github.com/o/r/pull/${additions}`,
+			pull_request_state: "open",
+			pull_request_title: "A",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions,
+			deletions: 0,
+			changed_files: 1,
+		});
+		const cachedRef = makeRef("feature-a");
+		const refreshedRef = makeRef("feature-b", 2);
+		// The server's primary row was never cached, but every
+		// event embeds it as the deprecated diff_status.
+		const primaryRef = makeRef("feature-newest", 3);
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [cachedRef],
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_statuses: [refreshedRef],
+			diff_status: primaryRef,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+
+		expect(merged.diff_statuses).toEqual([primaryRef, cachedRef, refreshedRef]);
+	});
+
+	it("keeps the cached primary row over the embedded snapshot", () => {
+		const makeRef = (git_branch: string, additions = 1) => ({
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch,
+			pull_request_state: "open",
+			pull_request_title: "A",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions,
+			deletions: 0,
+			changed_files: 1,
+		});
+		const cachedRef = makeRef("feature-a", 9);
+		const refreshedRef = makeRef("feature-b", 2);
+		// An older snapshot of the primary, delivered late.
+		const stalePrimary = makeRef("feature-a", 1);
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [cachedRef],
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_statuses: [refreshedRef],
+			diff_status: stalePrimary,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+
+		expect(merged.diff_statuses?.[0]?.additions).toBe(9);
+	});
+
 	it("merges a keyless update as its own entry without dropping other refs", () => {
 		const refA = {
 			chat_id: "chat-1",
