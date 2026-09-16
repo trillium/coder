@@ -4,6 +4,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	GitPullRequestArrowIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -160,7 +161,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const prStatuses = (chat?.diff_statuses ?? []).filter((status) =>
 		Boolean(status.pr_number ?? parsePullRequestUrl(status.url)),
 	);
-	const primaryStatus = prStatuses[0];
 	const hasMultiplePRs = prStatuses.length > 1;
 
 	return (
@@ -316,7 +316,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								panel.showSidebarPanel && "lg:hidden",
 							)}
 						>
-							<PrStateChip status={primaryStatus} />
+							<GitPullRequestArrowIcon className="size-3.5 shrink-0" />
+							<span className="tabular-nums">{prStatuses.length} PRs</span>
 							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
 						</button>
 					</DropdownMenuTrigger>
@@ -415,30 +416,5 @@ const PrLink: FC<PrLinkProps> = ({ status, className }) => {
 			</span>
 			<span className="sm:hidden">{number ?? "PR"}</span>
 		</a>
-	);
-};
-
-type PrStateChipProps = {
-	status?: TypesGen.ChatDiffStatus;
-};
-
-// The icon and label half of the PR chip. The multi-PR menu trigger
-// reuses it without the link.
-const PrStateChip: FC<PrStateChipProps> = ({ status }) => {
-	const parsed = parsePullRequestUrl(status?.url);
-	const number = status?.pr_number?.toString() ?? parsed?.number;
-
-	return (
-		<>
-			<PrStateIcon
-				state={status?.pull_request_state}
-				draft={status?.pull_request_draft}
-				className="size-3.5! shrink-0"
-			/>
-			<span className="truncate max-w-[120px] hidden sm:inline">
-				{status?.pull_request_title || (number ? `#${number}` : "PR")}
-			</span>
-			<span className="sm:hidden">{number ?? "PR"}</span>
-		</>
 	);
 };

@@ -399,9 +399,7 @@ export const WithMultiplePRs: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Open the menu so the screenshot captures it.
-		await userEvent.click(
-			canvas.getByRole("button", { name: /fix: resolve race condition/ }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
 		await within(document.body).findByRole("menu");
 	},
 };

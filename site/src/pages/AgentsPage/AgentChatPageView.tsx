@@ -341,11 +341,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const primaryStatus = chat.diff_statuses?.[0];
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(primaryStatus?.url)?.number,
+	// The PR tab applies only when exactly one PR is tracked;
+	// several PRs show the full list instead.
+	const prStatuses = (chat.diff_statuses ?? []).filter((status) =>
+		Boolean(status.pr_number ?? parsePullRequestUrl(status.url)),
 	);
-	const prNumber = primaryStatus?.pr_number ?? (parsedPrNumber || undefined);
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+	const parsedPrNumber = Number(parsePullRequestUrl(solePR?.url)?.number);
+	const prNumber = solePR?.pr_number ?? (parsedPrNumber || undefined);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 

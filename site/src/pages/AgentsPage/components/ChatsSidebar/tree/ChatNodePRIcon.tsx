@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { GitPullRequestArrowIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import {
@@ -18,19 +19,22 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({
 	chatID,
 	prStatuses,
 }) => {
-	const primary = prStatuses[0];
-	const primaryConfig = getPRIconConfig(primary);
-	if (!primaryConfig) {
+	// One PR shows that PR's state. Several PRs share the count
+	// glyph: picking one state would misrepresent the rest.
+	if (prStatuses.length === 0) {
 		return null;
 	}
-	const PrimaryIcon = primaryConfig.icon;
-
 	if (prStatuses.length === 1) {
+		const soleConfig = getPRIconConfig(prStatuses[0]);
+		if (!soleConfig) {
+			return null;
+		}
+		const SoleIcon = soleConfig.icon;
 		return (
-			<PrimaryIcon
+			<SoleIcon
 				role="img"
-				aria-label={primaryConfig.label}
-				className={cn("size-3.5 shrink-0", primaryConfig.className)}
+				aria-label={soleConfig.label}
+				className={cn("size-3.5 shrink-0", soleConfig.className)}
 			/>
 		);
 	}
@@ -49,10 +53,10 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({
 					<span className="text-[13px] leading-4 tabular-nums">
 						{prStatuses.length}
 					</span>
-					<PrimaryIcon
+					<GitPullRequestArrowIcon
 						role="img"
 						aria-label={`${prStatuses.length} pull requests`}
-						className={cn("size-3.5 shrink-0", primaryConfig.className)}
+						className="size-3.5 shrink-0 text-content-secondary"
 					/>
 				</span>
 			</TooltipTrigger>

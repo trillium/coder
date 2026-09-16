@@ -95,11 +95,8 @@ export const getChatDisplayConfig = (
 	icon: LucideIcon;
 	className: string;
 	label: string;
-	prIcon: ChatIconConfig | undefined;
 	prStatuses: ChatDiffStatus[];
-	diffStatus: ChatDiffStatus | undefined;
 } => {
-	const diffStatus = chat.diff_statuses?.[0];
 	const prStatuses = (chat.diff_statuses ?? []).filter(
 		(status) => status.pull_request_state,
 	);
@@ -108,8 +105,6 @@ export const getChatDisplayConfig = (
 		icon: config.icon,
 		className: config.className,
 		label: config.label,
-		prIcon: getPRIconConfig(diffStatus),
 		prStatuses,
-		diffStatus,
 	};
 };
