@@ -210,7 +210,6 @@ type chatWorkerOptions struct {
 	AcquisitionWakeChannelSize int
 	TaskRetryInitialBackoff    time.Duration
 	TaskRetryMaxBackoff        time.Duration
-	TaskTimeout                time.Duration
 }
 
 func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
