@@ -269,7 +269,14 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const remoteItems: ViewItem[] = [];
 	if (showRemoteTab && remoteDiffStats) {
-		for (const status of remoteDiffStats) {
+		remoteDiffStats.forEach((status, index) => {
+			// A keyless row predates the keyed schema and the API cannot
+			// select it: an empty selector means the primary ref. Only
+			// the primary can stay selectable; any other keyless row
+			// would fetch the primary's diff under its own title.
+			if (index > 0 && !status.remote_origin && !status.git_branch) {
+				return;
+			}
 			const prNumber =
 				status.pr_number ?? parsePullRequestUrl(status.url ?? "")?.number;
 			const state = status.pull_request_state;
@@ -304,7 +311,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					icon: <GitBranchIcon className="size-3.5! shrink-0" />,
 				});
 			}
-		}
+		});
 	}
 	if (remoteItems.length === 0 && prTab) {
 		remoteItems.push({

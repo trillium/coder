@@ -214,4 +214,54 @@ describe("GitPanel per-ref views", () => {
 			}),
 		).not.toThrow();
 	});
+
+	it("does not offer a non-primary keyless ref", async () => {
+		const user = userEvent.setup();
+
+		// A chat upgraded from the unkeyed schema keeps its legacy row
+		// without origin and branch, behind the keyed refs that the
+		// agent reported later.
+		renderPanel({
+			remoteDiffStats: [
+				{
+					...MockChatDiffStatus,
+					pull_request_title: "fix: keyed change",
+					git_branch: "fix/keyed",
+					pr_number: 23021,
+					url: "https://github.com/coder/coder/pull/23021",
+				},
+				{
+					...MockChatDiffStatus,
+					pull_request_title: "feat: second keyed change",
+					git_branch: "feat/second-keyed",
+					pr_number: 23022,
+					url: "https://github.com/coder/coder/pull/23022",
+				},
+				{
+					...MockChatDiffStatus,
+					remote_origin: "",
+					git_branch: "",
+					pull_request_title: "fix: legacy change",
+					pr_number: 23020,
+					url: "https://github.com/coder/coder/pull/23020",
+				},
+			],
+		});
+
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
+		const menu = await screen.findByRole("menu");
+
+		// The keyed refs stay selectable. Selecting one still drives
+		// the ref-specific fetch, which the first test covers.
+		await within(menu).findByRole("menuitem", { name: /fix: keyed change/ });
+		await within(menu).findByRole("menuitem", {
+			name: /feat: second keyed change/,
+		});
+
+		// The legacy row must not be offered: selecting it would send
+		// an empty selector, which the API resolves to the primary.
+		expect(
+			within(menu).queryByRole("menuitem", { name: /fix: legacy change/ }),
+		).not.toBeInTheDocument();
+	});
 });
