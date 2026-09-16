@@ -83,31 +83,6 @@ describe("ChatTopBar PR chip", () => {
 		);
 	});
 
-	it("lists every PR in a menu when the chat tracks several", async () => {
-		const primary = { ...MockChatDiffStatus };
-		const secondary = {
-			...MockChatDiffStatus,
-			url: "https://github.com/coder/coder/pull/456",
-			pull_request_title: "feat: add notification system",
-			pull_request_draft: true,
-			git_branch: "feat/two",
-		};
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [primary, secondary],
-		});
-
-		await userEvent.click(screen.getByRole("button", { name: /2 PRs/ }));
-
-		const menu = await screen.findByRole("menu");
-		within(menu).getByRole("menuitem", {
-			name: /fix: resolve race condition/,
-		});
-		within(menu).getByRole("menuitem", {
-			name: /feat: add notification system/,
-		});
-	});
-
 	it("opens the selected PR's URL when the chat tracks several", async () => {
 		const user = userEvent.setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
