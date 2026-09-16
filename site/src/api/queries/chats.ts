@@ -540,47 +540,29 @@ const diffStatusesEqual = (
 	return a.every((s, i) => diffStatusEqual(s, b[i]));
 };
 
-const removeDiffStatusRef = (
-	statuses: readonly TypesGen.ChatDiffStatus[] | undefined,
-	removedRef?: TypesGen.DiffStatusRef,
-): TypesGen.ChatDiffStatus[] | undefined => {
-	if (!statuses || !removedRef) {
-		return statuses ? [...statuses] : undefined;
-	}
-	const removedKey = diffStatusRefKey(removedRef);
-	const filtered = statuses.filter((s) => diffStatusRefKey(s) !== removedKey);
-	return filtered.length > 0 ? filtered : undefined;
-};
-
 const mergeDiffStatuses = (
 	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
 	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
 	primary?: TypesGen.ChatDiffStatus,
 	removedRef?: TypesGen.DiffStatusRef,
 ): TypesGen.ChatDiffStatus[] | undefined => {
-	// A tombstone event carries no list, so apply the removal even
-	// when there is nothing to merge in.
-	if (!incoming || incoming.length === 0) {
-		return removeDiffStatusRef(cached, removedRef);
-	}
-	if (!cached || cached.length === 0) {
-		return removeDiffStatusRef(incoming, removedRef);
-	}
-	const merged = new Map(cached.map((s) => [diffStatusRefKey(s), s]));
-	for (const s of incoming) {
+	const merged = new Map((cached ?? []).map((s) => [diffStatusRefKey(s), s]));
+	for (const s of incoming ?? []) {
 		merged.set(diffStatusRefKey(s), s);
 	}
-	// A tombstone removes its ref instead of adding a blank entry.
+	// The embedded primary can be older than cached rows by
+	// delivery delay; only adopt it when the merge missed its row.
+	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
+	if (primary && primaryKey && !merged.has(primaryKey)) {
+		merged.set(primaryKey, primary);
+	}
+	// A tombstone removes its ref instead of adding a blank entry;
+	// the delete runs after the adoption so a removed primary
+	// cannot come back through the embedded snapshot.
 	if (removedRef) {
 		merged.delete(diffStatusRefKey(removedRef));
 	}
-	// The embedded primary can be older than cached rows by
-	// delivery delay; only adopt it when the cache missed its row.
-	if (primary && !merged.has(diffStatusRefKey(primary))) {
-		merged.set(diffStatusRefKey(primary), primary);
-	}
 	const statuses = [...merged.values()];
-	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
 	if (primaryKey) {
 		const primaryIndex = statuses.findIndex(
 			(s) => diffStatusRefKey(s) === primaryKey,
@@ -590,7 +572,7 @@ const mergeDiffStatuses = (
 			statuses.unshift(row);
 		}
 	}
-	return statuses;
+	return statuses.length > 0 ? statuses : undefined;
 };
 
 /**

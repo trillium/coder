@@ -2694,6 +2694,20 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
+	// A tracked-ref fixture for the diff-status merge tests.
+	const makeDiffStatusRef = (git_branch: string, additions = 1) => ({
+		chat_id: "chat-1",
+		remote_origin: "https://github.com/o/r.git",
+		git_branch,
+		pull_request_state: "open",
+		pull_request_title: "A",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions,
+		deletions: 0,
+		changed_files: 1,
+	});
+
 	it("applies context_dirty flags while preserving the pinned resource list", () => {
 		const cachedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
@@ -3255,24 +3269,11 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it("adopts the embedded primary when the cache missed its row", () => {
-		const makeRef = (git_branch: string, additions = 1) => ({
-			chat_id: "chat-1",
-			remote_origin: "https://github.com/o/r.git",
-			git_branch,
-			url: `https://github.com/o/r/pull/${additions}`,
-			pull_request_state: "open",
-			pull_request_title: "A",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions,
-			deletions: 0,
-			changed_files: 1,
-		});
-		const cachedRef = makeRef("feature-a");
-		const refreshedRef = makeRef("feature-b", 2);
+		const cachedRef = makeDiffStatusRef("feature-a");
+		const refreshedRef = makeDiffStatusRef("feature-b", 2);
 		// The server's primary row was never cached, but every
 		// event embeds it as the deprecated diff_status.
-		const primaryRef = makeRef("feature-newest", 3);
+		const primaryRef = makeDiffStatusRef("feature-newest", 3);
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [cachedRef],
 		});
@@ -3289,22 +3290,10 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it("keeps the cached primary row over the embedded snapshot", () => {
-		const makeRef = (git_branch: string, additions = 1) => ({
-			chat_id: "chat-1",
-			remote_origin: "https://github.com/o/r.git",
-			git_branch,
-			pull_request_state: "open",
-			pull_request_title: "A",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions,
-			deletions: 0,
-			changed_files: 1,
-		});
-		const cachedRef = makeRef("feature-a", 9);
-		const refreshedRef = makeRef("feature-b", 2);
+		const cachedRef = makeDiffStatusRef("feature-a", 9);
+		const refreshedRef = makeDiffStatusRef("feature-b", 2);
 		// An older snapshot of the primary, delivered late.
-		const stalePrimary = makeRef("feature-a", 1);
+		const stalePrimary = makeDiffStatusRef("feature-a", 1);
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [cachedRef],
 		});
@@ -3318,6 +3307,27 @@ describe("mergeWatchedChatSummary", () => {
 		});
 
 		expect(merged.diff_statuses?.[0]?.additions).toBe(9);
+	});
+
+	it("adopts the primary from an empty cache", () => {
+		// A chat loaded before its first push has no cached rows;
+		// a later refresh event for an older ref still embeds the
+		// server's primary.
+		const changedRef = makeDiffStatusRef("feature-old", 1);
+		const primaryRef = makeDiffStatusRef("feature-new", 2);
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: undefined,
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_statuses: [changedRef],
+			diff_status: primaryRef,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+
+		expect(merged.diff_statuses).toEqual([primaryRef, changedRef]);
 	});
 
 	it("merges a keyless update as its own entry without dropping other refs", () => {

@@ -1425,6 +1425,7 @@ export const WithDiffStats: Story = {
 					{
 						chat_id: "diff-both",
 						url: "https://github.com/coder/coder/pull/1",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1442,6 +1443,7 @@ export const WithDiffStats: Story = {
 					{
 						chat_id: "diff-add-only",
 						url: "https://github.com/coder/coder/pull/2",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1459,6 +1461,7 @@ export const WithDiffStats: Story = {
 					{
 						chat_id: "diff-del-only",
 						url: "https://github.com/coder/coder/pull/3",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1476,6 +1479,7 @@ export const WithDiffStats: Story = {
 					{
 						chat_id: "diff-none",
 						url: "https://github.com/coder/coder/pull/4",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1509,6 +1513,7 @@ export const WithDiffStatsLight: Story = {
 					{
 						chat_id: "diff-both-light",
 						url: "https://github.com/coder/coder/pull/1",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1526,6 +1531,7 @@ export const WithDiffStatsLight: Story = {
 					{
 						chat_id: "diff-add-only-light",
 						url: "https://github.com/coder/coder/pull/2",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
@@ -1543,6 +1549,7 @@ export const WithDiffStatsLight: Story = {
 					{
 						chat_id: "diff-del-only-light",
 						url: "https://github.com/coder/coder/pull/3",
+						pull_request_state: "open",
 						pull_request_title: "",
 						pull_request_draft: false,
 						changes_requested: false,
