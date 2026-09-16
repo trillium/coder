@@ -450,6 +450,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<RemoteContent
 						chatId={chatId}
 						hasGitContext={hasGitContext}
+						hasPullRequest={Boolean(prTab)}
 						isGitStatusLoading={isWaitingForGitStatus}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
@@ -612,6 +613,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 const RemoteContent: FC<{
 	chatId?: string;
 	hasGitContext: boolean;
+	hasPullRequest: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
@@ -621,6 +623,7 @@ const RemoteContent: FC<{
 }> = ({
 	chatId,
 	hasGitContext,
+	hasPullRequest,
 	isGitStatusLoading,
 	isExpanded,
 	chatInputRef,
@@ -628,7 +631,21 @@ const RemoteContent: FC<{
 	diffStatus,
 	remoteRef,
 }) => {
-	if (!chatId) {
+	if (!chatId || !diffStatus) {
+		// PR known but no status row yet: a diff exists, it just
+		// has not been fetched.
+		let title = GIT_NOT_SETUP_SENTENCE;
+		let body = GIT_NOT_SETUP_BODY;
+		if (isGitStatusLoading) {
+			title = GIT_STATUS_LOADING_TITLE;
+			body = GIT_STATUS_LOADING_BODY;
+		} else if (hasGitContext) {
+			title = "No pushed changes yet";
+			body = "Once commits are pushed, the branch diff will appear here.";
+		} else if (hasPullRequest) {
+			title = "Pull request diff is not available yet.";
+			body = "The diff will appear once Git status is available.";
+		}
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
@@ -638,20 +655,8 @@ const RemoteContent: FC<{
 						<GitBranchIcon className="size-5 text-content-secondary" />
 					)}
 				</div>
-				<p className="text-sm font-medium text-content-primary">
-					{hasGitContext
-						? "No pushed changes yet"
-						: isGitStatusLoading
-							? GIT_STATUS_LOADING_TITLE
-							: GIT_NOT_SETUP_SENTENCE}
-				</p>
-				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					{hasGitContext
-						? "Once commits are pushed, the branch diff will appear here."
-						: isGitStatusLoading
-							? GIT_STATUS_LOADING_BODY
-							: GIT_NOT_SETUP_BODY}
-				</p>
+				<p className="text-sm font-medium text-content-primary">{title}</p>
+				<p className="mt-1 max-w-52 text-xs text-content-secondary">{body}</p>
 			</div>
 		);
 	}

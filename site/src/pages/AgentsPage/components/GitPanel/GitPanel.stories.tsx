@@ -310,6 +310,10 @@ export const BranchOnly: Story = {
 		remoteDiffStats: [
 			{
 				...defaultDiffStatus,
+				remote_origin: "https://github.com/coder/coder",
+				git_branch: "feat/branch-only",
+				head_branch: "feat/branch-only",
+				url: "https://github.com/coder/coder/tree/feat/branch-only",
 				additions: 42,
 				deletions: 7,
 				changed_files: 3,

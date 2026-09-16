@@ -399,7 +399,9 @@ export const WithMultiplePRs: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Open the menu so the screenshot captures it.
-		await userEvent.click(canvas.getByLabelText("View pull requests"));
+		await userEvent.click(
+			canvas.getByRole("button", { name: /fix: resolve race condition/ }),
+		);
 		await within(document.body).findByRole("menu");
 	},
 };

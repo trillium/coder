@@ -1644,6 +1644,8 @@ export const WithPRStateIcons: Story = {
 				diff_statuses: [
 					{
 						chat_id: "pr-no-state",
+						remote_origin: "https://github.com/coder/coder",
+						git_branch: "my-branch",
 						url: "https://github.com/coder/coder/tree/my-branch",
 						pull_request_title: "",
 						pull_request_draft: false,
@@ -1651,6 +1653,40 @@ export const WithPRStateIcons: Story = {
 						additions: 10,
 						deletions: 2,
 						changed_files: 1,
+					},
+				],
+			}),
+			// A newer branch-only push becomes the primary, but the
+			// sole PR still pairs its icon with its own line stats.
+			buildChat({
+				id: "pr-with-newer-branch",
+				title: "PR with a newer branch push",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						chat_id: "pr-with-newer-branch",
+						remote_origin: "https://github.com/coder/coder",
+						git_branch: "feat/newer-branch",
+						url: "https://github.com/coder/coder/tree/feat/newer-branch",
+						pull_request_title: "",
+						pull_request_draft: false,
+						changes_requested: false,
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+					{
+						chat_id: "pr-with-newer-branch",
+						remote_origin: "https://github.com/coder/coder",
+						git_branch: "feat/older-pr",
+						url: "https://github.com/coder/coder/pull/104",
+						pull_request_state: "open",
+						pull_request_title: "feat: sole PR with newer branch",
+						pull_request_draft: false,
+						changes_requested: false,
+						additions: 33,
+						deletions: 4,
+						changed_files: 2,
 					},
 				],
 			}),

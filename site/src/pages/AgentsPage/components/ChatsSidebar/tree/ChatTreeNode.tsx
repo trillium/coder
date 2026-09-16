@@ -133,8 +133,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		className: statusClassName,
 		label: statusLabel,
 		prStatuses,
-		diffStatus,
 	} = getChatDisplayConfig(chat);
+	// When exactly one PR is tracked, pair its icon with its line
+	// stats. The primary row can be a newer branch-only ref whose
+	// counts are zeroed.
+	const diffStatus = prStatuses.length === 1 ? prStatuses[0] : undefined;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;

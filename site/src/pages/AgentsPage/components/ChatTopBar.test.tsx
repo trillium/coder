@@ -110,7 +110,9 @@ describe("ChatTopBar PR chip", () => {
 			diff_statuses: [primary, secondary],
 		});
 
-		await userEvent.click(screen.getByLabelText("View pull requests"));
+		await userEvent.click(
+			screen.getByRole("button", { name: /fix: resolve race condition/ }),
+		);
 
 		const menu = await screen.findByRole("menu");
 		within(menu).getByRole("menuitem", {
@@ -137,7 +139,9 @@ describe("ChatTopBar PR chip", () => {
 			diff_statuses: [primary, secondary],
 		});
 
-		await user.click(screen.getByLabelText("View pull requests"));
+		await user.click(
+			screen.getByRole("button", { name: /fix: resolve race condition/ }),
+		);
 		const menu = await screen.findByRole("menu");
 		await user.click(
 			within(menu).getByRole("menuitem", {
