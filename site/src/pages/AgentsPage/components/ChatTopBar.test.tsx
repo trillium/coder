@@ -8,7 +8,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat, mockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -55,8 +55,6 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const prStatus = mockChatDiffStatus;
-
 const renderTopBar = (chat: Chat) => {
 	render(
 		<Wrapper>
@@ -70,7 +68,7 @@ const renderTopBar = (chat: Chat) => {
 
 describe("ChatTopBar PR chip", () => {
 	it("renders one PR as a direct link", async () => {
-		const status = prStatus();
+		const status = { ...MockChatDiffStatus };
 		renderTopBar({
 			...MockChat,
 			diff_statuses: [status],
@@ -86,13 +84,14 @@ describe("ChatTopBar PR chip", () => {
 	});
 
 	it("lists every PR in a menu when the chat tracks several", async () => {
-		const primary = prStatus();
-		const secondary = prStatus({
+		const primary = { ...MockChatDiffStatus };
+		const secondary = {
+			...MockChatDiffStatus,
 			url: "https://github.com/coder/coder/pull/456",
 			pull_request_title: "feat: add notification system",
 			pull_request_draft: true,
 			git_branch: "feat/two",
-		});
+		};
 		renderTopBar({
 			...MockChat,
 			diff_statuses: [primary, secondary],
@@ -113,13 +112,14 @@ describe("ChatTopBar PR chip", () => {
 		const user = userEvent.setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 
-		const primary = prStatus();
-		const secondary = prStatus({
+		const primary = { ...MockChatDiffStatus };
+		const secondary = {
+			...MockChatDiffStatus,
 			url: "https://github.com/coder/coder/pull/456",
 			pull_request_title: "feat: add notification system",
 			pull_request_draft: true,
 			git_branch: "feat/two",
-		});
+		};
 		renderTopBar({
 			...MockChat,
 			diff_statuses: [primary, secondary],
@@ -141,14 +141,15 @@ describe("ChatTopBar PR chip", () => {
 	});
 
 	it("ignores tracked refs without a pull request link", async () => {
-		const primary = prStatus();
-		const noPR = prStatus({
+		const primary = { ...MockChatDiffStatus };
+		const noPR = {
+			...MockChatDiffStatus,
 			url: undefined,
 			pr_number: undefined,
 			pull_request_state: undefined,
 			pull_request_title: "",
 			git_branch: "feat/no-pr",
-		});
+		};
 		renderTopBar({
 			...MockChat,
 			diff_statuses: [primary, noPR],
@@ -164,14 +165,15 @@ describe("ChatTopBar PR chip", () => {
 	});
 
 	it("ignores branch rows, which carry a tree URL rather than a PR", () => {
-		const primary = prStatus();
-		const branchOnly = prStatus({
+		const primary = { ...MockChatDiffStatus };
+		const branchOnly = {
+			...MockChatDiffStatus,
 			url: "https://github.com/coder/coder/tree/feat/branch-only",
 			pr_number: undefined,
 			pull_request_state: undefined,
 			pull_request_title: "",
 			git_branch: "feat/branch-only",
-		});
+		};
 		renderTopBar({
 			...MockChat,
 			diff_statuses: [primary, branchOnly],

@@ -24,7 +24,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, mockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -461,13 +461,14 @@ export const SubmissionPending: Story = {
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
 	render: () => {
-		const diffStatus = mockChatDiffStatus({
+		const diffStatus = {
+			...MockChatDiffStatus,
 			chat_id: AGENT_ID,
 			pull_request_title: "fix: resolve race condition in workspace builds",
 			additions: 42,
 			deletions: 7,
 			changed_files: 5,
-		});
+		};
 		return (
 			<StoryAgentChatPageView
 				showSidebarPanel
@@ -521,13 +522,14 @@ export const NarrowWithSidebarPanel: Story = {
  */
 export const RefreshInvalidatesPRDiff: Story = {
 	render: () => {
-		const diffStatus = mockChatDiffStatus({
+		const diffStatus = {
+			...MockChatDiffStatus,
 			chat_id: AGENT_ID,
 			pull_request_title: "fix: resolve race condition in workspace builds",
 			additions: 42,
 			deletions: 7,
 			changed_files: 5,
-		});
+		};
 		return (
 			<StoryAgentChatPageView
 				showSidebarPanel

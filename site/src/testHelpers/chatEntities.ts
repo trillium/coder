@@ -162,8 +162,9 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	created_at: MOCK_TIMESTAMP,
 };
 
-// Base PR fixture; tests spread variants through mockChatDiffStatus.
-const MockChatDiffStatus: ChatDiffStatus = {
+// Spread for variants, such as a merged PR or a branch without a PR
+// yet.
+export const MockChatDiffStatus: ChatDiffStatus = {
 	chat_id: MockChat.id,
 	remote_origin: "https://github.com/coder/coder",
 	git_branch: "feat/example",
@@ -177,12 +178,3 @@ const MockChatDiffStatus: ChatDiffStatus = {
 	deletions: 0,
 	changed_files: 1,
 };
-
-// Spread the base for variants, such as a merged PR or a branch
-// without a PR yet.
-export const mockChatDiffStatus = (
-	overrides: Partial<ChatDiffStatus> = {},
-): ChatDiffStatus => ({
-	...MockChatDiffStatus,
-	...overrides,
-});

@@ -7,12 +7,10 @@ import { API } from "#/api/api";
 import type { ChatDiffContents } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
-import { mockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { GitPanel } from "./GitPanel";
-
-const prStatus = mockChatDiffStatus;
 
 const diffContents = (chatId: string): ChatDiffContents => ({
 	chat_id: chatId,
@@ -52,19 +50,21 @@ describe("GitPanel per-ref views", () => {
 
 		renderPanel({
 			remoteDiffStats: [
-				prStatus({
+				{
+					...MockChatDiffStatus,
 					pull_request_title: "feat: first change",
 					git_branch: "feat/first",
 					pr_number: 23020,
 					url: "https://github.com/coder/coder/pull/23020",
-				}),
-				prStatus({
+				},
+				{
+					...MockChatDiffStatus,
 					pull_request_title: "fix: second change",
 					git_branch: "fix/second",
 					pr_number: 23021,
 					url: "https://github.com/coder/coder/pull/23021",
 					pull_request_state: "merged",
-				}),
+				},
 			],
 		});
 
@@ -102,13 +102,14 @@ describe("GitPanel per-ref views", () => {
 
 		renderPanel({
 			remoteDiffStats: [
-				prStatus({
+				{
+					...MockChatDiffStatus,
 					git_branch: "feature/no-pr-yet",
 					url: undefined,
 					pr_number: undefined,
 					pull_request_state: undefined,
-					pull_request_title: undefined,
-				}),
+					pull_request_title: "",
+				},
 			],
 		});
 
@@ -132,18 +133,20 @@ describe("GitPanel per-ref views", () => {
 
 		const view = renderPanel({ remoteDiffStats: undefined });
 
-		const firstRef = prStatus({
+		const firstRef = {
+			...MockChatDiffStatus,
 			pull_request_title: "feat: first change",
 			git_branch: "feat/first",
 			pr_number: 23020,
 			url: "https://github.com/coder/coder/pull/23020",
-		});
-		const secondRef = prStatus({
+		};
+		const secondRef = {
+			...MockChatDiffStatus,
 			pull_request_title: "fix: second change",
 			git_branch: "fix/second",
 			pr_number: 23021,
 			url: "https://github.com/coder/coder/pull/23021",
-		});
+		};
 		view.rerender(
 			<Wrapper>
 				<GitPanel
@@ -173,19 +176,21 @@ describe("GitPanel per-ref views", () => {
 
 		renderPanel({
 			remoteDiffStats: [
-				prStatus({
+				{
+					...MockChatDiffStatus,
 					git_branch: "feature/no-pr-yet",
 					url: undefined,
 					pr_number: undefined,
 					pull_request_state: undefined,
-					pull_request_title: undefined,
-				}),
-				prStatus({
+					pull_request_title: "",
+				},
+				{
+					...MockChatDiffStatus,
 					pull_request_title: "fix: second change",
 					git_branch: "fix/second",
 					pr_number: 23021,
 					url: "https://github.com/coder/coder/pull/23021",
-				}),
+				},
 			],
 		});
 

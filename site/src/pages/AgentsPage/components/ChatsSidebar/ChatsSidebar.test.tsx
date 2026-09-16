@@ -9,10 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import {
-	MockChat,
-	mockChatDiffStatus as prStatus,
-} from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
@@ -572,22 +569,24 @@ describe("ChatsSidebar PR icon", () => {
 		id: "multi-pr",
 		title: "Multiple pull requests",
 		diff_statuses: [
-			prStatus({
+			{
+				...MockChatDiffStatus,
 				chat_id: "multi-pr",
 				git_branch: "feat/one",
 				url: "https://github.com/coder/coder/pull/1",
 				pr_number: 1,
 				pull_request_state: "open",
 				pull_request_title: "feat: add login page",
-			}),
-			prStatus({
+			},
+			{
+				...MockChatDiffStatus,
 				chat_id: "multi-pr",
 				git_branch: "feat/two",
 				url: "https://github.com/coder/coder/pull/2",
 				pr_number: 2,
 				pull_request_state: "merged",
 				pull_request_title: "feat: add login tests",
-			}),
+			},
 		],
 	});
 
@@ -604,7 +603,8 @@ describe("ChatsSidebar PR icon", () => {
 							id: "one-pr",
 							title: "One pull request",
 							diff_statuses: [
-								prStatus({
+								{
+									...MockChatDiffStatus,
 									chat_id: "one-pr",
 									url: "https://github.com/coder/coder/pull/1",
 									pull_request_state: "open",
@@ -612,7 +612,7 @@ describe("ChatsSidebar PR icon", () => {
 									additions: 0,
 									deletions: 0,
 									changed_files: 0,
-								}),
+								},
 							],
 						}),
 					]}
