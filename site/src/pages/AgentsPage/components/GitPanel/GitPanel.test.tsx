@@ -28,7 +28,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
-	return render(
+	const view = render(
 		<Wrapper>
 			<GitPanel
 				chatId="test-chat"
@@ -39,6 +39,22 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 			/>
 		</Wrapper>,
 	);
+	const rerenderPanel = (
+		next: Partial<React.ComponentProps<typeof GitPanel>>,
+	) => {
+		view.rerender(
+			<Wrapper>
+				<GitPanel
+					chatId="test-chat"
+					onRefresh={() => true}
+					onCommit={() => {}}
+					repositories={new Map()}
+					{...next}
+				/>
+			</Wrapper>,
+		);
+	};
+	return { view, rerenderPanel };
 };
 
 describe("GitPanel per-ref views", () => {
@@ -147,17 +163,7 @@ describe("GitPanel per-ref views", () => {
 			pr_number: 23021,
 			url: "https://github.com/coder/coder/pull/23021",
 		};
-		view.rerender(
-			<Wrapper>
-				<GitPanel
-					chatId="test-chat"
-					onRefresh={() => true}
-					onCommit={() => {}}
-					repositories={new Map()}
-					remoteDiffStats={[firstRef, secondRef]}
-				/>
-			</Wrapper>,
-		);
+		view.rerenderPanel({ remoteDiffStats: [firstRef, secondRef] });
 
 		// The first arriving ref drives the default fetch.
 		await waitFor(() =>
@@ -215,53 +221,46 @@ describe("GitPanel per-ref views", () => {
 		).not.toThrow();
 	});
 
-	it("does not offer a non-primary keyless ref", async () => {
-		const user = userEvent.setup();
+	it("fetches the new primary's diff when a keyless primary is superseded", async () => {
+		const getDiff = vi
+			.spyOn(API.experimental, "getChatDiffContents")
+			.mockResolvedValue(diffContents("test-chat"));
 
-		// A chat upgraded from the unkeyed schema keeps its legacy row
-		// without origin and branch, behind the keyed refs that the
-		// agent reported later.
-		renderPanel({
-			remoteDiffStats: [
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "fix: keyed change",
+		const legacyKeyless = {
+			...MockChatDiffStatus,
+			remote_origin: "",
+			git_branch: "",
+			pull_request_title: "fix: legacy change",
+			pr_number: 23020,
+			url: "https://github.com/coder/coder/pull/23020",
+		};
+		const keyedRef = {
+			...MockChatDiffStatus,
+			pull_request_title: "fix: keyed change",
+			git_branch: "fix/keyed",
+			pr_number: 23021,
+			url: "https://github.com/coder/coder/pull/23021",
+		};
+
+		// A chat upgraded from the unkeyed schema starts with the
+		// legacy row as its only ref.
+		const { rerenderPanel } = renderPanel({ remoteDiffStats: [legacyKeyless] });
+
+		// The agent later reports a keyed ref, which becomes the
+		// primary and demotes the legacy row behind it.
+		rerenderPanel({ remoteDiffStats: [keyedRef, legacyKeyless] });
+
+		// The view must leave the hidden legacy row alone: an empty
+		// selector would fetch the primary's diff under the legacy
+		// PR's title. The fetch must target the new primary.
+		await waitFor(() =>
+			expect(getDiff).toHaveBeenLastCalledWith(
+				"test-chat",
+				expect.objectContaining({
+					remote_origin: "https://github.com/coder/coder",
 					git_branch: "fix/keyed",
-					pr_number: 23021,
-					url: "https://github.com/coder/coder/pull/23021",
-				},
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "feat: second keyed change",
-					git_branch: "feat/second-keyed",
-					pr_number: 23022,
-					url: "https://github.com/coder/coder/pull/23022",
-				},
-				{
-					...MockChatDiffStatus,
-					remote_origin: "",
-					git_branch: "",
-					pull_request_title: "fix: legacy change",
-					pr_number: 23020,
-					url: "https://github.com/coder/coder/pull/23020",
-				},
-			],
-		});
-
-		await user.click(screen.getByRole("button", { name: "Switch git view" }));
-		const menu = await screen.findByRole("menu");
-
-		// The keyed refs stay selectable. Selecting one still drives
-		// the ref-specific fetch, which the first test covers.
-		await within(menu).findByRole("menuitem", { name: /fix: keyed change/ });
-		await within(menu).findByRole("menuitem", {
-			name: /feat: second keyed change/,
-		});
-
-		// The legacy row must not be offered: selecting it would send
-		// an empty selector, which the API resolves to the primary.
-		expect(
-			within(menu).queryByRole("menuitem", { name: /fix: legacy change/ }),
-		).not.toBeInTheDocument();
+				}),
+			),
+		);
 	});
 });

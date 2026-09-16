@@ -52,6 +52,13 @@ type GitView =
 const refItemId = (status: ChatDiffStatus): string =>
 	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
+// A keyless row predates the keyed schema and the API cannot select
+// it: an empty selector means the primary ref. Only the primary can
+// stay selectable; any other keyless row would fetch the primary's
+// diff under its own title.
+const isSelectableRef = (status: ChatDiffStatus, index: number): boolean =>
+	index === 0 || Boolean(status.remote_origin || status.git_branch);
+
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
 const GIT_NOT_SETUP_BODY =
@@ -216,7 +223,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 		view.type === "remote" &&
 		(view.refId === defaultRemoteRefId ||
 			(remoteDiffStats ?? []).some(
-				(status) => refItemId(status) === view.refId,
+				(status, index) =>
+					isSelectableRef(status, index) && refItemId(status) === view.refId,
 			));
 	const effectiveView: GitView =
 		view.type === "remote"
@@ -270,11 +278,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const remoteItems: ViewItem[] = [];
 	if (showRemoteTab && remoteDiffStats) {
 		remoteDiffStats.forEach((status, index) => {
-			// A keyless row predates the keyed schema and the API cannot
-			// select it: an empty selector means the primary ref. Only
-			// the primary can stay selectable; any other keyless row
-			// would fetch the primary's diff under its own title.
-			if (index > 0 && !status.remote_origin && !status.git_branch) {
+			if (!isSelectableRef(status, index)) {
 				return;
 			}
 			const prNumber =
