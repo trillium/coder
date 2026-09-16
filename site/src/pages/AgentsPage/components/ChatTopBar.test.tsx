@@ -8,7 +8,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, mockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -55,19 +55,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const prStatus = (
-	overrides: Partial<NonNullable<Chat["diff_statuses"]>[number]> = {},
-) => ({
-	chat_id: "chat-1",
-	url: "https://github.com/coder/coder/pull/123",
-	pull_request_title: "fix: resolve race condition",
-	pull_request_draft: false,
-	changes_requested: false,
-	additions: 1,
-	deletions: 0,
-	changed_files: 1,
-	...overrides,
-});
+const prStatus = mockChatDiffStatus;
 
 const renderTopBar = (chat: Chat) => {
 	render(
@@ -160,6 +148,8 @@ describe("ChatTopBar PR chip", () => {
 		const primary = prStatus();
 		const noPR = prStatus({
 			url: undefined,
+			pr_number: undefined,
+			pull_request_state: undefined,
 			pull_request_title: "",
 			git_branch: "feat/no-pr",
 		});
@@ -181,6 +171,8 @@ describe("ChatTopBar PR chip", () => {
 		const primary = prStatus();
 		const branchOnly = prStatus({
 			url: "https://github.com/coder/coder/tree/feat/branch-only",
+			pr_number: undefined,
+			pull_request_state: undefined,
 			pull_request_title: "",
 			git_branch: "feat/branch-only",
 		});

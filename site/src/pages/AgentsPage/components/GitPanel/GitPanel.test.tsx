@@ -4,25 +4,15 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatDiffContents, ChatDiffStatus } from "#/api/typesGenerated";
+import type { ChatDiffContents } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { mockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { GitPanel } from "./GitPanel";
 
-const prStatus = (overrides: Partial<ChatDiffStatus> = {}): ChatDiffStatus => ({
-	chat_id: "test-chat",
-	pull_request_title: "",
-	pull_request_draft: false,
-	changes_requested: false,
-	additions: 0,
-	deletions: 0,
-	changed_files: 0,
-	pull_request_state: "open",
-	remote_origin: "https://github.com/coder/coder",
-	...overrides,
-});
+const prStatus = mockChatDiffStatus;
 
 const diffContents = (chatId: string): ChatDiffContents => ({
 	chat_id: chatId,
@@ -115,7 +105,9 @@ describe("GitPanel per-ref views", () => {
 				prStatus({
 					git_branch: "feature/no-pr-yet",
 					url: undefined,
+					pr_number: undefined,
 					pull_request_state: undefined,
+					pull_request_title: undefined,
 				}),
 			],
 		});
@@ -180,7 +172,9 @@ describe("GitPanel per-ref views", () => {
 				prStatus({
 					git_branch: "feature/no-pr-yet",
 					url: undefined,
+					pr_number: undefined,
 					pull_request_state: undefined,
+					pull_request_title: undefined,
 				}),
 				prStatus({
 					pull_request_title: "fix: second change",

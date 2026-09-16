@@ -5,11 +5,14 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	mockChatDiffStatus as prStatus,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
@@ -565,26 +568,12 @@ describe("ChatsSidebar load-more behavior", () => {
 });
 
 describe("ChatsSidebar PR icon", () => {
-	const prStatus = (
-		overrides: Partial<ChatDiffStatus> = {},
-	): ChatDiffStatus => ({
-		chat_id: "chat-1",
-		pull_request_title: "",
-		pull_request_draft: false,
-		changes_requested: false,
-		additions: 0,
-		deletions: 0,
-		changed_files: 0,
-		...overrides,
-	});
-
 	const multiPRChat = buildChat({
 		id: "multi-pr",
 		title: "Multiple pull requests",
 		diff_statuses: [
 			prStatus({
 				chat_id: "multi-pr",
-				remote_origin: "https://github.com/coder/coder",
 				git_branch: "feat/one",
 				url: "https://github.com/coder/coder/pull/1",
 				pr_number: 1,
@@ -593,7 +582,6 @@ describe("ChatsSidebar PR icon", () => {
 			}),
 			prStatus({
 				chat_id: "multi-pr",
-				remote_origin: "https://github.com/coder/coder",
 				git_branch: "feat/two",
 				url: "https://github.com/coder/coder/pull/2",
 				pr_number: 2,
@@ -620,6 +608,10 @@ describe("ChatsSidebar PR icon", () => {
 									chat_id: "one-pr",
 									url: "https://github.com/coder/coder/pull/1",
 									pull_request_state: "open",
+									pull_request_title: "",
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
 								}),
 							],
 						}),

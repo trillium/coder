@@ -2,6 +2,7 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -160,3 +161,28 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
 };
+
+// A tracked ref with an open PR on coder/coder.
+export const MockChatDiffStatus: ChatDiffStatus = {
+	chat_id: MockChat.id,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: "feat/example",
+	url: "https://github.com/coder/coder/pull/123",
+	pr_number: 123,
+	pull_request_state: "open",
+	pull_request_title: "fix: resolve race condition",
+	pull_request_draft: false,
+	changes_requested: false,
+	additions: 1,
+	deletions: 0,
+	changed_files: 1,
+};
+
+// Spread the base for variants, such as a merged PR or a branch
+// without a PR yet.
+export const mockChatDiffStatus = (
+	overrides: Partial<ChatDiffStatus> = {},
+): ChatDiffStatus => ({
+	...MockChatDiffStatus,
+	...overrides,
+});

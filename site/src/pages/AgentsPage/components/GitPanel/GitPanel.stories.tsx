@@ -3,9 +3,9 @@ import { fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
-	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { mockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { generateLargeDiff } from "../DiffViewer/testHelpers";
 import { GitPanel } from "./GitPanel";
 
@@ -61,36 +61,28 @@ const makeRepo = (
 	...overrides,
 });
 
-const defaultDiffStatus: ChatDiffStatus = {
-	chat_id: "test-chat",
-	pull_request_title: "",
-	pull_request_draft: false,
-	changes_requested: false,
-	additions: 0,
-	deletions: 0,
-	changed_files: 0,
-};
-
 const defaultDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
+// The default PR shown across GitPanel stories.
 const makePrStatus = (
-	overrides: Partial<ChatDiffStatus> = {},
-): ChatDiffStatus[] => [
-	{
-		...defaultDiffStatus,
+	overrides: Parameters<typeof mockChatDiffStatus>[0] = {},
+) => [
+	mockChatDiffStatus({
+		chat_id: "test-chat",
 		url: "https://github.com/coder/coder/pull/23020",
+		pr_number: 23020,
 		pull_request_title: "feat(agents): add MCP server configuration to agents",
 		pull_request_state: "open",
-		pull_request_draft: false,
 		base_branch: "main",
 		head_branch: "feat/add-mcp-config",
+		git_branch: "feat/add-mcp-config",
 		additions: 4037,
 		deletions: 7,
 		changed_files: 12,
 		...overrides,
-	},
+	}),
 ];
 
 // ---------------------------------------------------------------------------
@@ -308,16 +300,18 @@ export const BranchOnly: Story = {
 	args: {
 		chatId: "test-chat",
 		remoteDiffStats: [
-			{
-				...defaultDiffStatus,
-				remote_origin: "https://github.com/coder/coder",
+			mockChatDiffStatus({
+				chat_id: "test-chat",
 				git_branch: "feat/branch-only",
 				head_branch: "feat/branch-only",
 				url: "https://github.com/coder/coder/tree/feat/branch-only",
+				pr_number: undefined,
+				pull_request_state: undefined,
+				pull_request_title: undefined,
 				additions: 42,
 				deletions: 7,
 				changed_files: 3,
-			},
+			}),
 		],
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
