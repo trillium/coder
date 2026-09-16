@@ -7009,6 +7009,16 @@ export interface Organization extends MinimalOrganization {
 
 // From codersdk/aibridge.go
 /**
+ * OrganizationAISpendDetails is a paginated organization AI spend report.
+ */
+export interface OrganizationAISpendDetails extends AISpendPeriodWindow {
+	readonly retention_start?: string;
+	readonly count: number;
+	readonly rows: readonly OrganizationAISpendRow[];
+}
+
+// From codersdk/aibridge.go
+/**
  * OrganizationAISpendDetailsFilter narrows organization AI spend.
  */
 export interface OrganizationAISpendDetailsFilter {
@@ -7078,6 +7088,28 @@ export interface OrganizationAISpendReport extends AISpendPeriodWindow {
 	 * Users is the requested page, most expensive first.
 	 */
 	readonly users: readonly OrganizationAISpendUser[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendRow is a per-user, per-group, per-model, per-provider
+ * aggregated AI spend row.
+ */
+export interface OrganizationAISpendRow {
+	readonly user_id: string;
+	readonly username: string;
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly organization_id: string;
+	readonly organization_name: string;
+	readonly model: string;
+	readonly provider: string;
+	readonly provider_name: string;
+	readonly input_tokens: number;
+	readonly output_tokens: number;
+	readonly cache_read_tokens: number;
+	readonly cache_write_tokens: number;
+	readonly cost_micros: number;
 }
 
 // From codersdk/aibridge.go

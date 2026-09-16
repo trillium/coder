@@ -5654,6 +5654,225 @@ func TestOrganizationAISpendUsersRoleAccess(t *testing.T) {
 	}
 }
 
+func TestOrganizationAISpendDetails(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+	db, ps := dbtestutil.NewDB(t)
+	adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+		GroupName: "spend-details-group",
+		Clock:     clock,
+		Database:  db,
+		Pubsub:    ps,
+	})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: group.OrganizationID})
+	at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+	for _, seed := range []struct {
+		groupID      uuid.UUID
+		providerName string
+		model        string
+		costMicros   int64
+	}{
+		{group.ID, "provider-one", "model-one", 100},
+		{otherGroup.ID, "provider-two", "model-two", 200},
+		{group.ID, "provider-three", "model-three", 300},
+	} {
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: seed.providerName, Model: seed.model, StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: at,
+			EffectiveGroupID:      uuid.NullUUID{UUID: seed.groupID, Valid: true},
+			InputTokens:           seed.costMicros,
+			OutputTokens:          seed.costMicros + 1,
+			CacheReadInputTokens:  seed.costMicros + 2,
+			CacheWriteInputTokens: seed.costMicros + 3,
+			CostMicros:            sql.NullInt64{Int64: seed.costMicros, Valid: true},
+		})
+	}
+
+	t.Run("FiltersPaginationAndCSVRows", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		cases := []struct {
+			name      string
+			filter    codersdk.OrganizationAISpendDetailsFilter
+			wantCosts []int64
+		}{
+			{name: "User", filter: codersdk.OrganizationAISpendDetailsFilter{UserID: targetUser.ID}, wantCosts: []int64{100, 200, 300}},
+			{name: "Group", filter: codersdk.OrganizationAISpendDetailsFilter{GroupID: group.ID}, wantCosts: []int64{100, 300}},
+			{name: "Provider", filter: codersdk.OrganizationAISpendDetailsFilter{ProviderName: "provider-two"}, wantCosts: []int64{200}},
+			{name: "Model", filter: codersdk.OrganizationAISpendDetailsFilter{Model: "model-three"}, wantCosts: []int64{300}},
+			{name: "All", filter: codersdk.OrganizationAISpendDetailsFilter{UserID: targetUser.ID, GroupID: otherGroup.ID, ProviderName: "provider-two", Model: "model-two"}, wantCosts: []int64{200}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				resp, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, tc.filter, codersdk.Pagination{Limit: 100})
+				require.NoError(t, err)
+				require.EqualValues(t, len(tc.wantCosts), resp.Count)
+				costs := make([]int64, 0, len(resp.Rows))
+				for _, row := range resp.Rows {
+					require.Equal(t, targetUser.ID, row.UserID)
+					require.Equal(t, group.OrganizationID, row.OrganizationID)
+					costs = append(costs, row.CostMicros)
+				}
+				require.ElementsMatch(t, tc.wantCosts, costs)
+			})
+		}
+
+		var paged []codersdk.OrganizationAISpendRow
+		for offset := 0; offset < 3; offset++ {
+			resp, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{Limit: 1, Offset: offset})
+			require.NoError(t, err)
+			require.EqualValues(t, 3, resp.Count)
+			paged = append(paged, resp.Rows...)
+		}
+		body, err := adminClient.ExportOrganizationAISpendWithFilter(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{})
+		require.NoError(t, err)
+		defer body.Close()
+		records := readAISpendExportCSV(t, body)
+		require.Len(t, paged, len(records)-1)
+		for i, row := range paged {
+			record := records[i+1]
+			require.Equal(t, row.UserID.String(), record[0])
+			require.Equal(t, row.Username, record[1])
+			require.Equal(t, row.GroupID.String(), record[2])
+			require.Equal(t, row.GroupName, record[3])
+			require.Equal(t, row.OrganizationID.String(), record[4])
+			require.Equal(t, row.OrganizationName, record[5])
+			require.Equal(t, row.Model, record[6])
+			require.Equal(t, row.Provider, record[7])
+			require.Equal(t, row.ProviderName, record[8])
+			require.Equal(t, strconv.FormatInt(row.InputTokens, 10), record[9])
+			require.Equal(t, strconv.FormatInt(row.OutputTokens, 10), record[10])
+			require.Equal(t, strconv.FormatInt(row.CacheReadTokens, 10), record[11])
+			require.Equal(t, strconv.FormatInt(row.CacheWriteTokens, 10), record[12])
+			require.Equal(t, strconv.FormatInt(row.CostMicros, 10), record[13])
+		}
+	})
+
+	t.Run("ValidationAndRetention", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name   string
+			params map[string]string
+		}{
+			{name: "Cursor", params: map[string]string{"after_id": uuid.New().String()}},
+			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}},
+			{name: "ZeroLimit", params: map[string]string{"limit": "0"}},
+			{name: "LargeLimit", params: map[string]string{"limit": "101"}},
+			{name: "PartialPeriod", params: map[string]string{"period_start": at.Format(time.RFC3339Nano)}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				res, err := adminClient.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/ai/spend", group.OrganizationID), nil, func(r *http.Request) {
+					q := r.URL.Query()
+					for key, value := range tt.params {
+						q.Set(key, value)
+					}
+					r.URL.RawQuery = q.Encode()
+				})
+				require.NoError(t, err)
+				defer res.Body.Close()
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			})
+		}
+	})
+
+	t.Run("EmptyOffsetAndNoMatches", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		outOfRange, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{Limit: 1, Offset: 10})
+		require.NoError(t, err)
+		require.EqualValues(t, 3, outOfRange.Count)
+		require.Empty(t, outOfRange.Rows)
+		require.NotNil(t, outOfRange.Rows)
+
+		none, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{Model: "missing"}, codersdk.Pagination{Limit: 1})
+		require.NoError(t, err)
+		require.Zero(t, none.Count)
+		require.Empty(t, none.Rows)
+		require.NotNil(t, none.Rows)
+	})
+}
+
+func TestOrganizationAISpendDetailsRetention(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+	retention := 14 * 24 * time.Hour
+	adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+		GroupName: "spend-details-retention-group",
+		Clock:     clock,
+		Retention: &retention,
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	response, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{})
+	require.NoError(t, err)
+	require.Equal(t, now.Add(-retention), response.PeriodStart)
+	require.NotNil(t, response.RetentionStart)
+	require.Equal(t, now.Add(-retention), *response.RetentionStart)
+
+	_, err = adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{
+		PeriodStart: now.Add(-retention).Add(-time.Hour),
+		PeriodEnd:   now.Add(-retention).Add(time.Hour),
+	}, codersdk.Pagination{})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+}
+
+func TestOrganizationAISpendDetailsRetentionDisabled(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+	retention := time.Duration(0)
+	adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+		GroupName: "spend-details-retention-disabled-group",
+		Clock:     clock,
+		Retention: &retention,
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	response, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{
+		PeriodStart: time.Date(2024, time.March, 10, 7, 0, 0, 0, time.UTC),
+		PeriodEnd:   time.Date(2024, time.March, 10, 9, 0, 0, 0, time.UTC),
+	}, codersdk.Pagination{})
+	require.NoError(t, err)
+	require.Nil(t, response.RetentionStart)
+}
+
+func TestOrganizationAISpendDetailsRequiresLicenseFeature(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options:        &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{}},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // Owner role is irrelevant because the request is blocked by the license gate.
+	_, err := client.OrganizationAISpendDetails(ctx, owner.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
+}
+
 func TestGroupAISpend(t *testing.T) {
 	t.Parallel()
 
@@ -5959,7 +6178,7 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 	cases := []struct {
 		name        string
 		client      *codersdk.Client
-		wantUserIDs []string // expected user_id column values when wantStatus is unset
+		wantUserIDs []string // expected user IDs for successful requests
 		wantStatus  int      // non-zero means the request is rejected with this status
 	}{
 		// Admins see every user's rows.
@@ -5985,6 +6204,10 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
+
+				_, err = tc.client.OrganizationAISpendDetails(ctx, owner.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{})
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
 				return
 			}
 			require.NoError(t, err)
@@ -5994,6 +6217,14 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 			var gotUserIDs []string
 			for _, row := range records[1:] {
 				gotUserIDs = append(gotUserIDs, row[0])
+			}
+			require.ElementsMatch(t, tc.wantUserIDs, gotUserIDs)
+
+			spend, err := tc.client.OrganizationAISpendDetails(ctx, owner.OrganizationID, codersdk.OrganizationAISpendDetailsFilter{}, codersdk.Pagination{})
+			require.NoError(t, err)
+			gotUserIDs = gotUserIDs[:0]
+			for _, row := range spend.Rows {
+				gotUserIDs = append(gotUserIDs, row.UserID.String())
 			}
 			require.ElementsMatch(t, tc.wantUserIDs, gotUserIDs)
 		})
