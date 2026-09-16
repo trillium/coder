@@ -199,4 +199,16 @@ describe("GitPanel per-ref views", () => {
 		// branch-only primary's.
 		screen.getByText("fix: second change");
 	});
+
+	it("settles without looping when a PR is tracked but no ref has data", () => {
+		// A chat can know its PR number before any ref status row
+		// exists. The view reconcile is derived in render, so this
+		// state must settle instead of re-setting the view forever.
+		expect(() =>
+			renderPanel({
+				prTab: { prNumber: 23020, chatId: "test-chat" },
+				remoteDiffStats: undefined,
+			}),
+		).not.toThrow();
+	});
 });

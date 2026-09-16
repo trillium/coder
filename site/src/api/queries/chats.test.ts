@@ -3325,8 +3325,10 @@ describe("mergeWatchedChatSummary", () => {
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [refA, refB],
 		});
+		// A tombstone event carries only diff_status; the server omits
+		// diff_statuses from the payload.
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [refB],
+			diff_statuses: undefined,
 			diff_status: refB,
 		});
 

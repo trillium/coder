@@ -182,37 +182,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return { type: "remote", refId: defaultRemoteRefId };
 	});
 
-	// If the active view gets hidden, switch to the first available.
-	useEffect(() => {
-		if (view.type === "remote" && !showRemoteTab) {
-			if (localRepos.length > 0) {
-				setView({ type: "local", repoRoot: localRepos[0] });
-			}
-		} else if (view.type === "remote") {
-			// A refId that matches no tracked ref is the pre-push
-			// sentinel. Without this reset, the switcher stays a
-			// static "No changes" badge after the first ref arrives.
-			const isTracked = (remoteDiffStats ?? []).some(
-				(status) => refItemId(status) === view.refId,
-			);
-			if (!isTracked) {
-				setView({ type: "remote", refId: defaultRemoteRefId });
-			}
-		} else {
-			// localRepos includes ever-dirty repos with empty diffs, so
-			// the active view stays valid until its root leaves the set.
-			if (!localRepos.includes(view.repoRoot)) {
-				if (showRemoteTab) {
-					setView({ type: "remote", refId: defaultRemoteRefId });
-				} else if (localRepos.length > 0) {
-					setView({ type: "local", repoRoot: localRepos[0] });
-				} else {
-					setView({ type: "remote", refId: defaultRemoteRefId });
-				}
-			}
-		}
-	}, [view, showRemoteTab, localRepos, defaultRemoteRefId, remoteDiffStats]);
-
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
 	const handleDiffStyleChange = (style: DiffStyle) => {
@@ -237,17 +206,25 @@ export const GitPanel: FC<GitPanelProps> = ({
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
 	};
 
-	// Reconcile a stale `view` inline so a repo removal never renders
-	// as "No changes" for a frame before the effect above updates.
+	// Reconcile a stale `view` inline: a hidden view or a ref that
+	// is no longer tracked falls back to the first available view.
+	// Deriving this in render avoids an effect that would otherwise
+	// need to compare refIds to keep from re-setting itself.
 	// When nothing else is available, the remote view falls through;
 	// RemoteContent handles its own empty/loading state.
+	const remoteViewTracked =
+		view.type === "remote" &&
+		(view.refId === defaultRemoteRefId ||
+			(remoteDiffStats ?? []).some(
+				(status) => refItemId(status) === view.refId,
+			));
 	const effectiveView: GitView =
 		view.type === "remote"
-			? showRemoteTab
-				? view
-				: localRepos.length > 0
-					? { type: "local", repoRoot: localRepos[0] }
-					: view
+			? !showRemoteTab && localRepos.length > 0
+				? { type: "local", repoRoot: localRepos[0] }
+				: remoteViewTracked
+					? view
+					: { type: "remote", refId: defaultRemoteRefId }
 			: localRepos.includes(view.repoRoot)
 				? view
 				: showRemoteTab

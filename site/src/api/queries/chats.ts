@@ -517,8 +517,9 @@ const diffStatusEqual = (
 	);
 };
 
-const diffStatusRefKey = (status: TypesGen.ChatDiffStatus): string =>
-	`${status.remote_origin ?? ""}\u0000${status.git_branch ?? ""}`;
+const diffStatusRefKey = (
+	status: TypesGen.ChatDiffStatus | TypesGen.DiffStatusRef,
+): string => `${status.remote_origin ?? ""}\u0000${status.git_branch ?? ""}`;
 
 // The server sends a status without ref fields when the ref has no
 // row anymore. It carries only chat_id.
@@ -539,17 +540,31 @@ const diffStatusesEqual = (
 	return a.every((s, i) => diffStatusEqual(s, b[i]));
 };
 
+const removeDiffStatusRef = (
+	statuses: readonly TypesGen.ChatDiffStatus[] | undefined,
+	removedRef?: TypesGen.DiffStatusRef,
+): TypesGen.ChatDiffStatus[] | undefined => {
+	if (!statuses || !removedRef) {
+		return statuses ? [...statuses] : undefined;
+	}
+	const removedKey = diffStatusRefKey(removedRef);
+	const filtered = statuses.filter((s) => diffStatusRefKey(s) !== removedKey);
+	return filtered.length > 0 ? filtered : undefined;
+};
+
 const mergeDiffStatuses = (
 	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
 	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
 	primary?: TypesGen.ChatDiffStatus,
 	removedRef?: TypesGen.DiffStatusRef,
 ): TypesGen.ChatDiffStatus[] | undefined => {
+	// A tombstone event carries no list, so apply the removal even
+	// when there is nothing to merge in.
 	if (!incoming || incoming.length === 0) {
-		return cached ? [...cached] : undefined;
+		return removeDiffStatusRef(cached, removedRef);
 	}
 	if (!cached || cached.length === 0) {
-		return [...incoming];
+		return removeDiffStatusRef(incoming, removedRef);
 	}
 	const merged = new Map(cached.map((s) => [diffStatusRefKey(s), s]));
 	for (const s of incoming) {
@@ -557,7 +572,7 @@ const mergeDiffStatuses = (
 	}
 	// A tombstone removes its ref instead of adding a blank entry.
 	if (removedRef) {
-		merged.delete(`${removedRef.remote_origin}\u0000${removedRef.git_branch}`);
+		merged.delete(diffStatusRefKey(removedRef));
 	}
 	// The server orders the list: the first row is the primary. Keep
 	// the server order rather than the cache order.
