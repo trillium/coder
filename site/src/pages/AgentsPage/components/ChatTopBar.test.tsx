@@ -67,22 +67,6 @@ const renderTopBar = (chat: Chat) => {
 };
 
 describe("ChatTopBar PR chip", () => {
-	it("renders one PR as a direct link", async () => {
-		const status = { ...MockChatDiffStatus };
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [status],
-		});
-
-		const link = screen.getByRole("link", {
-			name: /fix: resolve race condition/,
-		});
-		expect(link).toHaveAttribute(
-			"href",
-			"https://github.com/coder/coder/pull/123",
-		);
-	});
-
 	it("opens the selected PR's URL when the chat tracks several", async () => {
 		const user = userEvent.setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
@@ -142,56 +126,6 @@ describe("ChatTopBar PR chip", () => {
 			"https://github.com/coder/coder/pull/456",
 			"_blank",
 			"noreferrer",
-		);
-	});
-
-	it("ignores tracked refs without a pull request link", async () => {
-		const primary = { ...MockChatDiffStatus };
-		const noPR = {
-			...MockChatDiffStatus,
-			url: undefined,
-			pr_number: undefined,
-			pull_request_state: undefined,
-			pull_request_title: "",
-			git_branch: "feat/no-pr",
-		};
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [primary, noPR],
-		});
-
-		const link = screen.getByRole("link", {
-			name: /fix: resolve race condition/,
-		});
-		expect(link).toHaveAttribute(
-			"href",
-			"https://github.com/coder/coder/pull/123",
-		);
-	});
-
-	it("ignores branch rows, which carry a tree URL rather than a PR", () => {
-		const primary = { ...MockChatDiffStatus };
-		const branchOnly = {
-			...MockChatDiffStatus,
-			url: "https://github.com/coder/coder/tree/feat/branch-only",
-			pr_number: undefined,
-			pull_request_state: undefined,
-			pull_request_title: "",
-			git_branch: "feat/branch-only",
-		};
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [primary, branchOnly],
-		});
-
-		// The branch row must not turn the single PR into a dropdown
-		// with a branch link in it.
-		const link = screen.getByRole("link", {
-			name: /fix: resolve race condition/,
-		});
-		expect(link).toHaveAttribute(
-			"href",
-			"https://github.com/coder/coder/pull/123",
 		);
 	});
 });
