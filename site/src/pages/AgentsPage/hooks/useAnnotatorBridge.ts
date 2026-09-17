@@ -7,24 +7,32 @@ import {
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 interface UseAnnotatorBridgeOptions {
-	frameRef: RefObject<HTMLIFrameElement | null>;
-	// Changes whenever the iframe element is remounted so listeners rebind.
-	frameKey: number;
-	// Origin the iframe is expected to load from. Messages from any other
+	// Resolves the window hosting the overlay: the preview iframe's content
+	// window, or a popout the dashboard opened. Re-read on every message so
+	// a remounted iframe is picked up without rebinding.
+	getTargetWindow: () => Window | null | undefined;
+	// Changes whenever the target is replaced (iframe remount, popout
+	// opened or closed) so listeners rebind and state resets.
+	targetKey: number;
+	// Origin the target is expected to load from. Messages from any other
 	// origin or window are ignored.
-	frameOrigin: string | undefined;
+	targetOrigin: string | undefined;
+	// The iframe whose load events reset state, when the target is the
+	// frame. Popouts have no observable load and rely on the timeout alone.
+	frameRef?: RefObject<HTMLIFrameElement | null>;
 	// Nothing is listened to until the user has asked for the overlay, so a
 	// preview that was never annotated cannot talk to the dashboard.
 	enabled: boolean;
-	// How long after the frame loads to wait for the overlay before
-	// declaring it unavailable (blocked by CSP, non-HTML page, and so on).
+	// How long to wait for the overlay before declaring it unavailable
+	// (blocked by CSP, non-HTML page, and so on). Counted from the frame's
+	// load event, or from binding for a popout.
 	readyTimeoutMs?: number;
 	onSubmit: (submission: AnnotationSubmission) => void;
 }
 
 interface AnnotatorBridge {
 	ready: boolean;
-	// The frame finished loading without the overlay announcing itself.
+	// The target finished loading without the overlay announcing itself.
 	unavailable: boolean;
 	picking: boolean;
 	setPicking: (picking: boolean) => void;
@@ -34,14 +42,16 @@ interface AnnotatorBridge {
 
 /**
  * Talks to the annotation overlay the app proxy injects into a proxied
- * preview. The overlay is cross-origin and shares its window with the
+ * preview, whether it lives in the right panel's iframe or in a popout
+ * window. The overlay is cross-origin and shares its window with the
  * previewed app, so every inbound message is validated and bounded before
  * it reaches the caller.
  */
 export function useAnnotatorBridge({
+	getTargetWindow,
+	targetKey,
+	targetOrigin,
 	frameRef,
-	frameKey,
-	frameOrigin,
 	enabled,
 	readyTimeoutMs = 5000,
 	onSubmit,
@@ -58,25 +68,26 @@ export function useAnnotatorBridge({
 	}, [onSubmit]);
 
 	const post = (message: HostToAnnotatorMessage) => {
-		const frameWindow = frameRef.current?.contentWindow;
-		if (frameWindow && frameOrigin) {
-			frameWindow.postMessage(message, frameOrigin);
+		const target = getTargetWindow();
+		if (target && targetOrigin) {
+			target.postMessage(message, targetOrigin);
 		}
 	};
 
 	useEffect(() => {
-		if (!enabled || !frameOrigin) {
+		if (!enabled || !targetOrigin) {
 			return;
 		}
-		const frame = frameRef.current;
 		let readyTimer: ReturnType<typeof setTimeout> | undefined;
+		const reset = () => {
+			setReady(false);
+			setPickingState(false);
+			clearTimeout(readyTimer);
+			readyTimer = setTimeout(() => setUnavailable(true), readyTimeoutMs);
+		};
 		const handler = (event: MessageEvent) => {
-			const frameWindow = frame?.contentWindow;
-			if (
-				event.origin !== frameOrigin ||
-				!frameWindow ||
-				event.source !== frameWindow
-			) {
+			const target = getTargetWindow();
+			if (event.origin !== targetOrigin || !target || event.source !== target) {
 				return;
 			}
 			const message = parseAnnotatorToHostMessage(event.data);
@@ -89,12 +100,12 @@ export function useAnnotatorBridge({
 					setReady(true);
 					setUnavailable(false);
 					if (pendingPickingRef.current !== null) {
-						frameWindow.postMessage(
+						target.postMessage(
 							{
 								type: "coder-annotator:set-picking",
 								picking: pendingPickingRef.current,
 							} satisfies HostToAnnotatorMessage,
-							frameOrigin,
+							targetOrigin,
 						);
 						pendingPickingRef.current = null;
 					}
@@ -109,23 +120,33 @@ export function useAnnotatorBridge({
 				}
 			}
 		};
+		window.addEventListener("message", handler);
 		// The overlay announces itself after the frame's own load event, and
 		// postMessage delivery is queued behind it, so resetting here never
-		// races a fresh ready message.
-		const onFrameLoad = () => {
-			setReady(false);
-			setPickingState(false);
-			clearTimeout(readyTimer);
-			readyTimer = setTimeout(() => setUnavailable(true), readyTimeoutMs);
-		};
-		window.addEventListener("message", handler);
-		frame?.addEventListener("load", onFrameLoad);
+		// races a fresh ready message. A popout has no load event we can
+		// observe, so it starts its timeout immediately.
+		const frame = frameRef?.current;
+		if (frame) {
+			frame.addEventListener("load", reset);
+		} else {
+			reset();
+		}
 		return () => {
 			clearTimeout(readyTimer);
 			window.removeEventListener("message", handler);
-			frame?.removeEventListener("load", onFrameLoad);
+			frame?.removeEventListener("load", reset);
+			setReady(false);
+			setUnavailable(false);
+			setPickingState(false);
 		};
-	}, [frameRef, frameKey, frameOrigin, enabled, readyTimeoutMs]);
+	}, [
+		getTargetWindow,
+		targetKey,
+		targetOrigin,
+		frameRef,
+		enabled,
+		readyTimeoutMs,
+	]);
 
 	return {
 		ready,

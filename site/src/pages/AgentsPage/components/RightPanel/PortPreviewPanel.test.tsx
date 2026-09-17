@@ -245,4 +245,51 @@ describe("PortPreviewPanel annotations", () => {
 			frameOrigin,
 		);
 	});
+
+	it("routes annotations from a popped out preview to this chat", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { frameOrigin, onSend } = renderPanel();
+		// A stand-in popout window. jsdom never sets `closed`, so it is
+		// defined here and flipped by hand below.
+		const holder = document.createElement("iframe");
+		document.body.appendChild(holder);
+		const popoutWindow = holder.contentWindow as Window;
+		let closed = false;
+		Object.defineProperty(popoutWindow, "closed", { get: () => closed });
+		const open = vi.spyOn(window, "open").mockReturnValue(popoutWindow);
+		const postMessage = vi.spyOn(popoutWindow, "postMessage");
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Open port in new tab" }),
+		);
+		const [openedUrl] = open.mock.calls[0];
+		expect(new URL(String(openedUrl)).searchParams.get("coder_annotate")).toBe(
+			"1",
+		);
+
+		const fromPopout = (data: AnnotatorToHostMessage) =>
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data,
+					origin: frameOrigin,
+					source: popoutWindow,
+				}),
+			);
+		fromPopout({ type: "coder-annotator:ready" });
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+		fromPopout(submission);
+		expect(onSend).toHaveBeenCalledTimes(1);
+
+		closed = true;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(600);
+		});
+		fromPopout(submission);
+		expect(onSend).toHaveBeenCalledTimes(1);
+		vi.useRealTimers();
+		open.mockRestore();
+	});
 });

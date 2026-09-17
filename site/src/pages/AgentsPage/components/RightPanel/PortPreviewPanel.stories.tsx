@@ -160,3 +160,26 @@ export const AnnotateUnavailable: Story = {
 		}
 	},
 };
+
+export const PoppedOut: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const holder = document.createElement("iframe");
+		holder.style.display = "none";
+		document.body.appendChild(holder);
+		const original = window.open;
+		window.open = () => holder.contentWindow;
+		try {
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Open port in new tab" }),
+			);
+		} finally {
+			window.open = original;
+		}
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Open port in new tab" }),
+		);
+	},
+};

@@ -62,6 +62,10 @@ export const PortPreviewPanel: FC<{
 	// inside the app keeps the overlay; a full navigation drops it until
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
+	// A preview popped out into its own tab by the dashboard. While open it
+	// hosts the overlay instead of the iframe so annotations still reach
+	// this chat; closing it hands control back to the frame.
+	const [popout, setPopout] = useState<{ window: Window; key: number }>();
 	// Selectors from the last sent annotation message, highlighted in the
 	// preview until the agent's turn ends. `started` guards against the
 	// send resolving before the chat reports the turn as running.
@@ -95,13 +99,44 @@ export const PortPreviewPanel: FC<{
 		? undefined
 		: withAnnotatorParam(url, overlayRequests > 0);
 	const bridge = useAnnotatorBridge({
-		frameRef,
-		frameKey: overlayRequests,
-		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
-		enabled: overlayRequests > 0,
+		getTargetWindow: () => popout?.window ?? frameRef.current?.contentWindow,
+		targetKey: popout ? popout.key : overlayRequests,
+		targetOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
+		frameRef: popout ? undefined : frameRef,
+		enabled: popout !== undefined || overlayRequests > 0,
 		readyTimeoutMs: annotatorReadyTimeoutMs,
 		onSubmit: handleSubmit,
 	});
+
+	// window.close() is not observable across origins, so poll for it.
+	useEffect(() => {
+		if (!popout) {
+			return;
+		}
+		const timer = setInterval(() => {
+			if (popout.window.closed) {
+				setPopout(undefined);
+			}
+		}, 500);
+		return () => clearInterval(timer);
+	}, [popout]);
+
+	const handlePopout = () => {
+		if (!frameUrl) {
+			return;
+		}
+		// Opened with the marker so the overlay is injected; the popout can
+		// reach us through window.opener.
+		const opened = window.open(withAnnotatorParam(url, true), "_blank");
+		if (!opened) {
+			toast.error(
+				"The browser blocked the popout. Allow popups and try again.",
+			);
+			return;
+		}
+		setPopout({ window: opened, key: Date.now() });
+		bridge.setPicking(true);
+	};
 
 	// The overlay owns the drawing; this only tells it what to show. Runs
 	// again when the overlay reloads so a pending shimmer is restored.
@@ -129,7 +164,7 @@ export const PortPreviewPanel: FC<{
 	]);
 
 	const handleAnnotateClick = () => {
-		if (!bridge.ready) {
+		if (!bridge.ready && !popout) {
 			setOverlayRequests((count) => count + 1);
 		}
 		bridge.setPicking(!bridge.picking);
@@ -143,7 +178,11 @@ export const PortPreviewPanel: FC<{
 		if (!bridge.picking) {
 			return;
 		}
-		frameRef.current?.focus();
+		if (popout) {
+			popout.window.focus();
+		} else {
+			frameRef.current?.focus();
+		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && !event.defaultPrevented) {
 				bridge.setPicking(false);
@@ -151,7 +190,7 @@ export const PortPreviewPanel: FC<{
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [bridge.picking, bridge.setPicking]);
+	}, [bridge.picking, bridge.setPicking, popout]);
 
 	const showAnnotate =
 		canAnnotate && composer !== undefined && frameUrl !== undefined;
@@ -207,6 +246,30 @@ export const PortPreviewPanel: FC<{
 					>
 						<ExternalLinkIcon />
 					</Button>
+				) : showAnnotate ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								aria-label="Open port in new tab"
+								aria-pressed={popout !== undefined}
+								onClick={handlePopout}
+								className={
+									popout
+										? "bg-surface-tertiary text-content-primary"
+										: undefined
+								}
+							>
+								<ExternalLinkIcon />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{popout
+								? "Annotations from the popped out tab are sent to this chat"
+								: "Open in a new tab; annotations there are sent to this chat"}
+						</TooltipContent>
+					</Tooltip>
 				) : (
 					<Button size="icon" variant="subtle" asChild>
 						<a
