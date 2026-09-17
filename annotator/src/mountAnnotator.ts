@@ -1,4 +1,4 @@
-import { describeElement } from "./describeElement";
+import { describeElementWithSource } from "./describeElement";
 import { viewportBox } from "./geometry";
 import { createHighlightLayer } from "./highlights";
 import {
@@ -148,12 +148,12 @@ export function mountAnnotator(
 	});
 
 	// Every saved comment is its own submission; there is no batching.
-	const submitAnnotation = (session: PopupSession, comment: string) => {
+	const submitAnnotation = async (session: PopupSession, comment: string) => {
 		const annotation: Annotation = {
 			id: crypto.randomUUID(),
 			comment,
 			selectedText: session.selectedText,
-			element: describeElement(session.target),
+			element: await describeElementWithSource(session.target),
 		};
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
@@ -257,7 +257,7 @@ export function mountAnnotator(
 				textarea.focus();
 				return;
 			}
-			submitAnnotation(session, comment);
+			void submitAnnotation(session, comment);
 			closePopup();
 		};
 		send.addEventListener("click", submit);

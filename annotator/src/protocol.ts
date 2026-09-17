@@ -24,6 +24,11 @@ export interface AnnotatedElement {
 	openingTag: string;
 	rect: { x: number; y: number; width: number; height: number };
 	reactComponents?: string[];
+	// Prop names of the nearest component; values are never captured.
+	reactProps?: string[];
+	// Components that created this element's JSX, innermost first, with
+	// their resolved call sites.
+	reactOwnerStack?: string[];
 	sourceLocation?: string;
 }
 
@@ -124,6 +129,12 @@ function parseElement(value: unknown): AnnotatedElement | undefined {
 	const reactComponents = Array.isArray(value.reactComponents)
 		? value.reactComponents.slice(0, 10).map(requiredString)
 		: undefined;
+	const reactProps = Array.isArray(value.reactProps)
+		? value.reactProps.slice(0, 20).map(requiredString)
+		: undefined;
+	const reactOwnerStack = Array.isArray(value.reactOwnerStack)
+		? value.reactOwnerStack.slice(0, 10).map(requiredString)
+		: undefined;
 	return {
 		tag: requiredString(value.tag),
 		selector: requiredString(value.selector),
@@ -136,6 +147,8 @@ function parseElement(value: unknown): AnnotatedElement | undefined {
 		openingTag: requiredString(value.openingTag),
 		rect: parseRect(value.rect),
 		reactComponents,
+		reactProps,
+		reactOwnerStack,
 		sourceLocation: optionalString(value.sourceLocation),
 	};
 }
