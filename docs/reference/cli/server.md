@@ -1832,7 +1832,7 @@ Maximum number of user messages that can wait in a chat's queue while a turn is 
 | YAML        | <code>chat.maxAttachmentsPerChat</code>           |
 | Default     | <code>50</code>                                   |
 
-Maximum number of files that can be attached to a single chat over its lifetime, counting uploads and files the agent attaches from the workspace.
+Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap.
 
 ### --chat-max-prompt-bytes
 

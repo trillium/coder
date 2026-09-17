@@ -438,7 +438,7 @@ Maximum number of characters of each message part, tool argument, and tool resul
 
 ### Max attachments per chat
 
-Maximum number of files that can be attached to a single chat over its lifetime, counting uploads and files the agent attaches from the workspace.
+Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap.
 
 - Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
 - CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server.md#--chat-max-attachments-per-chat)

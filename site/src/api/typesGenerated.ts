@@ -2060,7 +2060,8 @@ export interface ChatConfig {
 	 */
 	readonly max_queued_messages_per_chat: number;
 	/**
-	 * MaxAttachmentsPerChat bounds the files linked to one chat.
+	 * MaxAttachmentsPerChat is the number of most recent attachments a
+	 * chat keeps; older files are removed when new ones are linked.
 	 */
 	readonly max_attachments_per_chat: number;
 	/**
@@ -4715,9 +4716,10 @@ export const DefaultChatDebugRetentionDays = 30;
  * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
  * of a chat turn or the payloads chatd stores and can be raised or
  * lowered per deployment.
- * DefaultChatMaxAttachmentsPerChat is the number of files that may be
- * linked to one chat over its lifetime. Lowering it does not unlink
- * existing files.
+ * DefaultChatMaxAttachmentsPerChat is the number of most recent
+ * attachments a chat keeps. Linking a file past the cap deletes the
+ * oldest files on the chat; a single batch larger than the cap is
+ * rejected.
  */
 export const DefaultChatMaxAttachmentsPerChat = 50;
 
