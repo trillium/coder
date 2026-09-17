@@ -11,14 +11,10 @@ import { parsePullRequestUrl } from "../../../utils/pullRequest";
 import { getPRIconConfig } from "./statusConfig";
 
 type ChatNodePRIconProps = {
-	readonly chatID: string;
 	readonly prStatuses: ChatDiffStatus[];
 };
 
-export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({
-	chatID,
-	prStatuses,
-}) => {
+export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 	// One PR shows that PR's state. Several PRs share the count
 	// glyph: picking one state would misrepresent the rest.
 	if (prStatuses.length === 0) {
@@ -47,7 +43,6 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({
 			<TooltipTrigger
 				asChild
 				className="inline-flex shrink-0 items-center gap-0.5"
-				data-testid={`chat-node-pr-trigger-${chatID}`}
 			>
 				<span>
 					<span className="text-[13px] leading-4 tabular-nums">
@@ -63,7 +58,6 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({
 			<TooltipContent
 				side="bottom"
 				className="flex max-w-72 flex-col gap-2 p-3"
-				data-testid={`chat-node-pr-list-${chatID}`}
 			>
 				{prStatuses.map((status, index) => {
 					const config = getPRIconConfig(status);

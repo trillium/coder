@@ -71,55 +71,21 @@ describe("ChatTopBar PR chip", () => {
 		const user = userEvent.setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 
-		const primary = { ...MockChatDiffStatus };
-		const secondary = {
-			...MockChatDiffStatus,
-			url: "https://github.com/coder/coder/pull/456",
-			pr_number: 456,
-			pull_request_title: "feat: add notification system",
-			pull_request_draft: true,
-			git_branch: "feat/two",
-		};
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [primary, secondary],
-		});
-
-		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
-		const menu = await screen.findByRole("menu");
-		await user.click(
-			within(menu).getByRole("menuitem", {
-				name: /PR #456 feat: add notification system/,
-			}),
-		);
-
-		expect(open).toHaveBeenCalledWith(
-			"https://github.com/coder/coder/pull/456",
-			"_blank",
-			"noreferrer",
-		);
-	});
-
-	it("names every menu item by its PR number when titles match", async () => {
-		const user = userEvent.setup();
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-
-		const primary = { ...MockChatDiffStatus };
-		const secondary = {
-			...MockChatDiffStatus,
-			url: "https://github.com/coder/coder/pull/456",
-			pr_number: 456,
-			git_branch: "feat/two",
-		};
-		renderTopBar({
-			...MockChat,
-			diff_statuses: [primary, secondary],
-		});
-
-		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
-		const menu = await screen.findByRole("menu");
-
 		// Both PRs share a title, so the numbers must name them apart.
+		const primary = { ...MockChatDiffStatus };
+		const secondary = {
+			...MockChatDiffStatus,
+			url: "https://github.com/coder/coder/pull/456",
+			pr_number: 456,
+			git_branch: "feat/two",
+		};
+		renderTopBar({
+			...MockChat,
+			diff_statuses: [primary, secondary],
+		});
+
+		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
+		const menu = await screen.findByRole("menu");
 		await user.click(within(menu).getByRole("menuitem", { name: /PR #456/ }));
 
 		expect(open).toHaveBeenCalledWith(

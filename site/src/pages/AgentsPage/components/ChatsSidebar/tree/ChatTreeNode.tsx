@@ -261,7 +261,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
 										{prStatuses.length > 0 && (
-											<ChatNodePRIcon chatID={chatID} prStatuses={prStatuses} />
+											<ChatNodePRIcon prStatuses={prStatuses} />
 										)}
 										{prStatuses.length === 1 &&
 											hasLinkedDiffStatus &&

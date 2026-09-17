@@ -264,7 +264,10 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
 	const additions = solePR?.additions ?? 0;
 	const deletions = solePR?.deletions ?? 0;
-	const hasLineStats = Boolean(solePR?.url) && (additions > 0 || deletions > 0);
+	const changedFiles = solePR?.changed_files ?? 0;
+	const hasLineStats =
+		Boolean(solePR?.url) &&
+		(additions > 0 || deletions > 0 || changedFiles > 0);
 	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
 
 	useEffect(() => {
@@ -297,7 +300,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 					{chat.title}
 				</div>
 				<div className="flex min-w-0 items-center gap-1.5 text-xs">
-					<ChatNodePRIcon chatID={chat.id} prStatuses={prStatuses} />
+					<ChatNodePRIcon prStatuses={prStatuses} />
 					{hasLineStats && (
 						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
 							<span className="text-git-added-bright">+{additions}</span>

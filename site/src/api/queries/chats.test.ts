@@ -3112,13 +3112,17 @@ describe("mergeWatchedChatSummary", () => {
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
 			title: "Stale title",
-			diff_statuses: [watchedDiffStatus],
+			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toMatchObject({
 			status: "running",
@@ -3163,13 +3167,17 @@ describe("mergeWatchedChatSummary", () => {
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
 			title: "Stale title",
-			diff_statuses: [watchedDiffStatus],
+			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toMatchObject({
 			status: "running",
@@ -3208,11 +3216,15 @@ describe("mergeWatchedChatSummary", () => {
 			diff_statuses: [cachedDiffStatus],
 		});
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [watchedDiffStatus],
+			diff_status: watchedDiffStatus,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: { remote_origin: "", git_branch: "" },
+				status: watchedDiffStatus,
+			},
 		});
 
 		expect(merged.diff_statuses).toEqual([watchedDiffStatus]);
@@ -3252,12 +3264,21 @@ describe("mergeWatchedChatSummary", () => {
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [refA, refB],
 		});
+		// The event carries the changed row; the embedded primary
+		// keeps the server order.
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [refAUpdated],
+			diff_status: refAUpdated,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-a",
+				},
+				status: refAUpdated,
+			},
 		});
 
 		expect(merged.diff_statuses).toHaveLength(2);
@@ -3278,12 +3299,18 @@ describe("mergeWatchedChatSummary", () => {
 			diff_statuses: [cachedRef],
 		});
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [refreshedRef],
 			diff_status: primaryRef,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-b",
+				},
+				status: refreshedRef,
+			},
 		});
 
 		expect(merged.diff_statuses).toEqual([primaryRef, cachedRef, refreshedRef]);
@@ -3298,12 +3325,18 @@ describe("mergeWatchedChatSummary", () => {
 			diff_statuses: [cachedRef],
 		});
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [refreshedRef],
 			diff_status: stalePrimary,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-b",
+				},
+				status: refreshedRef,
+			},
 		});
 
 		expect(merged.diff_statuses?.[0]?.additions).toBe(9);
@@ -3319,56 +3352,21 @@ describe("mergeWatchedChatSummary", () => {
 			diff_statuses: undefined,
 		});
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [changedRef],
 			diff_status: primaryRef,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-old",
+				},
+				status: changedRef,
+			},
 		});
 
 		expect(merged.diff_statuses).toEqual([primaryRef, changedRef]);
-	});
-
-	it("merges a keyless update as its own entry without dropping other refs", () => {
-		const refA = {
-			chat_id: "chat-1",
-			remote_origin: "https://github.com/o/r.git",
-			git_branch: "feature-a",
-			url: "https://github.com/o/r/pull/1",
-			pull_request_state: "open",
-			pull_request_title: "A",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 1,
-			deletions: 0,
-			changed_files: 1,
-		};
-		const keylessStatus = {
-			chat_id: "chat-1",
-			url: "https://github.com/o/r/pull/3",
-			pull_request_state: "open",
-			pull_request_title: "Legacy",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 5,
-			deletions: 0,
-			changed_files: 1,
-		};
-		const cachedChat = makeChat("chat-1", {
-			diff_statuses: [refA],
-		});
-		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [keylessStatus],
-		});
-
-		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
-			eventKind: "diff_status_change",
-		});
-
-		expect(merged.diff_statuses).toHaveLength(2);
-		expect(merged.diff_statuses).toContain(keylessStatus);
-		expect(merged.diff_statuses).toContain(refA);
 	});
 
 	it("removes the changed ref when the server sends a tombstone", () => {
@@ -3450,13 +3448,17 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			diff_statuses: [watchedDiffStatus],
+			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toBe(cachedChat);
 	});

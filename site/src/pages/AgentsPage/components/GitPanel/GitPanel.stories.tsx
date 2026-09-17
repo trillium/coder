@@ -122,7 +122,6 @@ type Story = StoryObj<typeof GitPanel>;
 export const PullRequestAndWorkingChanges: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus(),
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
@@ -141,7 +140,6 @@ export const PullRequestAndWorkingChanges: Story = {
 export const MultiplePullRequests: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: [
 			...makePrStatus({
 				pull_request_title: "feat: first change",
@@ -185,7 +183,6 @@ export const MultiplePullRequests: Story = {
 export const ViewSwitcherOpen: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
@@ -227,7 +224,6 @@ export const ViewSwitcherOpen: Story = {
 export const DraftPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 22950, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22950",
 			pull_request_title: "fix: resolve race condition in workspace builds",
@@ -253,7 +249,6 @@ export const DraftPullRequest: Story = {
 export const MergedPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23000, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/23000",
 			pull_request_title: "chore: update dependencies to latest",
@@ -276,7 +271,6 @@ export const MergedPullRequest: Story = {
 export const ClosedPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 22800, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22800",
 			pull_request_title: "feat: experimental websocket transport",
@@ -376,7 +370,6 @@ export const WorkingChangesOnly: Story = {
 export const MultipleRepos: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus({
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
@@ -405,14 +398,10 @@ export const MultipleRepos: Story = {
 	},
 };
 
-/**
- * A PR is known but no status row exists yet, so the pending-PR
- * state shows instead of the generic no-changes copy.
- */
+/** No remote changes and no working changes. */
 export const EmptyState: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 	},
 };
 
@@ -441,7 +430,6 @@ export const GitStatusLoading: Story = {
 export const InlineCommentInput: Story = {
 	args: {
 		chatId: "test-chat",
-		prTab: { prNumber: 23020, chatId: "test-chat" },
 		remoteDiffStats: makePrStatus(),
 	},
 	decorators: [

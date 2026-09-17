@@ -59,7 +59,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -197,11 +196,6 @@ const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 		{message}
 	</div>
 );
-
-// A row is a pull request only when it carries a PR number or a
-// URL that points at one; branch rows carry a /tree URL instead.
-const isPullRequestStatus = (status: TypesGen.ChatDiffStatus): boolean =>
-	Boolean(status.pr_number ?? parsePullRequestUrl(status.url));
 
 interface UserTabContentProps {
 	tab: UserRightPanelTab;
@@ -420,13 +414,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
-
-	// The PR tab applies only when exactly one PR is tracked;
-	// several PRs show the full list instead.
-	const prStatuses = (chat.diff_statuses ?? []).filter(isPullRequestStatus);
-	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
-	const parsedPrNumber = Number(parsePullRequestUrl(solePR?.url)?.number);
-	const prNumber = solePR?.pr_number ?? (parsedPrNumber || undefined);
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -693,9 +680,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
 						chatId={agentId}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}

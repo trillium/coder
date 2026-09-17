@@ -72,11 +72,6 @@ interface DiffStats {
 }
 
 interface GitPanelProps {
-	/** PR tab data. Omitted if no PR is associated. */
-	prTab?: {
-		prNumber: number;
-		chatId: string;
-	};
 	/** The chat whose remote diff is displayed. */
 	chatId: string;
 	/** Repository data from git watcher. */
@@ -125,7 +120,6 @@ type ViewItem =
 	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
 export const GitPanel: FC<GitPanelProps> = ({
-	prTab,
 	chatId,
 	repositories,
 	onRefresh,
@@ -136,7 +130,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0 || Boolean(prTab);
+	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 
 	// Compute per-repo diff stats from unified diffs. The React
@@ -316,17 +310,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		});
 	}
-	if (remoteItems.length === 0 && prTab) {
-		remoteItems.push({
-			kind: "remote",
-			id: "remote",
-			stateLabel: "Branch",
-			triggerIdentifier: `PR #${prTab.prNumber}`,
-			itemPrimary: `PR #${prTab.prNumber}`,
-			stateClasses: "text-content-secondary",
-			icon: <GitBranchIcon className="size-3.5! shrink-0" />,
-		});
-	}
 
 	const localItems: ViewItem[] = localRepos.map((repoRoot) => ({
 		kind: "local" as const,
@@ -460,7 +443,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<RemoteContent
 						chatId={chatId}
 						hasGitContext={hasGitContext}
-						hasPullRequest={Boolean(prTab)}
 						isGitStatusLoading={isGitStatusLoading}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
@@ -623,7 +605,6 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 const RemoteContent: FC<{
 	chatId?: string;
 	hasGitContext: boolean;
-	hasPullRequest: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
@@ -633,7 +614,6 @@ const RemoteContent: FC<{
 }> = ({
 	chatId,
 	hasGitContext,
-	hasPullRequest,
 	isGitStatusLoading,
 	isExpanded,
 	chatInputRef,
@@ -643,17 +623,12 @@ const RemoteContent: FC<{
 }) => {
 	if (!chatId || !diffStatus) {
 		// Loading beats every settled state: the status row that
-		// selects the message can still arrive. A known PR beats
-		// the generic copy because its diff exists but has no
-		// status row yet.
+		// selects the message can still arrive.
 		let title = GIT_NOT_SETUP_SENTENCE;
 		let body = GIT_NOT_SETUP_BODY;
 		if (isGitStatusLoading) {
 			title = GIT_STATUS_LOADING_TITLE;
 			body = GIT_STATUS_LOADING_BODY;
-		} else if (hasPullRequest) {
-			title = "Pull request diff is not available yet.";
-			body = "The diff will appear once Git status is available.";
 		} else if (hasGitContext) {
 			title = "No pushed changes yet";
 			body = "Once commits are pushed, the branch diff will appear here.";
