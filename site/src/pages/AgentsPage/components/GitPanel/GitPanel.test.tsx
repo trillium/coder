@@ -177,14 +177,17 @@ describe("GitPanel per-ref views", () => {
 		);
 	});
 
-	it("settles without looping when a PR is tracked but no ref has data", () => {
+	it("settles without looping while a known PR loads its first status", () => {
 		// A chat can know its PR number before any ref status row
-		// exists. The view reconcile is derived in render, so this
-		// state must settle instead of re-setting the view forever.
+		// exists, and the watcher may still be loading. Both flags
+		// reach the panel uncollapsed, and the view reconcile is
+		// derived in render, so this state must settle instead of
+		// re-setting the view forever.
 		expect(() =>
 			renderPanel({
 				prTab: { prNumber: 23020, chatId: "test-chat" },
 				remoteDiffStats: undefined,
+				isGitStatusLoading: true,
 			}),
 		).not.toThrow();
 	});

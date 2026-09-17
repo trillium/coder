@@ -405,7 +405,10 @@ export const MultipleRepos: Story = {
 	},
 };
 
-/** No remote changes, no working changes — empty state. */
+/**
+ * A PR is known but no status row exists yet, so the pending-PR
+ * state shows instead of the generic no-changes copy.
+ */
 export const EmptyState: Story = {
 	args: {
 		chatId: "test-chat",

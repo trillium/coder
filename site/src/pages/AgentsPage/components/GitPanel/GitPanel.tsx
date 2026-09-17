@@ -138,7 +138,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 }) => {
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0 || Boolean(prTab);
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
-	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
 
 	// Compute per-repo diff stats from unified diffs. The React
 	// Compiler memoizes these derivations.
@@ -462,7 +461,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						chatId={chatId}
 						hasGitContext={hasGitContext}
 						hasPullRequest={Boolean(prTab)}
-						isGitStatusLoading={isWaitingForGitStatus}
+						isGitStatusLoading={isGitStatusLoading}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
@@ -643,19 +642,21 @@ const RemoteContent: FC<{
 	remoteRef,
 }) => {
 	if (!chatId || !diffStatus) {
-		// PR known but no status row yet: a diff exists, it just
-		// has not been fetched.
+		// Loading beats every settled state: the status row that
+		// selects the message can still arrive. A known PR beats
+		// the generic copy because its diff exists but has no
+		// status row yet.
 		let title = GIT_NOT_SETUP_SENTENCE;
 		let body = GIT_NOT_SETUP_BODY;
 		if (isGitStatusLoading) {
 			title = GIT_STATUS_LOADING_TITLE;
 			body = GIT_STATUS_LOADING_BODY;
-		} else if (hasGitContext) {
-			title = "No pushed changes yet";
-			body = "Once commits are pushed, the branch diff will appear here.";
 		} else if (hasPullRequest) {
 			title = "Pull request diff is not available yet.";
 			body = "The diff will appear once Git status is available.";
+		} else if (hasGitContext) {
+			title = "No pushed changes yet";
+			body = "Once commits are pushed, the branch diff will appear here.";
 		}
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
