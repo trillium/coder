@@ -132,6 +132,7 @@ textarea:focus-visible {
 	pointer-events: none;
 }
 
+
 .highlight {
 	position: fixed;
 	z-index: 2147483646;
@@ -199,6 +200,94 @@ textarea:focus-visible {
 	text-overflow: ellipsis;
 }
 
+
+/* "Agent working" state: a faint tint, a comet of light circling the
+   border, and an occasional soft diagonal glint. Everything animates on
+   the compositor (transform only) and never obscures the element. */
+.shimmer {
+	position: fixed;
+	z-index: 2147483645;
+	pointer-events: none;
+	overflow: hidden;
+	border-radius: var(--radius-lg);
+	background: hsl(213 94% 68% / 0.06);
+	box-shadow: inset 0 0 0 1px hsl(213 94% 68% / 0.25);
+}
+
+/* A 2px ring: the element is masked to its padding box edge so only the
+   border area shows, and the rotating conic gradient inside it reads as
+   a beam travelling around the outline. */
+.shimmer .beam {
+	position: absolute;
+	inset: 0;
+	padding: 2px;
+	border-radius: inherit;
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask-composite: exclude;
+}
+
+.shimmer .beam::before {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: var(--diagonal, 100%);
+	height: var(--diagonal, 100%);
+	margin: calc(var(--diagonal, 100%) / -2) 0 0 calc(var(--diagonal, 100%) / -2);
+	border-radius: 50%;
+	background: conic-gradient(
+		from 0deg,
+		transparent 0 55%,
+		hsl(213 94% 68% / 0.35) 75%,
+		hsl(213 94% 68%) 88%,
+		hsl(0 0% 85%) 94%,
+		transparent 100%
+	);
+	animation: coder-beam 3s linear infinite;
+	will-change: transform;
+}
+
+/* A -32deg #D9D9D9 glint that crosses the box, rests off-screen, then
+   returns. Easing makes it accelerate through the middle like light
+   catching a surface rather than a conveyor belt. */
+.shimmer::after {
+	content: "";
+	position: absolute;
+	top: -50%;
+	bottom: -50%;
+	left: -100%;
+	width: 100%;
+	background: linear-gradient(
+		-32deg,
+		hsl(0 0% 85% / 0) 20%,
+		hsl(0 0% 85% / 0.16) 50%,
+		hsl(0 0% 85% / 0) 80%
+	);
+	animation: coder-glint 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+	will-change: transform;
+}
+
+@keyframes coder-beam {
+	to {
+		transform: rotate(1turn);
+	}
+}
+
+@keyframes coder-glint {
+	0% {
+		transform: translateX(0);
+	}
+	55%,
+	100% {
+		transform: translateX(200%);
+	}
+}
 
 .popup {
 	position: fixed;

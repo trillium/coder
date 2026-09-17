@@ -29,7 +29,7 @@ const Composer: FC<{ onSend: (message: string) => void }> = ({ onSend }) => {
 };
 
 function renderPanel(onSend = vi.fn(), readyTimeoutMs?: number) {
-	renderComponent(
+	const view = renderComponent(
 		<ComposerProvider>
 			<Composer onSend={onSend} />
 			<PortPreviewPanel
@@ -42,6 +42,21 @@ function renderPanel(onSend = vi.fn(), readyTimeoutMs?: number) {
 			/>
 		</ComposerProvider>,
 	);
+	const setAgentWorking = (isAgentWorking: boolean) =>
+		view.rerender(
+			<ComposerProvider>
+				<Composer onSend={onSend} />
+				<PortPreviewPanel
+					workspace={MockWorkspace}
+					agent={MockWorkspaceAgent}
+					host="*.apps.example.com"
+					tab={tab}
+					canAnnotate
+					isAgentWorking={isAgentWorking}
+					annotatorReadyTimeoutMs={readyTimeoutMs}
+				/>
+			</ComposerProvider>,
+		);
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -54,7 +69,7 @@ function renderPanel(onSend = vi.fn(), readyTimeoutMs?: number) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onSend };
+	return { frame, frameOrigin, receive, onSend, setAgentWorking };
 }
 
 const submission: AnnotatorToHostMessage = {
@@ -190,6 +205,44 @@ describe("PortPreviewPanel annotations", () => {
 			expect(
 				screen.getByRole("button", { name: "Annotate elements" }),
 			).toBeEnabled(),
+		);
+	});
+
+	it("shimmers annotated elements while the agent works on them", async () => {
+		const { frame, frameOrigin, receive, setAgentWorking } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const postMessage = vi.spyOn(
+			frame().contentWindow as Window,
+			"postMessage",
+		);
+		await act(async () => {
+			receive(submission);
+		});
+		expect(postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "coder-annotator:highlight" }),
+			frameOrigin,
+		);
+
+		setAgentWorking(true);
+		expect(postMessage).toHaveBeenCalledWith(
+			{
+				type: "coder-annotator:highlight",
+				items: [
+					{
+						id: "a",
+						selector: "#save",
+						url: "http://3000--agent--ws--user.apps.example.com/",
+					},
+				],
+			},
+			frameOrigin,
+		);
+
+		setAgentWorking(false);
+		expect(postMessage).toHaveBeenLastCalledWith(
+			{ type: "coder-annotator:clear-highlights" },
+			frameOrigin,
 		);
 	});
 });
