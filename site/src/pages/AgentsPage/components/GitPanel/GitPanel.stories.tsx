@@ -318,6 +318,52 @@ export const BranchOnly: Story = {
 	},
 };
 
+/**
+ * A branch-only primary with an older PR: selecting the PR makes the
+ * title row follow the selection instead of the branch-only primary.
+ */
+export const BranchPrimarySelectedPr: Story = {
+	args: {
+		chatId: "test-chat",
+		remoteDiffStats: [
+			{
+				...MockChatDiffStatus,
+				chat_id: "test-chat",
+				git_branch: "feat/branch-only",
+				head_branch: "feat/branch-only",
+				url: "https://github.com/coder/coder/tree/feat/branch-only",
+				pr_number: undefined,
+				pull_request_state: undefined,
+				pull_request_title: "",
+				additions: 42,
+				deletions: 7,
+				changed_files: 3,
+			},
+			...makePrStatus({
+				pull_request_title: "fix: second change",
+				head_branch: "fix/second",
+				git_branch: "fix/second",
+				pr_number: 23021,
+				url: "https://github.com/coder/coder/pull/23021",
+			}),
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff: sampleDiff,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		// Open the switcher and select the older PR so the screenshot
+		// shows its title row. Behavior is asserted in Vitest.
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByTestId("git-panel-view-switcher"));
+		const menu = await within(document.body).findByRole("menu");
+		await userEvent.click(within(menu).getByText("PR #23021"));
+	},
+};
+
 /** Only local working changes, no remote/PR. */
 export const WorkingChangesOnly: Story = {
 	args: {

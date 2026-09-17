@@ -340,10 +340,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										draft={status.pull_request_draft}
 										className="size-3.5! shrink-0"
 									/>
-									<span className="truncate">
-										{status.pull_request_title ||
-											(number ? `#${number}` : "PR")}
-									</span>
+									{/* The number keeps every item distinguishable when
+										two PRs share a title. */}
+									<span className="truncate">{`PR #${number} ${status.pull_request_title}`}</span>
 								</DropdownMenuItem>
 							);
 						})}

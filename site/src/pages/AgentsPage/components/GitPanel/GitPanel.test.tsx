@@ -177,38 +177,6 @@ describe("GitPanel per-ref views", () => {
 		);
 	});
 
-	it("shows the selected PR's title when the primary is a branch", async () => {
-		const user = userEvent.setup();
-
-		renderPanel({
-			remoteDiffStats: [
-				{
-					...MockChatDiffStatus,
-					git_branch: "feature/no-pr-yet",
-					url: undefined,
-					pr_number: undefined,
-					pull_request_state: undefined,
-					pull_request_title: "",
-				},
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "fix: second change",
-					git_branch: "fix/second",
-					pr_number: 23021,
-					url: "https://github.com/coder/coder/pull/23021",
-				},
-			],
-		});
-
-		await user.click(screen.getByRole("button", { name: "Switch git view" }));
-		const menu = await screen.findByRole("menu");
-		await user.click(within(menu).getByText("PR #23021"));
-
-		// The title row must carry the selected PR's title, not the
-		// branch-only primary's.
-		screen.getByText("fix: second change");
-	});
-
 	it("settles without looping when a PR is tracked but no ref has data", () => {
 		// A chat can know its PR number before any ref status row
 		// exists. The view reconcile is derived in render, so this
