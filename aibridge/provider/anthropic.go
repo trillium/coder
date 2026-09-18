@@ -145,7 +145,6 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
-		UpstreamHeaders:  p.cfg.UpstreamHeaders,
 	}
 	cred, err := p.resolveCredential(r)
 	if err != nil {
@@ -193,14 +192,6 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 
 func (p *Anthropic) BaseURL() string {
 	return p.cfg.BaseURL
-}
-
-// UpstreamHeaders returns the admin-configured custom headers sent on every
-// upstream request for this provider. It satisfies the optional interface
-// consumed by the passthrough router; intercepted routes read the same
-// configuration from intercept.Config instead.
-func (p *Anthropic) UpstreamHeaders() map[string]string {
-	return p.cfg.UpstreamHeaders
 }
 
 func (*Anthropic) AuthHeader() string {

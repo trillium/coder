@@ -26,11 +26,6 @@ type Anthropic struct {
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	// UpstreamHeaders carries admin-configured custom headers sent on
-	// every upstream request for this provider. Values may embed
-	// intercept.ChatIDPlaceholder for per-conversation stability. Nil or
-	// empty leaves default behavior unchanged.
-	UpstreamHeaders map[string]string
 }
 
 // BedrockProtocol selects which AWS Bedrock wire protocol a provider targets.
@@ -143,13 +138,6 @@ type OpenAI struct {
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	// UpstreamHeaders carries admin-configured custom headers sent on
-	// every upstream request for this provider (e.g. a routing session
-	// header required by OpenAI-compatible endpoints such as OpenCode
-	// Zen). Values may embed intercept.ChatIDPlaceholder for
-	// per-conversation stability. Nil or empty leaves default behavior
-	// unchanged.
-	UpstreamHeaders map[string]string
 }
 
 type Copilot struct {
@@ -158,10 +146,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// UpstreamHeaders carries admin-configured custom headers sent on
-	// every upstream request for this provider. Nil or empty leaves
-	// default behavior unchanged.
-	UpstreamHeaders map[string]string
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

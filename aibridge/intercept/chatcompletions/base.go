@@ -79,13 +79,10 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
-	// client headers plus provider auth, then applies admin-configured custom
-	// upstream headers. It runs whenever there are client headers to forward
-	// or custom headers to apply.
-	if i.clientHeaders != nil || len(i.cfg.UpstreamHeaders) > 0 {
+	// client headers plus provider auth.
+	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
-			intercept.ApplyUpstreamHeaders(req.Header, i.cfg.UpstreamHeaders, i.clientHeaders, i.cfg.ProviderName)
 			return next(req)
 		}))
 	}
