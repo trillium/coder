@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -694,6 +695,47 @@ func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 	return config.UseResponsesAPI
 }
 
+// openCodeZenFreeModels is the current free model set published in the
+// OpenCode Zen catalog. Paid Zen models must not be used through Coder.
+var openCodeZenFreeModels = [...]string{
+	"big-pickle",
+	"mimo-v2.5-free",
+	"ling-3.0-flash-fin-free",
+	"nemotron-3-ultra-free",
+	"nemotron-3.5-lightning-free",
+	"muse-spark-1.3-contributor-free",
+}
+
+// ValidateOpenCodeZenModel rejects paid models when baseURL points to the
+// OpenCode Zen endpoint. The free model list is sourced from the OpenCode Zen
+// catalog at https://opencode.ai/docs/zen/.
+func ValidateOpenCodeZenModel(baseURL, model string) error {
+	if !isOpenCodeZenBaseURL(baseURL) || slices.Contains(openCodeZenFreeModels[:], strings.TrimSpace(model)) {
+		return nil
+	}
+	return xerrors.Errorf(
+		"paid OpenCode Zen model %q is disabled; allowed free models: %s",
+		model,
+		strings.Join(openCodeZenFreeModels[:], ", "),
+	)
+}
+
+func isOpenCodeZenBaseURL(baseURL string) bool {
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return false
+	}
+	if !strings.Contains(baseURL, "://") {
+		baseURL = "https://" + baseURL
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), "opencode.ai") &&
+		(parsed.Path == "/zen" || strings.HasPrefix(parsed.Path, "/zen/"))
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
@@ -715,12 +757,15 @@ func ModelFromConfig(
 		return Model{}, err
 	}
 
+	baseURL := providerKeys.BaseURL(provider)
+	if err := ValidateOpenCodeZenModel(baseURL, modelID); err != nil {
+		return Model{}, err
+	}
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
 		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
 		return Model{}, missingProviderAPIKeyError(provider)
 	}
-	baseURL := providerKeys.BaseURL(provider)
 
 	var providerClient fantasy.Provider
 	switch provider {

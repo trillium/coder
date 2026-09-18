@@ -778,6 +778,30 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		require.False(t, classified.Retryable)
 	})
 
+	t.Run("PaidOpenCodeZenModel", func(t *testing.T) {
+		t.Parallel()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("transport must not be used for a paid OpenCode Zen model")
+			return nil, xerrors.New("unreachable")
+		})}
+		server := &Server{
+			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		}
+		provider := aibridgeTestAIProvider(providerID, "opencode-zen", database.AIProviderTypeOpenai)
+		provider.BaseUrl = "https://opencode.ai/zen/go/v1"
+		_, err := server.newModel(
+			t.Context(),
+			aibridgeTestRequest(chat, "muse-spark-1.3"),
+			aibridgeTestRoute(provider),
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		)
+		require.ErrorContains(t, err, "paid OpenCode Zen model")
+		require.ErrorContains(t, err, "muse-spark-1.3-contributor-free")
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+		require.False(t, classified.Retryable)
+	})
+
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{}

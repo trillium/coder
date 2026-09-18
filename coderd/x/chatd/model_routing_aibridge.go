@@ -144,6 +144,16 @@ func (p *Server) newModel(
 			},
 		)
 	}
+	if err := chatprovider.ValidateOpenCodeZenModel(route.Provider.BaseUrl, req.ModelName); err != nil {
+		return chatprovider.Model{}, chaterror.WithClassification(
+			err,
+			chaterror.ClassifiedError{
+				Kind:      codersdk.ChatErrorKindConfig,
+				Retryable: false,
+				Detail:    "Ask an administrator to select one of the free OpenCode Zen models.",
+			},
+		)
+	}
 
 	// Use the trusted workspace binding already persisted on the chat.
 	attr := aibridge.Attribution{}
