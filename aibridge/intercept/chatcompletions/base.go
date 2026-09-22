@@ -84,7 +84,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// or custom headers to apply.
 	if i.clientHeaders != nil || len(i.cfg.UpstreamHeaders) > 0 {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg, aibcontext.ActorFromContext(req.Context()))
 			intercept.ApplyUpstreamHeaders(req.Header, i.cfg.UpstreamHeaders, i.clientHeaders, i.cfg.ProviderName)
 			return next(req)
 		}))

@@ -1567,6 +1567,24 @@ export const AgentsUnsupportedProviderTypes: AgentsUnsupportedProviderType[] = [
  */
 export const AnthropicInlineImageCapBytes = 5242880;
 
+// From codersdk/appname.go
+export type AppFamilyName =
+	| "jetbrains"
+	| "reconnecting_pty"
+	| "sftp"
+	| "ssh"
+	| "unknown"
+	| "vscode";
+
+export const AppFamilyNames: AppFamilyName[] = [
+	"jetbrains",
+	"reconnecting_pty",
+	"sftp",
+	"ssh",
+	"unknown",
+	"vscode",
+];
+
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	/**
@@ -1574,6 +1592,12 @@ export interface AppHostResponse {
 	 */
 	readonly host: string;
 }
+
+// From codersdk/appname.go
+/**
+ * AppNameOverflow sums the app names past the per-report cap.
+ */
+export const AppNameOverflow = "overflow";
 
 // From codersdk/deployment.go
 export interface AppearanceConfig {
@@ -6178,6 +6202,11 @@ export const MaxAIProviderUpstreamHeaderValueLen = 4096;
  * provider so a misconfigured row cannot bloat every upstream request.
  */
 export const MaxAIProviderUpstreamHeaders = 16;
+// From codersdk/aiproviders.go
+/**
+ * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+ */
+export const MaxAIProviderAPIKeys = 5;
 
 // From codersdk/aibridge.go
 /**
@@ -6802,6 +6831,11 @@ export interface OAuth2ProviderApp {
 	 * ClientType is "confidential" or "public".
 	 */
 	readonly client_type: OAuth2ClientType;
+	/**
+	 * DynamicallyRegistered is true when the app registered itself through
+	 * Dynamic Client Registration rather than being created by an admin.
+	 */
+	readonly dynamically_registered: boolean;
 	/**
 	 * Endpoints are included in the app response for easier discovery. The OAuth2
 	 * spec does not have a defined place to find these (for comparison, OIDC has
@@ -8120,6 +8154,10 @@ export interface PutOAuth2ProviderAppRequest {
 	 * must equal the first entry of redirect_uris.
 	 */
 	readonly callback_url?: string;
+	/**
+	 * Icon replaces the app's stored icon. Omitting it clears the stored
+	 * icon rather than leaving it unchanged.
+	 */
 	readonly icon: string;
 	/**
 	 * Scope replaces the app's current allowlist. Omit to leave the existing
@@ -8844,11 +8882,49 @@ export interface ServiceBannerConfig {
 	readonly background_color?: string;
 }
 
+// From codersdk/appname.go
+/**
+ * SessionCountApp is one app's session count and how to present it.
+ */
+export interface SessionCountApp {
+	readonly count: number;
+	/**
+	 * DisplayName is the registry's name for a known app, otherwise the
+	 * normalized identifier itself.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is a bundled path under /icon/, empty if the app has none.
+	 */
+	readonly icon?: string;
+	/**
+	 * Family is the group this app totals under.
+	 */
+	readonly family: AppFamilyName;
+}
+
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
+	/**
+	 * Apps holds one entry per reported app name, each carrying the family it
+	 * totals under. The fields below duplicate those totals for one release.
+	 */
+	readonly apps: Record<string, SessionCountApp>;
+	/**
+	 * @deprecated total Apps by Family instead.
+	 */
 	readonly vscode: number;
+	/**
+	 * @deprecated total Apps by Family instead.
+	 */
 	readonly ssh: number;
+	/**
+	 * @deprecated total Apps by Family instead.
+	 */
 	readonly jetbrains: number;
+	/**
+	 * @deprecated total Apps by Family instead.
+	 */
 	readonly reconnecting_pty: number;
 }
 

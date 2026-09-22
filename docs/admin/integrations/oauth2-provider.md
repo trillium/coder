@@ -63,6 +63,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
    - **Icon**: Optional icon URL
+   - **Allowed scopes**: Optional. Refer to [Scopes](#scopes).
 
 ### Method 2: Management API
 
@@ -174,6 +175,8 @@ Coder supports the following OAuth2 client authentication methods at the token e
 - `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+
+Send `client_secret` in the request body or in the `Authorization` header. `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. Refer to ["invalid_request" for `client_secret` in the query string](#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
@@ -339,10 +342,19 @@ The client may then request anything that allowlist covers, and is granted the w
 An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
-An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+An administrator sets one with the **Allowed scopes** field in the web UI, or with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
 When [updating an application](../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
 The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
-The web UI does not yet set the allowlist.
+
+Use caution when narrowing the scope allowlist of a self-registered application.
+Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
+The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
+Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
+Previously issued tokens retain their scopes.
+Such a client cannot be restricted through its allowlist: narrowing it breaks the client, and clearing it leaves the application unrestricted.
+Only a client that can be configured to request fewer scopes can be narrowed, and whoever operates that client makes the change.
+An allowlist set by an administrator also does not hold against the client: the holder of the application's `registration_access_token` can replace or clear it at any time with `PUT /oauth2/clients/{client_id}`.
+The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
@@ -515,6 +527,7 @@ opens with the requested name that caused the rejection:
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
+  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](#scopes).
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
@@ -619,6 +632,61 @@ authorization. If the secret was deleted, the tokens issued under it were
 revoked with it, and the client must authorize again. Public clients have no
 secret and never receive this error for omitting one.
 
+### "invalid_request" for `client_secret` in the query string
+
+`POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with
+`error=invalid_request` when `client_secret` appears in the URL query string.
+OAuth 2.1 section 2.4.1 allows the secret in the request body or the
+`Authorization` header only. Send it as a form parameter or as HTTP Basic,
+following [Client Authentication Methods](#client-authentication-methods).
+
+The rule covers `client_secret` only. Coder still reads `refresh_token`,
+`code`, and the revocation `token` from the query string. Send those in the
+request body too, not in the query string.
+
+A `client_secret` with no value, as in `?client_secret=`, counts as absent
+under RFC 6749 section 3.2 and is not refused by this rule. `POST /oauth2/revoke`
+accepts such a request when the body authenticates. `POST /oauth2/tokens`
+answers 400 only when the body also carries a `client_secret`, because it reads
+the body copy and the empty URL copy as the same parameter sent twice, and the
+error says so. An empty query value alone never causes a 400: a request that
+authenticates with HTTP Basic and sends no secret in the body, or one from a
+public client, succeeds.
+
+A copy in the body does not excuse one in the URL: the request is refused on
+the query string alone, whatever the body holds. The refusal issues no token
+and revokes nothing, so the retry needs no new authorization.
+
+`GET /oauth2/authorize` is not rejected when its URL carries `client_secret`,
+because RFC 6749 section 3.1 requires that endpoint to ignore parameters it
+does not recognize. Coder ignores the value and logs a warning instead.
+
+Each refusal and the authorization warning write a log line containing
+`client_secret in the URL query string` with the `app_id`, `remote_addr`, and
+`user_agent` of the request. Search the Coder logs for that string to find the
+integration that sends the secret in the URL.
+
+The log line records that the parameter was present, not that its value was a
+valid secret. The check runs before client authentication, so anyone who knows
+the public `client_id` can produce the same line without credentials. Confirm
+with the client's owner that their integration sent the request before
+rotating.
+
+The check also runs after the `client_id` is resolved. A request with a
+missing, malformed, or unknown `client_id` is answered by that lookup first
+and writes no such line, so an absent line does not mean no integration is
+leaking.
+
+Rotate the secret that was in the URL. It is still valid, and a URL is
+recorded by reverse proxies, load balancers, CDN access logs, shell history,
+and client libraries. Coder does not log query strings, so an empty result
+when you search the Coder logs does not mean the secret stayed private.
+Deleting a secret also revokes the tokens issued under it, so the client has
+to authorize again.
+
+Earlier releases accepted the parameter in the query string. An integration
+that relied on that has to move it into the body or the header.
+
 ### "unsupported_response_type" returned to your callback
 
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
@@ -721,6 +789,15 @@ These rules apply to every entry in `redirect_uris`, not only the first one.
   plane, custom URI schemes for native apps (`myapp://`) are permitted, and
   public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
+- **Rate limits**: every `/oauth2` endpoint and both `/.well-known` discovery
+  endpoints draw on the login rate limit of 60 requests per minute. Each
+  endpoint counts on its own, so a caller that exhausts one can still reach the
+  others. Requests with no Coder session are counted per IP address, and the
+  rest are counted per user. A caller over the limit receives HTTP 429 with a
+  `temporarily_unavailable` error body. The limit is fixed. Running the
+  deployment with `--dangerous-disable-rate-limits` turns it off, and a user
+  with the Owner role can bypass it on a single request with the
+  `X-Coder-Bypass-Ratelimit` header
 - **Refresh tokens are not self-sufficient**: a confidential client must present
   its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
   new access tokens or end another client's session
@@ -733,12 +810,11 @@ These rules apply to every entry in `redirect_uris`, not only the first one.
 
 The current implementation has these limitations:
 
-- The web UI cannot set or change a scope allowlist; declare one at [Dynamic Client Registration](#dynamic-client-registration) or set it through the management API, as described under [Scopes](#scopes)
 - No client credentials grant support
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
-- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). The web UI cannot edit the list: editing **Callback URL** replaces the primary redirect URI and preserves the other registered URIs, and the application page displays only the primary.
+- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). In the web UI, open the application and remove entries from **Redirect URIs** until the list fits.
 - A cleartext `http://` redirect URI to a host that is not local is rejected. Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it. An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](#callback-url-schemes).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
 
@@ -783,7 +859,7 @@ For the full error details, refer to ["invalid_scope" returned to your callback]
 To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 If that token is lost, register the application again.
 A Coder administrator can also fix it from the management API by [updating the application](../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
-The web UI cannot change it.
+The **Allowed scopes** field on the application page in the web UI makes the same change.
 
 ## Standards Compliance
 
