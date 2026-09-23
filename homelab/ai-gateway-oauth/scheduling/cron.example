@@ -1,0 +1,7 @@
+# Per-user daily ChatGPT BYOK re-save (cron fallback).
+# Install with `crontab -e` as YOURSELF (never root: the script must run as
+# you so Pi exports your grant and Coder saves to your user).
+# Replace HOMELAB_BIN with the checkout path holding byok-resave-chatgpt.sh.
+# The script never logs secrets; only masked hints go to the log file.
+
+15 6 * * * /bin/sh HOMELAB_BIN/byok-resave-chatgpt.sh >>"$HOME/Library/Logs/byok-resave-chatgpt.log" 2>&1

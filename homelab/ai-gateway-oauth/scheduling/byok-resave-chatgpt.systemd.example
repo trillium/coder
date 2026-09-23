@@ -1,0 +1,28 @@
+# Per-user daily ChatGPT BYOK re-save (systemd user timer, for lnx-class hosts).
+# Install as ~/.config/systemd/user/byok-resave-chatgpt.{service,timer}, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now byok-resave-chatgpt.timer
+# Runs as YOU, so Pi exports YOUR grant and Coder saves to YOUR user.
+# Replace HOMELAB_BIN with the checkout path holding byok-resave-chatgpt.sh.
+
+# --- byok-resave-chatgpt.service ---
+[Unit]
+Description=Re-save ChatGPT OAuth token as Coder BYOK user key
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh HOMELAB_BIN/byok-resave-chatgpt.sh
+# Secret hygiene: never add the token or session to Environment= here.
+
+# --- byok-resave-chatgpt.timer ---
+[Unit]
+Description=Daily ChatGPT BYOK re-save
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
