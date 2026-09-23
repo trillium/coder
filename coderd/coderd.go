@@ -727,6 +727,7 @@ func New(options *Options) *API {
 		dbRolluper:                  options.DatabaseRolluper,
 		ProfileCollector:            defaultProfileCollector{},
 		AISeatTracker:               aiseats.Noop{},
+		AIDeviceGrants:              NewAIDeviceGrantManager(options.Clock),
 	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
@@ -2268,6 +2269,9 @@ type API struct {
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
+	// AIDeviceGrants tracks in-flight user-scoped device-code grants for
+	// paved BYOK sign-in. Grants live in memory on this replica only.
+	AIDeviceGrants *AIDeviceGrantManager
 
 	// ProfileCollector abstracts the runtime/pprof and runtime/trace
 	// calls used by the /debug/profile endpoint. Tests override this
