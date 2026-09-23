@@ -5,6 +5,8 @@ import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type {
+	AIDeviceGrantInitiateResponse,
+	AIDeviceGrantPollResponse,
 	UserAIProviderKeyConfig,
 	UserChatProviderConfig,
 } from "#/api/typesGenerated";
@@ -26,6 +28,7 @@ const createProvider = (
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
+	device_flow_supported: overrides.device_flow_supported ?? false,
 });
 
 const baseProvider = createProvider({
@@ -47,6 +50,7 @@ const savedKeyConfig: UserAIProviderKeyConfig = {
 	has_user_api_key: true,
 	has_provider_api_key: false,
 	byok_enabled: true,
+	device_flow_supported: false,
 };
 
 const defaultProps: AgentSettingsAPIKeysPageViewProps = {
@@ -213,5 +217,204 @@ describe("AgentSettingsAPIKeysPageView", () => {
 		await waitFor(() => {
 			expect(API.experimental.deleteUserAIProviderKey).toHaveBeenCalledTimes(2);
 		});
+	});
+});
+
+// Throwaway fixtures only: no test below uses a real credential.
+const deviceGrant: AIDeviceGrantInitiateResponse = {
+	grant_id: "grant-1",
+	provider_id: "prov-chatgpt",
+	user_code: "ABCD-1234",
+	verification_uri: "https://auth.example.com/device",
+	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
+	expires_in: 900,
+	poll_interval: 5,
+	stores_access_token_only: true,
+	refresh_supported: false,
+	reauth_message: "Test re-auth message.",
+};
+
+const devicePoll = (
+	overrides: Partial<AIDeviceGrantPollResponse> &
+		Pick<AIDeviceGrantPollResponse, "status">,
+): AIDeviceGrantPollResponse => ({
+	grant_id: "grant-1",
+	provider_id: "prov-chatgpt",
+	user_code: "ABCD-1234",
+	verification_uri: "https://auth.example.com/device",
+	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
+	expires_in: 900,
+	poll_interval: 5,
+	stores_access_token_only: true,
+	refresh_supported: false,
+	reauth_message: "Test re-auth message.",
+	...overrides,
+});
+
+const chatgptProvider = createProvider({
+	provider_id: "prov-chatgpt",
+	provider: "openai",
+	display_name: "ChatGPT",
+	device_flow_supported: true,
+});
+
+describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
+	it("offers sign-in only for device-flow providers", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					chatgptProvider,
+					createProvider({
+						provider_id: "prov-plain",
+						provider: "openai",
+						display_name: "Plain keys",
+					}),
+				]}
+			/>,
+		);
+
+		expect(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Sign in with Plain keys" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("starts a grant and shows the user code plus verification link", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+			);
+		});
+		expect(screen.getByText("ABCD-1234")).toBeInTheDocument();
+		expect(screen.getByRole("link")).toHaveAttribute(
+			"href",
+			"https://auth.example.com/device/ABCD-1234",
+		);
+		expect(screen.getByText(/Waiting for approval/)).toBeInTheDocument();
+	});
+
+	it("saves the approved token through the existing user-keys endpoint", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({
+				status: "authorized",
+				api_key: "test-device-access-token",
+			}),
+		);
+		vi.spyOn(API.experimental, "upsertUserAIProviderKey").mockResolvedValue(
+			savedKeyConfig,
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				{ api_key: "test-device-access-token" },
+			);
+		});
+		// The token itself is never rendered.
+		expect(
+			screen.queryByText("test-device-access-token"),
+		).not.toBeInTheDocument();
+	});
+
+	it("cancels the grant and resets the panel", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+		vi.spyOn(API.experimental, "cancelUserAIDeviceGrant").mockResolvedValue(
+			undefined,
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+		await screen.findByText("ABCD-1234");
+		await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.cancelUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"grant-1",
+			);
+		});
+		await waitFor(() => {
+			expect(screen.queryByText("ABCD-1234")).not.toBeInTheDocument();
+		});
+		expect(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		).toBeInTheDocument();
+	});
+
+	it("surfaces expiry with the re-auth path", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "expired" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await screen.findByText("Test re-auth message.");
+		expect(
+			screen.getByRole("button", { name: "Start over" }),
+		).toBeInTheDocument();
 	});
 });

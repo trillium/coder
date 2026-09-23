@@ -10943,6 +10943,11 @@ export interface UserChatProviderConfig {
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
 	readonly byok_enabled: boolean;
+	/**
+	 * DeviceFlowSupported mirrors UserAIProviderKeyConfig: whether the
+	 * paved device-code sign-in is available for this provider.
+	 */
+	readonly device_flow_supported: boolean;
 }
 
 // From codersdk/insights.go

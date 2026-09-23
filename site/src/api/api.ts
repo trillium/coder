@@ -3491,6 +3491,38 @@ class ExperimentalApiMethods {
 		await this.axios.delete(`${userAIProviderKeysPath(user)}/${providerId}`);
 	};
 
+	initiateUserAIDeviceGrant = async (
+		providerId: string,
+		user = "me",
+	): Promise<TypesGen.AIDeviceGrantInitiateResponse> => {
+		const response =
+			await this.axios.post<TypesGen.AIDeviceGrantInitiateResponse>(
+				`${userAIProviderKeysPath(user)}/${providerId}/device-grants`,
+			);
+		return response.data;
+	};
+
+	getUserAIDeviceGrant = async (
+		providerId: string,
+		grantId: string,
+		user = "me",
+	): Promise<TypesGen.AIDeviceGrantPollResponse> => {
+		const response = await this.axios.get<TypesGen.AIDeviceGrantPollResponse>(
+			`${userAIProviderKeysPath(user)}/${providerId}/device-grants/${grantId}`,
+		);
+		return response.data;
+	};
+
+	cancelUserAIDeviceGrant = async (
+		providerId: string,
+		grantId: string,
+		user = "me",
+	): Promise<void> => {
+		await this.axios.delete(
+			`${userAIProviderKeysPath(user)}/${providerId}/device-grants/${grantId}`,
+		);
+	};
+
 	getChatSystemPrompt =
 		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
 			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(

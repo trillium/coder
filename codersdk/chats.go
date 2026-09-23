@@ -1299,18 +1299,18 @@ type AIDeviceGrantInitiateResponse struct {
 // BYOK slot by the dashboard through the existing user-keys endpoint;
 // the grant runner itself never writes key material.
 type AIDeviceGrantPollResponse struct {
-	GrantID                 uuid.UUID          `json:"grant_id" format:"uuid"`
-	ProviderID              uuid.UUID          `json:"provider_id" format:"uuid"`
+	GrantID                 uuid.UUID           `json:"grant_id" format:"uuid"`
+	ProviderID              uuid.UUID           `json:"provider_id" format:"uuid"`
 	Status                  AIDeviceGrantStatus `json:"status"`
-	UserCode                string             `json:"user_code"`
-	VerificationURI         string             `json:"verification_uri"`
-	VerificationURIComplete string             `json:"verification_uri_complete,omitempty"`
-	ExpiresIn               int                `json:"expires_in"`
-	PollInterval            int                `json:"poll_interval"`
-	APIKey                  string             `json:"api_key,omitempty"`
-	StoresAccessTokenOnly   bool               `json:"stores_access_token_only"`
-	RefreshSupported        bool               `json:"refresh_supported"`
-	ReauthMessage           string             `json:"reauth_message"`
+	UserCode                string              `json:"user_code"`
+	VerificationURI         string              `json:"verification_uri"`
+	VerificationURIComplete string              `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int                 `json:"expires_in"`
+	PollInterval            int                 `json:"poll_interval"`
+	APIKey                  string              `json:"api_key,omitempty"`
+	StoresAccessTokenOnly   bool                `json:"stores_access_token_only"`
+	RefreshSupported        bool                `json:"refresh_supported"`
+	ReauthMessage           string              `json:"reauth_message"`
 }
 
 // UserChatProviderConfig is a summary of a provider that allows
@@ -1324,6 +1324,9 @@ type UserChatProviderConfig struct {
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
+	// DeviceFlowSupported mirrors UserAIProviderKeyConfig: whether the
+	// paved device-code sign-in is available for this provider.
+	DeviceFlowSupported bool `json:"device_flow_supported"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key

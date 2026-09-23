@@ -17,6 +17,7 @@ const createProvider = (
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
+	device_flow_supported: overrides.device_flow_supported ?? false,
 });
 
 const createModel = (
@@ -85,6 +86,7 @@ export const UserKeysDisabled: Story = {
 				provider: "openai",
 				display_name: "OpenAI",
 				byok_enabled: false,
+				device_flow_supported: false,
 				has_central_api_key_fallback: true,
 			}),
 		],
