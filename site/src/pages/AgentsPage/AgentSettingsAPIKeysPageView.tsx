@@ -1,14 +1,21 @@
 import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
-import { useId, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useEffect, useId, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
+	cancelUserDeviceGrant,
 	deleteUserChatProviderKey,
+	initiateUserDeviceGrant,
 	upsertUserChatProviderKey,
+	userAIDeviceGrant,
 } from "#/api/queries/chats";
-import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
+import type {
+	AIDeviceGrantInitiateResponse,
+	ChatModel,
+	UserChatProviderConfig,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -66,6 +73,223 @@ type ProviderKeyPanelProps = {
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
+};
+
+/**
+ * Paved device-code sign-in for one BYOK provider (ChatGPT first).
+ * The user approves the displayed code at the provider, this panel polls
+ * the grant, and the approved access token is saved through the same
+ * user-keys mutation as a pasted key. The token itself is never shown.
+ */
+const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
+	provider,
+}) => {
+	const queryClient = useQueryClient();
+	const [grant, setGrant] = useState<AIDeviceGrantInitiateResponse | null>(
+		null,
+	);
+	const [savedGrantId, setSavedGrantId] = useState<string | null>(null);
+
+	const initiateMutation = useMutation(initiateUserDeviceGrant(queryClient));
+	const cancelMutation = useMutation(cancelUserDeviceGrant());
+	const saveMutation = useMutation(upsertUserChatProviderKey(queryClient));
+
+	const pollQuery = useQuery({
+		...userAIDeviceGrant(
+			provider.provider_id,
+			grant?.grant_id ?? "",
+			Math.max((grant?.poll_interval ?? 5) * 1000, 1000),
+		),
+		enabled: grant !== null,
+		retry: false,
+	});
+
+	const status = pollQuery.data?.status;
+	const providerName = provider.display_name || provider.provider;
+
+	// Save exactly once when the grant authorizes, through the existing
+	// user-keys path so save/remove semantics stay identical to pasting.
+	useEffect(() => {
+		const apiKey = pollQuery.data?.api_key;
+		if (!grant || status !== "authorized" || !apiKey) {
+			return;
+		}
+		if (savedGrantId === grant.grant_id) {
+			return;
+		}
+		setSavedGrantId(grant.grant_id);
+		void (async () => {
+			try {
+				await saveMutation.mutateAsync({
+					providerConfigId: provider.provider_id,
+					req: { api_key: apiKey },
+				});
+				toast.success("Signed in. Personal key saved.");
+				setGrant(null);
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Error saving signed-in key."), {
+					description: getErrorDetail(error),
+				});
+				setSavedGrantId(null);
+			}
+		})();
+		// The save mutation intentionally stays out of the dependency list:
+		// it is stable per query client and must not re-trigger the save.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [grant, pollQuery.data, status, savedGrantId, provider.provider_id]);
+
+	const handleStart = async () => {
+		try {
+			const next = await initiateMutation.mutateAsync({
+				providerConfigId: provider.provider_id,
+			});
+			setSavedGrantId(null);
+			setGrant(next);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Error starting sign-in."), {
+				description: getErrorDetail(error),
+			});
+		}
+	};
+
+	const handleCancel = async () => {
+		if (grant) {
+			try {
+				await cancelMutation.mutateAsync({
+					providerConfigId: provider.provider_id,
+					grantId: grant.grant_id,
+				});
+			} catch {
+				// Already terminal server-side; still reset the panel.
+			}
+		}
+		setGrant(null);
+	};
+
+	if (!grant) {
+		return (
+			<div className="mt-6 flex flex-col gap-2 border-t border-solid border-border pt-6">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleStart}
+						disabled={initiateMutation.isPending}
+					>
+						<Spinner loading={initiateMutation.isPending} />
+						Sign in with {providerName}
+					</Button>
+				</div>
+				<p className="m-0 text-sm text-content-secondary">
+					Sign-in stores the provider&apos;s access token as your personal key.
+					Coder never refreshes it: when it expires, sign in again for a fresh
+					code.
+				</p>
+			</div>
+		);
+	}
+
+	const verificationUrl =
+		grant.verification_uri_complete || grant.verification_uri;
+	let statusLine: ReactNode;
+	if (pollQuery.isError) {
+		statusLine = (
+			<p className="m-0 text-sm text-content-secondary">
+				Could not reach the sign-in check. Keep this open and approve the code;
+				the check retries automatically.
+			</p>
+		);
+	} else {
+		switch (status) {
+			case "authorized":
+				statusLine = (
+					<p className="m-0 flex items-center gap-2 text-sm text-content-secondary">
+						<Spinner loading size="sm" />
+						Approved. Saving your personal key.
+					</p>
+				);
+				break;
+			case "expired":
+				statusLine = (
+					<p className="m-0 text-sm text-content-secondary">
+						{pollQuery.data?.reauth_message ??
+							"This code expired. Start a fresh sign-in for a new code."}
+					</p>
+				);
+				break;
+			case "denied":
+				statusLine = (
+					<p className="m-0 text-sm text-content-secondary">
+						Sign-in was denied at the provider. Start over to try again.
+					</p>
+				);
+				break;
+			case "canceled":
+				statusLine = (
+					<p className="m-0 text-sm text-content-secondary">
+						Sign-in was canceled. Start over to try again.
+					</p>
+				);
+				break;
+			default:
+				statusLine = (
+					<p className="m-0 flex items-center gap-2 text-sm text-content-secondary">
+						<Spinner loading size="sm" />
+						Waiting for approval. This check repeats every{" "}
+						{pollQuery.data?.poll_interval ?? grant.poll_interval} seconds until
+						the code expires.
+					</p>
+				);
+		}
+	}
+
+	const isTerminal =
+		status === "expired" || status === "denied" || status === "canceled";
+
+	return (
+		<div className="mt-6 flex flex-col gap-3 border-t border-solid border-border pt-6">
+			<p className="m-0 text-sm text-content-secondary">
+				Open{" "}
+				<a
+					href={verificationUrl}
+					target="_blank"
+					rel="noreferrer"
+					className="font-medium"
+				>
+					{grant.verification_uri}
+				</a>{" "}
+				and enter this code:
+			</p>
+			<p className="m-0 font-mono text-2xl font-semibold tracking-widest text-content-primary">
+				{grant.user_code}
+			</p>
+			{statusLine}
+			<div className="flex items-center gap-2">
+				{isTerminal ? (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleCancel}
+					>
+						Start over
+					</Button>
+				) : (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleCancel}
+						disabled={cancelMutation.isPending}
+					>
+						<Spinner loading={cancelMutation.isPending} />
+						Cancel sign-in
+					</Button>
+				)}
+			</div>
+		</div>
+	);
 };
 
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
@@ -231,6 +455,10 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 					</div>
 				</div>
 			</form>
+
+			{provider.device_flow_supported && provider.byok_enabled && (
+				<DeviceCodeSignIn provider={provider} />
+			)}
 
 			<div className="mt-6 flex flex-col gap-2">
 				<p className="m-0 text-sm font-medium text-content-primary">

@@ -2242,6 +2242,7 @@ export const userChatProviderConfigs = () => ({
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
+			device_flow_supported: config.device_flow_supported,
 		}));
 	},
 });
@@ -2275,6 +2276,60 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 		]);
 	},
+});
+
+export const TERMINAL_DEVICE_GRANT_STATUSES: readonly TypesGen.AIDeviceGrantStatus[] =
+	["authorized", "expired", "denied", "canceled"];
+
+export const isTerminalDeviceGrantStatus = (
+	status: TypesGen.AIDeviceGrantStatus,
+): boolean => TERMINAL_DEVICE_GRANT_STATUSES.includes(status);
+
+export const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
+	["ai", "device-grants", providerId, grantId] as const;
+
+/**
+ * Live poll for one device-code grant. Polling follows the interval the
+ * server returns and stops on terminal states; the panel restarts it by
+ * remounting on a fresh grant.
+ */
+export const userAIDeviceGrant = (
+	providerId: string,
+	grantId: string,
+	pollIntervalMs: number,
+) =>
+	queryOptions({
+		queryKey: userAIDeviceGrantKey(providerId, grantId),
+		queryFn: () => API.experimental.getUserAIDeviceGrant(providerId, grantId),
+		refetchInterval: ({ state }) => {
+			const status = state.data?.status;
+			if (!status || isTerminalDeviceGrantStatus(status)) {
+				return false;
+			}
+			// The server may raise the interval after slow_down; adopt it.
+			const serverInterval = (state.data?.poll_interval ?? 0) * 1000;
+			return Math.max(serverInterval, pollIntervalMs);
+		},
+		refetchIntervalInBackground: false,
+	});
+
+type InitiateUserDeviceGrantArgs = {
+	providerConfigId: string;
+};
+
+export const initiateUserDeviceGrant = (_queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId }: InitiateUserDeviceGrantArgs) =>
+		API.experimental.initiateUserAIDeviceGrant(providerConfigId),
+});
+
+export const cancelUserDeviceGrant = () => ({
+	mutationFn: ({
+		providerConfigId,
+		grantId,
+	}: {
+		providerConfigId: string;
+		grantId: string;
+	}) => API.experimental.cancelUserAIDeviceGrant(providerConfigId, grantId),
 });
 
 const invalidateChatConfigurationQueries = async (
