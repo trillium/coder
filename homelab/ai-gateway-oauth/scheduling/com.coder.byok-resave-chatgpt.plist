@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Per-user daily ChatGPT BYOK re-save. Install as
+     ~/Library/LaunchAgents/com.coder.byok-resave-chatgpt.plist, then:
+       launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.coder.byok-resave-chatgpt.plist
+     Runs as YOU, so Pi exports YOUR grant and Coder saves to YOUR user.
+     Replace HOMELAB_BIN with the checkout path holding byok-resave-chatgpt.sh.
+     Stdout/stderr go to the log paths below; the script never logs secrets. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.coder.byok-resave-chatgpt</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>HOMELAB_BIN/byok-resave-chatgpt.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/REPLACE_ME/Library/Logs/byok-resave-chatgpt.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/REPLACE_ME/Library/Logs/byok-resave-chatgpt.log</string>
+</dict>
+</plist>
