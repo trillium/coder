@@ -12171,6 +12171,140 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Initiate an AI provider device-code grant",
+                "operationId": "initiate-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIDeviceGrantInitiateResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Poll an AI provider device-code grant",
+                "operationId": "poll-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Device grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIDeviceGrantPollResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Cancel an AI provider device-code grant",
+                "operationId": "cancel-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Device grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
@@ -18161,6 +18295,104 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatConfig"
                 }
             }
+        },
+        "codersdk.AIDeviceGrantInitiateResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "poll_interval": {
+                    "type": "integer"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "stores_access_token_only": {
+                    "description": "StoresAccessTokenOnly and RefreshSupported document the no-refresh\nhonesty: Coder persists the access token from this sign-in as the\nBYOK user key and never refreshes it server-side. When the token\nexpires, re-auth is a fresh device-code round.",
+                    "type": "boolean"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                },
+                "verification_uri_complete": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIDeviceGrantPollResponse": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "poll_interval": {
+                    "type": "integer"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.AIDeviceGrantStatus"
+                },
+                "stores_access_token_only": {
+                    "type": "boolean"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                },
+                "verification_uri_complete": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIDeviceGrantStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "authorized",
+                "expired",
+                "denied",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "AIDeviceGrantStatusPending",
+                "AIDeviceGrantStatusAuthorized",
+                "AIDeviceGrantStatusExpired",
+                "AIDeviceGrantStatusDenied",
+                "AIDeviceGrantStatusCanceled"
+            ]
         },
         "codersdk.AIGatewayKey": {
             "type": "object",
@@ -30670,6 +30902,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "byok_enabled": {
+                    "type": "boolean"
+                },
+                "device_flow_supported": {
+                    "description": "DeviceFlowSupported reports whether the provider offers the paved\nin-dashboard device-code sign-in (ChatGPT first, provider-generic\nshape for later providers).",
                     "type": "boolean"
                 },
                 "has_provider_api_key": {

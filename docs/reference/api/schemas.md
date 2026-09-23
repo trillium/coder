@@ -1081,6 +1081,88 @@ title: Schemas
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
+## codersdk.AIDeviceGrantInitiateResponse
+
+```json
+{
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "poll_interval": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "stores_access_token_only": true,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Properties
+
+| Name                        | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                             |
+|-----------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `expires_in`                | integer | false    |              |                                                                                                                                                                                                                                                         |
+| `grant_id`                  | string  | false    |              |                                                                                                                                                                                                                                                         |
+| `poll_interval`             | integer | false    |              |                                                                                                                                                                                                                                                         |
+| `provider_id`               | string  | false    |              |                                                                                                                                                                                                                                                         |
+| `reauth_message`            | string  | false    |              |                                                                                                                                                                                                                                                         |
+| `refresh_supported`         | boolean | false    |              |                                                                                                                                                                                                                                                         |
+| `stores_access_token_only`  | boolean | false    |              | Stores access token only and RefreshSupported document the no-refresh honesty: Coder persists the access token from this sign-in as the BYOK user key and never refreshes it server-side. When the token expires, re-auth is a fresh device-code round. |
+| `user_code`                 | string  | false    |              |                                                                                                                                                                                                                                                         |
+| `verification_uri`          | string  | false    |              |                                                                                                                                                                                                                                                         |
+| `verification_uri_complete` | string  | false    |              |                                                                                                                                                                                                                                                         |
+
+## codersdk.AIDeviceGrantPollResponse
+
+```json
+{
+  "api_key": "string",
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "poll_interval": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "status": "pending",
+  "stores_access_token_only": true,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Properties
+
+| Name                        | Type                                                         | Required | Restrictions | Description |
+|-----------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `api_key`                   | string                                                       | false    |              |             |
+| `expires_in`                | integer                                                      | false    |              |             |
+| `grant_id`                  | string                                                       | false    |              |             |
+| `poll_interval`             | integer                                                      | false    |              |             |
+| `provider_id`               | string                                                       | false    |              |             |
+| `reauth_message`            | string                                                       | false    |              |             |
+| `refresh_supported`         | boolean                                                      | false    |              |             |
+| `status`                    | [codersdk.AIDeviceGrantStatus](#codersdkaidevicegrantstatus) | false    |              |             |
+| `stores_access_token_only`  | boolean                                                      | false    |              |             |
+| `user_code`                 | string                                                       | false    |              |             |
+| `verification_uri`          | string                                                       | false    |              |             |
+| `verification_uri_complete` | string                                                       | false    |              |             |
+
+## codersdk.AIDeviceGrantStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                 |
+|----------------------------------------------------------|
+| `authorized`, `canceled`, `denied`, `expired`, `pending` |
+
 ## codersdk.AIGatewayKey
 
 ```json
@@ -16686,6 +16768,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "byok_enabled": true,
+  "device_flow_supported": true,
   "has_provider_api_key": true,
   "has_user_api_key": true,
   "provider": {
@@ -16702,12 +16785,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                     | Required | Restrictions | Description |
-|------------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `byok_enabled`         | boolean                                                  | false    |              |             |
-| `has_provider_api_key` | boolean                                                  | false    |              |             |
-| `has_user_api_key`     | boolean                                                  | false    |              |             |
-| `provider`             | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |             |
+| Name                    | Type                                                     | Required | Restrictions | Description                                                                                                                                                       |
+|-------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `byok_enabled`          | boolean                                                  | false    |              |                                                                                                                                                                   |
+| `device_flow_supported` | boolean                                                  | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers). |
+| `has_provider_api_key`  | boolean                                                  | false    |              |                                                                                                                                                                   |
+| `has_user_api_key`      | boolean                                                  | false    |              |                                                                                                                                                                   |
+| `provider`              | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                   |
 
 ## codersdk.UserAISpendStatus
 

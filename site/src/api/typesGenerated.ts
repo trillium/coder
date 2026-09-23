@@ -326,6 +326,69 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/chats.go
+/**
+ * AIDeviceGrantInitiateResponse starts a device-code grant. It carries only
+ * display material (user code, verification URLs); key material never
+ * appears here.
+ */
+export interface AIDeviceGrantInitiateResponse {
+	readonly grant_id: string;
+	readonly provider_id: string;
+	readonly user_code: string;
+	readonly verification_uri: string;
+	readonly verification_uri_complete?: string;
+	readonly expires_in: number;
+	readonly poll_interval: number;
+	/**
+	 * StoresAccessTokenOnly and RefreshSupported document the no-refresh
+	 * honesty: Coder persists the access token from this sign-in as the
+	 * BYOK user key and never refreshes it server-side. When the token
+	 * expires, re-auth is a fresh device-code round.
+	 */
+	readonly stores_access_token_only: boolean;
+	readonly refresh_supported: boolean;
+	readonly reauth_message: string;
+}
+
+// From codersdk/chats.go
+/**
+ * AIDeviceGrantPollResponse reports grant status. APIKey is present only
+ * on authorized polls, only for the owning user, and is saved into the
+ * BYOK slot by the dashboard through the existing user-keys endpoint;
+ * the grant runner itself never writes key material.
+ */
+export interface AIDeviceGrantPollResponse {
+	readonly grant_id: string;
+	readonly provider_id: string;
+	readonly status: AIDeviceGrantStatus;
+	readonly user_code: string;
+	readonly verification_uri: string;
+	readonly verification_uri_complete?: string;
+	readonly expires_in: number;
+	readonly poll_interval: number;
+	readonly api_key?: string;
+	readonly stores_access_token_only: boolean;
+	readonly refresh_supported: boolean;
+	readonly reauth_message: string;
+}
+
+// From codersdk/chats.go
+export type AIDeviceGrantStatus =
+	| "authorized"
+	| "canceled"
+	| "denied"
+	| "expired"
+	| "pending";
+
+export const AIDeviceGrantStatuses: AIDeviceGrantStatus[] = [
+	"authorized",
+	"canceled",
+	"denied",
+	"expired",
+	"pending",
+];
+
 // From codersdk/aigatewaykeys.go
 /**
  * AIGatewayKey is a shared secret used by a standalone AI Gateway
@@ -531,9 +594,10 @@ export interface AIProviderKeyMutation {
  *
  * On the wire, settings serialize as a JSON object that always carries
  * _type and _version discriminator keys alongside the type-specific
- * fields. The custom (Un)MarshalJSON implementations on this type
- * handle the routing automatically; callers should never marshal the
- * concrete settings struct directly.
+ * fields. Bedrock settings may also carry upstream headers in the same
+ * object. The custom (Un)MarshalJSON implementations on this type handle
+ * the routing automatically; callers should never marshal the concrete
+ * settings struct directly.
  */
 export interface AIProviderSettings {}
 
@@ -10727,6 +10791,12 @@ export interface UserAIProviderKeyConfig {
 	readonly has_user_api_key: boolean;
 	readonly has_provider_api_key: boolean;
 	readonly byok_enabled: boolean;
+	/**
+	 * DeviceFlowSupported reports whether the provider offers the paved
+	 * in-dashboard device-code sign-in (ChatGPT first, provider-generic
+	 * shape for later providers).
+	 */
+	readonly device_flow_supported: boolean;
 }
 
 // From codersdk/aibridge.go

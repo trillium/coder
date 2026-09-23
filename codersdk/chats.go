@@ -1249,12 +1249,68 @@ type UserAIProviderKeyConfig struct {
 	HasUserAPIKey     bool              `json:"has_user_api_key"`
 	HasProviderAPIKey bool              `json:"has_provider_api_key"`
 	BYOKEnabled       bool              `json:"byok_enabled"`
+	// DeviceFlowSupported reports whether the provider offers the paved
+	// in-dashboard device-code sign-in (ChatGPT first, provider-generic
+	// shape for later providers).
+	DeviceFlowSupported bool `json:"device_flow_supported"`
 }
 
 // CreateUserAIProviderKeyRequest creates or replaces a user's API key
 // for an AI provider.
 type CreateUserAIProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
+}
+
+// AIDeviceGrantStatus is the lifecycle state of a user-scoped AI provider
+// device-code grant. Terminal states are authorized, expired, denied, and
+// canceled; only pending grants advance on poll.
+type AIDeviceGrantStatus string
+
+const (
+	AIDeviceGrantStatusPending    AIDeviceGrantStatus = "pending"
+	AIDeviceGrantStatusAuthorized AIDeviceGrantStatus = "authorized"
+	AIDeviceGrantStatusExpired    AIDeviceGrantStatus = "expired"
+	AIDeviceGrantStatusDenied     AIDeviceGrantStatus = "denied"
+	AIDeviceGrantStatusCanceled   AIDeviceGrantStatus = "canceled"
+)
+
+// AIDeviceGrantInitiateResponse starts a device-code grant. It carries only
+// display material (user code, verification URLs); key material never
+// appears here.
+type AIDeviceGrantInitiateResponse struct {
+	GrantID                 uuid.UUID `json:"grant_id" format:"uuid"`
+	ProviderID              uuid.UUID `json:"provider_id" format:"uuid"`
+	UserCode                string    `json:"user_code"`
+	VerificationURI         string    `json:"verification_uri"`
+	VerificationURIComplete string    `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int       `json:"expires_in"`
+	PollInterval            int       `json:"poll_interval"`
+	// StoresAccessTokenOnly and RefreshSupported document the no-refresh
+	// honesty: Coder persists the access token from this sign-in as the
+	// BYOK user key and never refreshes it server-side. When the token
+	// expires, re-auth is a fresh device-code round.
+	StoresAccessTokenOnly bool   `json:"stores_access_token_only"`
+	RefreshSupported      bool   `json:"refresh_supported"`
+	ReauthMessage         string `json:"reauth_message"`
+}
+
+// AIDeviceGrantPollResponse reports grant status. APIKey is present only
+// on authorized polls, only for the owning user, and is saved into the
+// BYOK slot by the dashboard through the existing user-keys endpoint;
+// the grant runner itself never writes key material.
+type AIDeviceGrantPollResponse struct {
+	GrantID                 uuid.UUID          `json:"grant_id" format:"uuid"`
+	ProviderID              uuid.UUID          `json:"provider_id" format:"uuid"`
+	Status                  AIDeviceGrantStatus `json:"status"`
+	UserCode                string             `json:"user_code"`
+	VerificationURI         string             `json:"verification_uri"`
+	VerificationURIComplete string             `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int                `json:"expires_in"`
+	PollInterval            int                `json:"poll_interval"`
+	APIKey                  string             `json:"api_key,omitempty"`
+	StoresAccessTokenOnly   bool               `json:"stores_access_token_only"`
+	RefreshSupported        bool               `json:"refresh_supported"`
+	ReauthMessage           string             `json:"reauth_message"`
 }
 
 // UserChatProviderConfig is a summary of a provider that allows
@@ -2050,6 +2106,54 @@ func (c *Client) DeleteUserAIProviderKey(ctx context.Context, user string, provi
 
 func userAIProviderKeysPath(user string) string {
 	return fmt.Sprintf("/api/v2/users/%s/ai-provider-keys", url.PathEscape(user))
+}
+
+func userAIDeviceGrantsPath(user string, providerID uuid.UUID) string {
+	return fmt.Sprintf("%s/%s/device-grants", userAIProviderKeysPath(user), providerID)
+}
+
+// InitiateUserAIDeviceGrant starts a device-code grant for the caller's own
+// provider key slot. The response carries display material only.
+func (c *Client) InitiateUserAIDeviceGrant(ctx context.Context, user string, providerID uuid.UUID) (AIDeviceGrantInitiateResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, userAIDeviceGrantsPath(user, providerID), nil)
+	if err != nil {
+		return AIDeviceGrantInitiateResponse{}, xerrors.Errorf("initiate user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return AIDeviceGrantInitiateResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIDeviceGrantInitiateResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// GetUserAIDeviceGrant polls a device-code grant owned by the caller.
+// On authorized polls the response carries the access token once for the
+// dashboard to save through UpsertUserAIProviderKey.
+func (c *Client) GetUserAIDeviceGrant(ctx context.Context, user string, providerID, grantID uuid.UUID) (AIDeviceGrantPollResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/%s", userAIDeviceGrantsPath(user, providerID), grantID), nil)
+	if err != nil {
+		return AIDeviceGrantPollResponse{}, xerrors.Errorf("get user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIDeviceGrantPollResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIDeviceGrantPollResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// CancelUserAIDeviceGrant cancels a device-code grant owned by the caller.
+func (c *Client) CancelUserAIDeviceGrant(ctx context.Context, user string, providerID, grantID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIDeviceGrantsPath(user, providerID), grantID), nil)
+	if err != nil {
+		return xerrors.Errorf("cancel user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ChatModels returns the chat model configs the caller can read in one

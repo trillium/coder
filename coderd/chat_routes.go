@@ -133,6 +133,13 @@ func (api *API) registerUserAIProviderKeyRoutes(r chi.Router) {
 	r.Route("/{aiProvider}", func(r chi.Router) {
 		r.Put("/", api.upsertUserAIProviderKey)
 		r.Delete("/", api.deleteUserAIProviderKey)
+		r.Route("/device-grants", func(r chi.Router) {
+			r.Post("/", api.postUserAIDeviceGrant)
+			r.Route("/{grant}", func(r chi.Router) {
+				r.Get("/", api.getUserAIDeviceGrant)
+				r.Delete("/", api.deleteUserAIDeviceGrant)
+			})
+		})
 	})
 }
 
