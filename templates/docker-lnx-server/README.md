@@ -6,7 +6,7 @@ serving `http://lnx-server:7080/`).
 
 It is the upstream `docker` starter template plus one host-specific fix:
 
-- `coder_access_host` variable (default `lnx-server.hippo-tilapia.ts.net`)
+- `coder_access_host` variable (default `lnx.hippo-tilapia.ts.net`)
   mapped to the Docker host gateway via an extra `host` block on
   `docker_container.workspace`. Plain bridge containers cannot resolve
   tailnet DNS names, so without this the workspace agent cannot download
