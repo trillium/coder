@@ -14,6 +14,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import gfm from "remark-gfm";
 import { Link } from "#/components/Link/Link";
+import { CodeBlock, CopyablePre } from "#/components/Markdown/CodeBlock";
 import {
 	Table,
 	TableBody,
@@ -65,26 +66,41 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					}
 					const firstChild = node.children[0];
 					// When pre is wrapping a code, the SyntaxHighlighter is already going
-					// to wrap it with a pre so we don't need it
+					// to wrap it with a pre so we don't need it. The code renderer
+					// already wrapped the output with a copy button, so pass it through.
 					if (firstChild.type === "element" && firstChild.tagName === "code") {
 						return children;
 					}
-					return <pre>{children}</pre>;
+					const staticText = childrenToText(children);
+					if (staticText !== null) {
+						return (
+							<CodeBlock code={staticText}>
+								<pre>{children}</pre>
+							</CodeBlock>
+						);
+					}
+					return (
+						<CopyablePre>
+							<pre>{children}</pre>
+						</CopyablePre>
+					);
 				},
 
 				code: ({ node, className, children, style, ref, ...restProps }) => {
 					const match = /language-(\w+)/.exec(className || "");
 
 					return match ? (
-						<SyntaxHighlighter
-							style={dracula}
-							language={match[1].toLowerCase() ?? "language-shell"}
-							useInlineStyles={false}
-							codeTagProps={{ style: {} }}
-							{...restProps} // Exclude 'ref' from being passed here
-						>
-							{String(children)}
-						</SyntaxHighlighter>
+						<CodeBlock code={childrenToCode(children)}>
+							<SyntaxHighlighter
+								style={dracula}
+								language={match[1].toLowerCase() ?? "language-shell"}
+								useInlineStyles={false}
+								codeTagProps={{ style: {} }}
+								{...restProps} // Exclude 'ref' from being passed here
+							>
+								{String(children)}
+							</SyntaxHighlighter>
+						</CodeBlock>
 					) : (
 						<code
 							className="rounded-sm bg-border px-1 py-px text-sm text-content-primary"
@@ -152,6 +168,44 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 };
 
 export const MemoizedMarkdown = memo(Markdown, isEqual);
+
+/**
+ * Normalizes rendered code children to the exact block text. Markdown code
+ * content arrives with a single trailing newline from the parser, which is
+ * not part of the block itself, so it is stripped for the copied value.
+ */
+function childrenToCode(children: ReactNode): string {
+	return String(children).replace(/\n$/, "");
+}
+
+/**
+ * Extracts plain text from rendered pre children when they are statically
+ * known. Returns null for rich element children, where the caller should
+ * fall back to reading the rendered DOM text at click time instead.
+ */
+function childrenToText(children: ReactNode): string | null {
+	if (typeof children === "string" || typeof children === "number") {
+		return String(children);
+	}
+	if (Array.isArray(children)) {
+		let text = "";
+		for (const child of children) {
+			if (typeof child === "string" || typeof child === "number") {
+				text += String(child);
+			} else if (
+				child === null ||
+				child === undefined ||
+				typeof child === "boolean"
+			) {
+				// Skip non-rendered children.
+			} else {
+				return null;
+			}
+		}
+		return text;
+	}
+	return null;
+}
 
 const githubFlavoredMarkdownAlertTypes = [
 	"tip",
