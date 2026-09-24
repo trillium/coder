@@ -21,11 +21,15 @@
   live `coder` CLI session against the control plane. Community-only
   features; no secrets in params; startup script is best-effort and must
   never block agent startup (package failures fall through).
-- **Status:** defined here, not yet pushed. To land it: copy this dir to
-  `/home/trillium/coder-templates/bootstrap-admin/` on lnx, then
-  `coder templates push bootstrap-admin --directory <that> --yes
-  --message "bootstrap admin workspace template"`. New template (not an
-  update), so `push` with a new name creates it.
+- **Status:** pushed to lnx 2026-09-24 (version `encouraging_yost24`) and
+  live as workspace `trillium-admin/bootstrap-admin` (Started,
+  agent healthy; git/gh/terraform/coder CLI verified, startup script
+  completed via `~/.bootstrap_done`). Host working copy
+  `/home/trillium/coder-templates/bootstrap-admin/` is md5-in-sync with
+  this dir. To land future versions: sync this dir to that host path,
+  then `coder templates push bootstrap-admin --directory <dir with
+  identical content> --yes --message "reason"` from any shell authed
+  to lnx (no `coder` CLI on lnx itself, so push from an authed Mac).
 
 ## Relationship to `docker-test`
 

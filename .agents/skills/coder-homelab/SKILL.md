@@ -77,7 +77,7 @@ never put secrets in `terraform.tfvars` or plain `--variable` values.
 coder create <name> --template <template> --parameter '...' --yes
 coder start|stop|restart <owner>/<name>
 coder delete <owner>/<name>   # confirm lifecycle ownership in the template README first
-coder ssh <owner>.<name>      # quote remote paths: bare ~ expands on the jump host
+coder ssh <workspace>[.<agent>]  # e.g. coder ssh bootstrap-admin.main; quote remote paths: bare ~ expands on the jump host
 ```
 
 Home volumes (`/home/coder`) persist across stop/start; anything outside

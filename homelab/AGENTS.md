@@ -49,12 +49,24 @@ control-plane-side and separate from the workspace agent.
 
 ## Live inventory (verified 2026-09-24)
 
-- **Template:** `docker-test` (org `coder`), version `auspicious_cole75` —
+- **Templates:** `docker-test` (org `coder`), version `auspicious_cole75` —
   upstream `docker` starter plus `coder_access_host` bridge-DNS fix.
   Canonical source: `homelab/templates/docker-test/` in this fork; working
   copy pushed from lnx: `/home/trillium/coder-templates/docker-test/`.
+- **Template:** `bootstrap-admin` (org `coder`), version
+  `encouraging_yost24` (pushed 2026-09-24) — same Docker base and DNS fix
+  as `docker-test`, plus admin startup script (git, gh, terraform 1.9.8,
+  Coder CLI, optional `config_repo_url` checkout). Canonical source:
+  `homelab/templates/bootstrap-admin/`; host working copy:
+  `/home/trillium/coder-templates/bootstrap-admin/` (md5-verified in sync
+  at push time). No `coder` CLI on lnx, so pushes run from an authed Mac
+  with identical content, not from the host path.
 - **Workspaces:** `trillium-admin/coder-inspect` and
-  `trillium-admin/deepseek-test` — both Started and agent-healthy.
+  `trillium-admin/deepseek-test` — both Started and agent-healthy — plus
+  `trillium-admin/bootstrap-admin` (first admin workspace, Started and
+  agent-healthy since 2026-09-24; tooling verified: git 2.55, gh 2.46,
+  terraform 1.9.8, coder CLI; `~/config` absent because no
+  `config_repo_url` was passed).
 - **Users:** `admin`, `trillium`, `trillium-admin`, `trillium-web` (all active).
 - **Other lnx containers (do not touch):** `pihole`, `open_crm-try-*`,
   `coder-admin-proof1`.
