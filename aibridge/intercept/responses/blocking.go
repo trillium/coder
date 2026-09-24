@@ -92,6 +92,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		return err
 	}
 
+	i.constrainToolChoice(ctx)
 	i.injectTools()
 
 	var (

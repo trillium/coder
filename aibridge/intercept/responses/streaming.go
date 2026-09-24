@@ -104,6 +104,8 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		return err
 	}
 
+	i.constrainToolChoice(ctx)
+
 	// Only injected tools let the inner agentic loop rerun upstream, which
 	// requires holding back everything but the final response so response.id
 	// stays consistent. Otherwise events are relayed as they arrive: buffering

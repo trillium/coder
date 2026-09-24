@@ -360,6 +360,105 @@ func TestDisableParallelToolCalls(t *testing.T) {
 	}
 }
 
+func TestConstrainToolChoice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		raw         []byte
+		wantExists  bool
+		wantValue   string
+		wantChanged bool
+	}{
+		{
+			name:       "absent is preserved",
+			raw:        []byte(`{"model":"gpt-4o","input":"hello"}`),
+			wantExists: false,
+		},
+		{
+			name:       "null is preserved",
+			raw:        []byte(`{"model":"gpt-4o","tool_choice":null}`),
+			wantExists: true,
+			wantValue:  "null",
+		},
+		{
+			name:       "auto is preserved",
+			raw:        []byte(`{"model":"gpt-4o","tool_choice":"auto"}`),
+			wantExists: true,
+			wantValue:  "auto",
+		},
+		{
+			name:        "none becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":"none"}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+		{
+			name:        "required becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":"required"}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+		{
+			name:        "named function choice becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":{"type":"function","name":"propose_title"}}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+		{
+			name:        "hosted tool choice becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":{"type":"web_search_preview"}}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+		{
+			name:        "non-string scalar becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":123}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+		{
+			name:        "array becomes auto",
+			raw:         []byte(`{"model":"gpt-4o","tool_choice":["auto"]}`),
+			wantExists:  true,
+			wantValue:   "auto",
+			wantChanged: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := mustPayload(t, tc.raw)
+			updated, changed, err := p.constrainToolChoice()
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantChanged, changed)
+			assert.True(t, json.Valid(updated), "constrain must produce valid JSON")
+
+			got := gjson.GetBytes(updated, "tool_choice")
+			assert.Equal(t, tc.wantExists, got.Exists())
+			if tc.wantExists {
+				if got.Type == gjson.Null {
+					assert.Equal(t, "null", tc.wantValue)
+				} else {
+					assert.Equal(t, tc.wantValue, got.String())
+				}
+				if !tc.wantChanged {
+					assert.EqualValues(t, tc.raw, updated)
+				}
+				// Rewrites must not disturb the rest of the payload.
+				assert.Equal(t, "gpt-4o", gjson.GetBytes(updated, "model").String())
+			}
+		})
+	}
+}
+
 func TestAppendInputItems(t *testing.T) {
 	t.Parallel()
 
