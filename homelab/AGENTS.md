@@ -9,7 +9,17 @@ upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
 
 - **Control plane:** Docker container `coder` on **lnx**
   (`100.81.88.113`, MagicDNS `lnx.hippo-tilapia.ts.net`).
-  Image `coder-keep:pre-url-fix-20260923`, restart policy `unless-stopped`.
+  Image `coder-keep:pre-mcp-allowlist-20260924` (committed 2026-09-24 from
+  `coder-keep:pre-url-fix-20260923`+19h live state; rollback of itself),
+  restart policy `unless-stopped`. Recreated 2026-09-24 to add
+  `CODER_MCP_ALLOWED_PRIVATE_CIDRs=100.64.0.0/10` (lets the chat backend
+  reach tailnet MCP servers through the SSRF guard). Rollback image and
+  host PGDATA backup: `/home/trillium/backups/coder-pgdata-20260924/`.
+  WARNING: postgres data lives in the container layer
+  (`/home/coder/.config/coderv2/postgres/data`), NOT the
+  `/var/lib/coder` mount — never `docker rm` the container without
+  `docker stop` + `docker commit` (or a `docker cp` backup) first.
+  A recreate from the base image serves stale baked-in Sept-19 data.
 - **Access URL:** `http://lnx.hippo-tilapia.ts.net:7080` (tailnet-only, no
   public ingress). `CODER_HTTP_ADDRESS=0.0.0.0:7080`.
 - **Version:** `v2.37.1-devel+70321bfd78` — a development build. There is no
