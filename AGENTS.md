@@ -91,3 +91,10 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 ## Local configuration
 
 Read `AGENTS.local.md` when present. It may be gitignored and is not imported automatically.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

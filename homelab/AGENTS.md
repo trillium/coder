@@ -9,7 +9,22 @@ upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
 
 - **Control plane:** Docker container `coder` on **lnx**
   (`100.81.88.113`, MagicDNS `lnx.hippo-tilapia.ts.net`).
-  Image `coder-keep:pre-url-fix-20260923`, restart policy `unless-stopped`.
+  Image `coder-keep:pre-oauth-deploy-20260924` (verified 2026-09-25,
+  buildinfo `v2.37.1-devel+70321bfd78`), restart policy `unless-stopped`.
+- **Entrypoint form differs by image lineage (diagnosed 2026-09-25,
+  task-dh2qn).** Fresh builds via `scripts/build_docker.sh`
+  (`scripts/Dockerfile:24`) bake `ENTRYPOINT ["/opt/coder", "server"]`,
+  so launch them with NO trailing command. `coder-keep:*` savepoints are
+  `docker commit`s of the running container and carry the split form
+  (`Entrypoint ["/opt/coder"]` + `Cmd ["server"]`), which is why live
+  `coder` runs with a trailing `server` arg. Copying that arg onto a fresh
+  image executes `/opt/coder server server` and fails with
+  `error: unrecognized subcommand "server"` (while `server --help` via
+  `--entrypoint /opt/coder` still works, which masks the cause). Safe
+  verify pattern: `docker run --rm --entrypoint /opt/coder <img> version`;
+  throwaway server proof: `docker run -d --name coder-test -p 17080:7080
+  -e CODER_ACCESS_URL=http://lnx.hippo-tilapia.ts.net:17080 <img>` (no
+  command), then `curl localhost:17080/api/v2/buildinfo`.
 - **Access URL:** `http://lnx.hippo-tilapia.ts.net:7080` (tailnet-only, no
   public ingress). `CODER_HTTP_ADDRESS=0.0.0.0:7080`.
 - **Version:** `v2.37.1-devel+70321bfd78` — a development build. There is no
