@@ -403,6 +403,9 @@ func (p *Server) aiGatewayProviderAuthForUser(
 		if xerrors.As(err, &reauth) {
 			return aiGatewayProviderAuth{}, err
 		}
+		if ctx.Err() != nil {
+			return aiGatewayProviderAuth{}, err
+		}
 		// Transient or otherwise non-terminal: proceed with the stored
 		// credential (same key, single attempt). The failure reason is
 		// already recorded on the row for the keys page.

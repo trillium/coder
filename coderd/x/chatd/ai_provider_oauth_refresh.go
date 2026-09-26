@@ -352,8 +352,8 @@ func postUserAIProviderRefresh(
 // parseUserAIProviderRefreshSuccess decodes a 200 refresh response. A
 // missing access token is transient (provider glitch, retry); a missing
 // refresh keeps the stored one (rotation best-effort); a missing or
-// non-positive expires_in persists NULL expiry, which disables further
-// refresh until the next successful rotation carries one. Account id is
+// non-positive expires_in leaves ExpiresAt zero so the caller preserves
+// the leased expiry and refresh stays armed. Account id is
 // re-derived from the new JWT when possible and carried otherwise: the
 // column is informational until header injection is measured, so a changed
 // token shape must not strand the request.

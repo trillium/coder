@@ -2198,7 +2198,7 @@ export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatModelsKey = [...chatConfigKey, "models"] as const;
+export const chatModelsKey = [...chatConfigKey, "models"] as const;
 
 export const organizationChatModelsKey = (organizationId: string) =>
 	[...chatModelsKey, organizationId] as const;

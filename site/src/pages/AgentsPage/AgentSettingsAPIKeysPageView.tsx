@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	cancelUserDeviceGrant,
+	chatModelsKey,
 	deleteUserChatProviderKey,
 	initiateUserDeviceGrant,
 	upsertUserChatProviderKey,
@@ -154,9 +155,12 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 		void (async () => {
 			try {
 				if (!apiKey) {
-					await queryClient.invalidateQueries({
-						queryKey: userChatProviderConfigsKey,
-					});
+					await Promise.all([
+						queryClient.invalidateQueries({
+							queryKey: userChatProviderConfigsKey,
+						}),
+						queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+					]);
 					toast.success("Signed in. Personal key saved.");
 					setGrant(null);
 					return;
