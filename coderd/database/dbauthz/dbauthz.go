@@ -1819,7 +1819,14 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int
 }
 
 func (q *querier) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
-	panic("not implemented")
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return q.db.AcquireUserAIProviderKeyRefreshLease(ctx, arg)
 }
 
 func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
@@ -7213,7 +7220,14 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 }
 
 func (q *querier) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg database.ReleaseUserAIProviderKeyRefreshLeaseParams) error {
-	panic("not implemented")
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return err
+	}
+	return q.db.ReleaseUserAIProviderKeyRefreshLease(ctx, arg)
 }
 
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
@@ -8329,7 +8343,14 @@ func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.Upda
 }
 
 func (q *querier) UpdateUserAIProviderKeyOAuth(ctx context.Context, arg database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
-	panic("not implemented")
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return q.db.UpdateUserAIProviderKeyOAuth(ctx, arg)
 }
 
 func (q *querier) UpdateUserAgentChatSendShortcut(ctx context.Context, arg database.UpdateUserAgentChatSendShortcutParams) (string, error) {
