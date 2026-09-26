@@ -178,10 +178,18 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 				setSavedGrantId(null);
 			}
 		})();
-		// The save mutation intentionally stays out of the dependency list:
-		// it is stable per query client and must not re-trigger the save.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [grant, pollQuery.data, status, savedGrantId, provider.provider_id]);
+		// queryClient and saveMutation.mutateAsync are stable per query
+		// client, so listing them keeps the effect exhaustive without
+		// re-triggering the save.
+	}, [
+		grant,
+		pollQuery.data,
+		status,
+		savedGrantId,
+		provider.provider_id,
+		queryClient,
+		saveMutation.mutateAsync,
+	]);
 
 	const handleStart = async () => {
 		try {
