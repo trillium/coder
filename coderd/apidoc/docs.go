@@ -18320,7 +18320,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "stores_access_token_only": {
-                    "description": "StoresAccessTokenOnly and RefreshSupported document the no-refresh\nhonesty: Coder persists the access token from this sign-in as the\nBYOK user key and never refreshes it server-side. When the token\nexpires, re-auth is a fresh device-code round.",
+                    "description": "StoresAccessTokenOnly and RefreshSupported document the refresh\nhonesty: Coder persists the full OAuth credential from this sign-in\nserver-side and refreshes it lazily per request. When refresh fails\nterminally, re-auth is a fresh device-code round.",
                     "type": "boolean"
                 },
                 "user_code": {
@@ -20379,6 +20379,7 @@ const docTemplate = `{
                 "timeout",
                 "stream_silence_timeout",
                 "auth",
+                "reauth_required",
                 "config",
                 "usage_limit",
                 "missing_key",
@@ -20394,6 +20395,7 @@ const docTemplate = `{
                 "ChatErrorKindTimeout",
                 "ChatErrorKindStreamSilenceTimeout",
                 "ChatErrorKindAuth",
+                "ChatErrorKindReauthRequired",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
@@ -30914,8 +30916,20 @@ const docTemplate = `{
                 "has_user_api_key": {
                     "type": "boolean"
                 },
+                "oauth_expiry": {
+                    "description": "OAuthExpiry is when the saved access token expires, when the key\ncame from an OAuth sign-in. Absent for pasted static keys.",
+                    "type": "string"
+                },
                 "provider": {
                     "$ref": "#/definitions/codersdk.AIProviderSummary"
+                },
+                "reauth_required": {
+                    "description": "ReauthRequired reports the saved OAuth credential died (terminal\nrefresh failure): exactly one re-auth prompt renders, reusing the\ndevice-code initiate path. The saved key is kept.",
+                    "type": "boolean"
+                },
+                "refresh_supported": {
+                    "description": "RefreshSupported reports the server refreshes this OAuth sign-in\nautomatically. It flips only when the refresher ships; a saved\nstatic key never refreshes.",
+                    "type": "boolean"
                 }
             }
         },

@@ -232,7 +232,7 @@ func aiDeviceAccountIDFromJWT(accessToken string) (string, error) {
 
 // aiDeviceExpiresInSeconds normalizes the provider expires_in field, which
 // may arrive as a number or a string, into whole seconds. Non-positive or
-// unparseable values report unknown (0): the caller persists NULL expiry
+// unparsable values report unknown (0): the caller persists NULL expiry
 // and attempts no refresh.
 func aiDeviceExpiresInSeconds(raw any) int {
 	switch v := raw.(type) {

@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -1206,11 +1207,12 @@ func TestAIGatewayProviderAuthForUserOAuthGate(t *testing.T) {
 		tokenServer := httptest.NewServer(tokenHandler)
 		t.Cleanup(tokenServer.Close)
 		return &Server{
-			db:                     mock,
-			allowBYOK:              true,
-			logger:                 slogtest.Make(t, nil),
-			oauthRefreshHTTPClient: tokenServer.Client(),
-			oauthRefreshTestConfig: &aiProviderOAuthConfig{clientID: "test-client", tokenURL: tokenServer.URL},
+			db:                          mock,
+			allowBYOK:                   true,
+			logger:                      slogtest.Make(t, nil),
+			aiProviderOAuthRefreshGroup: &singleflight.Group{},
+			oauthRefreshHTTPClient:      tokenServer.Client(),
+			oauthRefreshTestConfig:      &aiProviderOAuthConfig{clientID: "test-client", tokenURL: tokenServer.URL},
 		}
 	}
 

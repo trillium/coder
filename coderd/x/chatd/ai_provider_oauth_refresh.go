@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -103,6 +104,14 @@ func aiProviderOAuthNeedsRefresh(key database.UserAIProviderKey, now time.Time) 
 		return false
 	}
 	return !now.Add(aiProviderOAuthMinimumValidity).Before(key.OAuthExpiry.Time)
+}
+
+// oauthRefreshFlightGroup exposes the singleflight subset the refresh gate
+// needs, mirroring externalauth.SingleflightGroup so tests can inject a
+// join-notifying fake and wait for every caller to share one flight.
+// Production uses *singleflight.Group.
+type oauthRefreshFlightGroup interface {
+	DoChan(key string, fn func() (any, error)) <-chan singleflight.Result
 }
 
 // refreshUserAIProviderKeyIfNeeded is the lazy per-request refresh gate.
@@ -563,7 +572,7 @@ func aiDeviceRefreshAccountIDFromJWT(accessToken string) (string, error) {
 
 // aiDeviceRefreshExpiresInSeconds normalizes the provider expires_in field
 // into whole seconds. It mirrors aiDeviceExpiresInSeconds in
-// coderd/ai_provider_device_grants.go; non-positive or unparseable values
+// coderd/ai_provider_device_grants.go; non-positive or unparsable values
 // report unknown (0).
 func aiDeviceRefreshExpiresInSeconds(raw any) int {
 	switch v := raw.(type) {

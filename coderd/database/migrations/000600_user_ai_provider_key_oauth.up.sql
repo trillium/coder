@@ -16,7 +16,7 @@
 -- OAuth columns. Pool keys are static admin config with no user identity
 -- to attribute a refresh to; they keep failover semantics.
 --
--- Rolling upgrade: older replicas keep working. SELECTs use explicit
+-- Rolling upgrade: older replicas keep working. SELECT statements use explicit
 -- column lists so extra columns are ignored, and the extended Upsert only
 -- writes OAuth state when the writer carries it.
 

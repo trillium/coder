@@ -1100,18 +1100,18 @@ title: Schemas
 
 ### Properties
 
-| Name                        | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                             |
-|-----------------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `expires_in`                | integer | false    |              |                                                                                                                                                                                                                                                         |
-| `grant_id`                  | string  | false    |              |                                                                                                                                                                                                                                                         |
-| `poll_interval`             | integer | false    |              |                                                                                                                                                                                                                                                         |
-| `provider_id`               | string  | false    |              |                                                                                                                                                                                                                                                         |
-| `reauth_message`            | string  | false    |              |                                                                                                                                                                                                                                                         |
-| `refresh_supported`         | boolean | false    |              |                                                                                                                                                                                                                                                         |
-| `stores_access_token_only`  | boolean | false    |              | Stores access token only and RefreshSupported document the no-refresh honesty: Coder persists the access token from this sign-in as the BYOK user key and never refreshes it server-side. When the token expires, re-auth is a fresh device-code round. |
-| `user_code`                 | string  | false    |              |                                                                                                                                                                                                                                                         |
-| `verification_uri`          | string  | false    |              |                                                                                                                                                                                                                                                         |
-| `verification_uri_complete` | string  | false    |              |                                                                                                                                                                                                                                                         |
+| Name                        | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                  |
+|-----------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `expires_in`                | integer | false    |              |                                                                                                                                                                                                                                                              |
+| `grant_id`                  | string  | false    |              |                                                                                                                                                                                                                                                              |
+| `poll_interval`             | integer | false    |              |                                                                                                                                                                                                                                                              |
+| `provider_id`               | string  | false    |              |                                                                                                                                                                                                                                                              |
+| `reauth_message`            | string  | false    |              |                                                                                                                                                                                                                                                              |
+| `refresh_supported`         | boolean | false    |              |                                                                                                                                                                                                                                                              |
+| `stores_access_token_only`  | boolean | false    |              | Stores access token only and RefreshSupported document the refresh honesty: Coder persists the full OAuth credential from this sign-in server-side and refreshes it lazily per request. When refresh fails terminally, re-auth is a fresh device-code round. |
+| `user_code`                 | string  | false    |              |                                                                                                                                                                                                                                                              |
+| `verification_uri`          | string  | false    |              |                                                                                                                                                                                                                                                              |
+| `verification_uri_complete` | string  | false    |              |                                                                                                                                                                                                                                                              |
 
 ## codersdk.AIDeviceGrantPollResponse
 
@@ -2942,9 +2942,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                                                    |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileDownloadURLResponse
 
@@ -16771,6 +16771,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "device_flow_supported": true,
   "has_provider_api_key": true,
   "has_user_api_key": true,
+  "oauth_expiry": "string",
   "provider": {
     "deleted": true,
     "display_name": "string",
@@ -16779,19 +16780,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "type": "openai"
-  }
+  },
+  "reauth_required": true,
+  "refresh_supported": true
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                     | Required | Restrictions | Description                                                                                                                                                       |
-|-------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `byok_enabled`          | boolean                                                  | false    |              |                                                                                                                                                                   |
-| `device_flow_supported` | boolean                                                  | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers). |
-| `has_provider_api_key`  | boolean                                                  | false    |              |                                                                                                                                                                   |
-| `has_user_api_key`      | boolean                                                  | false    |              |                                                                                                                                                                   |
-| `provider`              | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                   |
+| Name                    | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
+|-------------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `byok_enabled`          | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `device_flow_supported` | boolean                                                  | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers).                     |
+| `has_provider_api_key`  | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `has_user_api_key`      | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `oauth_expiry`          | string                                                   | false    |              | Oauth expiry is when the saved access token expires, when the key came from an OAuth sign-in. Absent for pasted static keys.                                                          |
+| `provider`              | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                       |
+| `reauth_required`       | boolean                                                  | false    |              | Reauth required reports the saved OAuth credential died (terminal refresh failure): exactly one re-auth prompt renders, reusing the device-code initiate path. The saved key is kept. |
+| `refresh_supported`     | boolean                                                  | false    |              | Refresh supported reports the server refreshes this OAuth sign-in automatically. It flips only when the refresher ships; a saved static key never refreshes.                          |
 
 ## codersdk.UserAISpendStatus
 

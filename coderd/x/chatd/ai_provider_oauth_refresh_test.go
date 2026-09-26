@@ -16,6 +16,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -439,6 +440,49 @@ func TestAIProviderOAuthRefreshObservesPeerRefresh(t *testing.T) {
 	require.Equal(t, int32(1), endpoint.hits.Load(), "stale snapshot reuses the peer's refresh, no second exchange")
 }
 
+// joinNotifyingRefreshGroup is a test-only oauthRefreshFlightGroup that
+// reports duplicate joins, so collapse tests can wait until every caller
+// shares one flight before the leader proceeds. It mirrors the notifying
+// group in coderd/externalauth/externalauth_test.go.
+type joinNotifyingRefreshGroup struct {
+	mu     sync.Mutex
+	calls  map[string]*joinNotifiedRefreshCall
+	joined chan string
+}
+
+type joinNotifiedRefreshCall struct {
+	chans []chan<- singleflight.Result
+}
+
+func (g *joinNotifyingRefreshGroup) DoChan(key string, fn func() (any, error)) <-chan singleflight.Result {
+	ch := make(chan singleflight.Result, 1)
+	g.mu.Lock()
+	if g.calls == nil {
+		g.calls = make(map[string]*joinNotifiedRefreshCall)
+	}
+	if c, ok := g.calls[key]; ok {
+		c.chans = append(c.chans, ch)
+		g.mu.Unlock()
+		g.joined <- key
+		return ch
+	}
+	c := &joinNotifiedRefreshCall{chans: []chan<- singleflight.Result{ch}}
+	g.calls[key] = c
+	g.mu.Unlock()
+	go func() {
+		val, err := fn()
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		if g.calls[key] == c {
+			delete(g.calls, key)
+		}
+		for _, dst := range c.chans {
+			dst <- singleflight.Result{Val: val, Err: err, Shared: len(c.chans) > 1}
+		}
+	}()
+	return ch
+}
+
 func TestAIProviderOAuthRefreshSingleflightCollapse(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
@@ -451,11 +495,23 @@ func TestAIProviderOAuthRefreshSingleflightCollapse(t *testing.T) {
 		scriptedRefreshResponse{status: 200, body: refreshSuccessBody(t, refreshTestJWT(t, "acct-shared"), "refresh-shared", 3600)},
 	)
 
+	const callers = 10
+	// The leader's lease acquire waits until every caller has joined its
+	// flight, so the collapse does not depend on goroutine timing: without
+	// this the leader can finish before stragglers arrive and each starts
+	// its own flight.
+	group := &joinNotifyingRefreshGroup{joined: make(chan string, callers)}
+	proceed := make(chan struct{})
+
 	ctrl := gomock.NewController(t)
 	mockStore := dbmock.NewMockStore(ctrl)
 	leased := key
 	leased.RefreshLeaseExpiresAt = sql.NullTime{Time: now.Add(time.Minute), Valid: true}
-	mockStore.EXPECT().AcquireUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).Return(leased, nil).Times(1)
+	mockStore.EXPECT().AcquireUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+			<-proceed
+			return leased, nil
+		}).Times(1)
 	mockStore.EXPECT().UpdateUserAIProviderKeyOAuth(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
 			leased.APIKey = params.APIKey
@@ -467,16 +523,16 @@ func TestAIProviderOAuthRefreshSingleflightCollapse(t *testing.T) {
 	mockStore.EXPECT().ReleaseUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	server := &Server{
-		db:                     mockStore,
-		logger:                 testutil.Logger(t),
-		clock:                  clock,
-		oauthRefreshHTTPClient: endpoint.server.Client(),
+		db:                          mockStore,
+		logger:                      testutil.Logger(t),
+		clock:                       clock,
+		aiProviderOAuthRefreshGroup: group,
+		oauthRefreshHTTPClient:      endpoint.server.Client(),
 	}
 	// Point the (unexported) endpoint at the scripted server by injecting
 	// the provider through the gate with a test-only config override.
 	server.oauthRefreshTestConfig = &aiProviderOAuthConfig{clientID: "test-client", tokenURL: endpoint.server.URL}
 
-	const callers = 10
 	var wg sync.WaitGroup
 	results := make([]database.UserAIProviderKey, callers)
 	errs := make([]error, callers)
@@ -487,6 +543,16 @@ func TestAIProviderOAuthRefreshSingleflightCollapse(t *testing.T) {
 			results[i], errs[i] = server.refreshUserAIProviderKeyIfNeeded(ctx, provider, key)
 		}(i)
 	}
+	// Wait until the other nine callers have joined the leader's flight,
+	// then let the single exchange run: every caller must share it.
+	for i := 0; i < callers-1; i++ {
+		select {
+		case <-group.joined:
+		case <-time.After(testutil.IntervalMedium):
+			t.Fatal("timed out waiting for refresh callers to share one flight")
+		}
+	}
+	close(proceed)
 	wg.Wait()
 	for i := 0; i < callers; i++ {
 		require.NoError(t, errs[i])
