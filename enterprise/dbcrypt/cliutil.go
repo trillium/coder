@@ -195,7 +195,8 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		if strings.TrimSpace(key.APIKey) == "" {
 			continue
 		}
-		if key.ApiKeyKeyID.Valid && key.ApiKeyKeyID.String == ciphers[0].HexDigest() {
+		if key.ApiKeyKeyID.Valid && key.ApiKeyKeyID.String == ciphers[0].HexDigest() &&
+			(!key.OAuthRefreshTokenKeyID.Valid || key.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest()) {
 			log.Debug(ctx, "skipping user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			continue
 		}
@@ -203,6 +204,12 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			ID:          key.ID,
 			APIKey:      key.APIKey,
 			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+			// Rotation re-encrypts the OAuth refresh token under the new
+			// key too: GetUserAIProviderKeys above decrypted it, and the
+			// wrapper re-encrypts. Without this the credential would stay
+			// sealed under the revoked key.
+			OAuthRefreshToken:      key.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 		}); err != nil {
 			return xerrors.Errorf("update user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
 		}
@@ -394,7 +401,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 	log.Info(ctx, "decrypting user ai provider keys", slog.F("key_count", len(userAIProviderKeys)))
 	for idx, key := range userAIProviderKeys {
-		if !key.ApiKeyKeyID.Valid {
+		if !key.ApiKeyKeyID.Valid && !key.OAuthRefreshTokenKeyID.Valid {
 			log.Debug(ctx, "skipping user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 			continue
 		}
@@ -402,6 +409,9 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			ID:          key.ID,
 			APIKey:      key.APIKey,
 			ApiKeyKeyID: sql.NullString{}, // explicitly clear the key id
+			// The empty-primary hack above leaves this plaintext.
+			OAuthRefreshToken:      key.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // explicitly clear the key id
 		}); err != nil {
 			return xerrors.Errorf("decrypt user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
 		}
@@ -429,7 +439,8 @@ DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM user_ai_provider_keys
-	WHERE api_key_key_id IS NOT NULL;
+	WHERE api_key_key_id IS NOT NULL
+	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
 -- gitsshkeys has no delete path in product code: rows are inserted on

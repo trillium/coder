@@ -1818,6 +1818,17 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int
 	return q.db.AcquireStaleChatDiffStatuses(ctx, limitVal)
 }
 
+func (q *querier) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return q.db.AcquireUserAIProviderKeyRefreshLease(ctx, arg)
+}
+
 func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	fetch := func(ctx context.Context, arg database.ActivityBumpWorkspaceParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
@@ -7208,6 +7219,17 @@ func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg d
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.ReleaseExternalAuthLinkRefreshLease)(ctx, arg)
 }
 
+func (q *querier) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg database.ReleaseUserAIProviderKeyRefreshLeaseParams) error {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return err
+	}
+	return q.db.ReleaseUserAIProviderKeyRefreshLease(ctx, arg)
+}
+
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	// This is a system function to clear user groups in group sync.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -8318,6 +8340,17 @@ func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.Upda
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpdateUserAIProviderKeyOAuth(ctx context.Context, arg database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return q.db.UpdateUserAIProviderKeyOAuth(ctx, arg)
 }
 
 func (q *querier) UpdateUserAgentChatSendShortcut(ctx context.Context, arg database.UpdateUserAgentChatSendShortcutParams) (string, error) {

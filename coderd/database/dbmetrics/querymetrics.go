@@ -144,6 +144,14 @@ func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, lim
 	return r0, r1
 }
 
+func (m queryMetricsStore) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireUserAIProviderKeyRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireUserAIProviderKeyRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireUserAIProviderKeyRefreshLease").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	start := time.Now()
 	r0 := m.s.ActivityBumpWorkspace(ctx, arg)
@@ -5048,6 +5056,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg database.ReleaseUserAIProviderKeyRefreshLeaseParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseUserAIProviderKeyRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseUserAIProviderKeyRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseUserAIProviderKeyRefreshLease").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
@@ -5781,6 +5797,14 @@ func (m queryMetricsStore) UpdateUserAIProviderKey(ctx context.Context, arg data
 	r0, r1 := m.s.UpdateUserAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserAIProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserAIProviderKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserAIProviderKeyOAuth(ctx context.Context, arg database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserAIProviderKeyOAuth(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserAIProviderKeyOAuth").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserAIProviderKeyOAuth").Inc()
 	return r0, r1
 }
 

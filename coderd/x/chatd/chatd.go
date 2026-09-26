@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -215,6 +216,19 @@ type Server struct {
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
+
+	// aiProviderOAuthRefreshGroup collapses concurrent refreshes for one
+	// (provider, user) into a single exchange, mirroring the externalauth
+	// singleflight discipline. It is an interface so tests can inject a
+	// join-notifying fake; production sets a *singleflight.Group.
+	aiProviderOAuthRefreshGroup oauthRefreshFlightGroup
+	// oauthRefreshHTTPClient talks to the subscription provider token
+	// endpoint. Tests override it; production uses a 15s-timeout client.
+	oauthRefreshHTTPClient *http.Client
+	// oauthRefreshTestConfig overrides the provider token endpoint. Test
+	// seam only: production always resolves the endpoint from the
+	// provider row.
+	oauthRefreshTestConfig *aiProviderOAuthConfig
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -2971,13 +2985,14 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
 			return debugSvc
 		},
-		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
-		experiments:              cfg.Experiments,
-		inFlightChatStaleAfter:   inFlightChatStaleAfter,
-		streamSilenceTimeout:     streamSilenceTimeout,
-		usageTracker:             cfg.UsageTracker,
-		clock:                    clk,
-		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
+		aibridgeTransportFactory:    cfg.AIBridgeTransportFactory,
+		experiments:                 cfg.Experiments,
+		aiProviderOAuthRefreshGroup: &singleflight.Group{},
+		inFlightChatStaleAfter:      inFlightChatStaleAfter,
+		streamSilenceTimeout:        streamSilenceTimeout,
+		usageTracker:                cfg.UsageTracker,
+		clock:                       clk,
+		recordingSem:                make(chan struct{}, maxConcurrentRecordingUploads),
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {

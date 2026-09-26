@@ -132,6 +132,22 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(wrapped.classified)
 	}
 
+	// A dead saved OAuth credential survives the error surface as a typed
+	// re-auth signal: terminal, never retried, carrying provider identity
+	// for exactly-one-prompt rendering. It outranks generic auth
+	// classification so the UI can offer the device-code re-initiation
+	// path instead of a key check.
+	var reauth *ReauthRequiredError
+	if errors.As(err, &reauth) {
+		return normalizeClassification(ClassifiedError{
+			Kind:       codersdk.ChatErrorKindReauthRequired,
+			Provider:   reauth.ProviderName,
+			Retryable:  false,
+			StatusCode: 401,
+			Detail:     strings.TrimSpace(reauth.Cause),
+		})
+	}
+
 	structured := extractProviderErrorDetails(err)
 	message := strings.TrimSpace(err.Error())
 	if message == "" && structured.detail == "" && structured.statusCode == 0 && structured.retryAfter <= 0 {

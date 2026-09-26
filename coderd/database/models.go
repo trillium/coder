@@ -6271,6 +6271,20 @@ type UserAIProviderKey struct {
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	// OAuth refresh token for the subscription provider sign-in. Encrypted at rest via dbcrypt when oauth_refresh_token_key_id is set. NULL means static-secret behavior: use api_key as-is, attempt no refresh.
+	OAuthRefreshToken sql.NullString `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	// The ID of the key used to encrypt oauth_refresh_token. If this is NULL, the refresh token is not encrypted.
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	// When the current access token (api_key) expires, from the provider expires_in. NULL means unknown: no refresh is attempted.
+	OAuthExpiry sql.NullTime `db:"oauth_expiry" json:"oauth_expiry"`
+	// Provider account the tokens belong to, derived from the access JWT chatgpt_account_id claim. Re-derived on every refresh.
+	AccountID sql.NullString `db:"account_id" json:"account_id"`
+	// Opaque extra OAuth material from the provider token response. Reserved for forward use.
+	OAuthExtra pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	// Last refresh failure, transient or terminal. NULL means no failure recorded. A terminal failure (invalid_grant) also NULLs oauth_refresh_token.
+	OauthRefreshFailureReason sql.NullString `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
 type UserConfig struct {

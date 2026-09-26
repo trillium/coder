@@ -92,3 +92,15 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 ## Local configuration
 
 Read `AGENTS.local.md` when present. It may be gitignored and is not imported automatically.
+
+## Worktree toolchain notes
+
+- The `make` wrapper needs GNU tools on PATH: `export PATH="$(brew --prefix gnu-getopt)/bin:$(brew --prefix make)/libexec/gnubin:/opt/homebrew/opt/postgresql@16/bin:$PATH"`. Without them, bypass make: `go run ./coderd/database/gen/dump`, then `SKIP_DUMP_SQL=1 bash coderd/database/generate.sh`, then `go generate ./coderd/database/dbmock/`.
+- DB codegen order: migration SQL → `coderd/database/dump.sql` → sqlc (`generate.sh`) → `dbmock`. New `database.Store` methods also need `enterprise/dbcrypt/dbcrypt.go` wrappers when the column is encrypted.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

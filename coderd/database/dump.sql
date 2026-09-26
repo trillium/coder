@@ -787,6 +787,75 @@ $$;
 
 COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
 
+CREATE TABLE user_ai_provider_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    ai_provider_id uuid NOT NULL,
+    api_key text NOT NULL,
+    api_key_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_token text,
+    oauth_refresh_token_key_id text,
+    oauth_expiry timestamp with time zone,
+    account_id text,
+    oauth_extra jsonb,
+    oauth_refresh_failure_reason text,
+    refresh_lease_expires_at timestamp with time zone,
+    CONSTRAINT user_ai_provider_keys_api_key_check CHECK ((api_key <> ''::text))
+);
+
+COMMENT ON TABLE user_ai_provider_keys IS 'User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.';
+
+COMMENT ON COLUMN user_ai_provider_keys.api_key IS 'User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
+
+COMMENT ON COLUMN user_ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.';
+
+COMMENT ON COLUMN user_ai_provider_keys.oauth_refresh_token IS 'OAuth refresh token for the subscription provider sign-in. Encrypted at rest via dbcrypt when oauth_refresh_token_key_id is set. NULL means static-secret behavior: use api_key as-is, attempt no refresh.';
+
+COMMENT ON COLUMN user_ai_provider_keys.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt oauth_refresh_token. If this is NULL, the refresh token is not encrypted.';
+
+COMMENT ON COLUMN user_ai_provider_keys.oauth_expiry IS 'When the current access token (api_key) expires, from the provider expires_in. NULL means unknown: no refresh is attempted.';
+
+COMMENT ON COLUMN user_ai_provider_keys.account_id IS 'Provider account the tokens belong to, derived from the access JWT chatgpt_account_id claim. Re-derived on every refresh.';
+
+COMMENT ON COLUMN user_ai_provider_keys.oauth_extra IS 'Opaque extra OAuth material from the provider token response. Reserved for forward use.';
+
+COMMENT ON COLUMN user_ai_provider_keys.oauth_refresh_failure_reason IS 'Last refresh failure, transient or terminal. NULL means no failure recorded. A terminal failure (invalid_grant) also NULLs oauth_refresh_token.';
+
+COMMENT ON COLUMN user_ai_provider_keys.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+CREATE FUNCTION acquire_user_ai_provider_key_refresh_lease(arg_ai_provider_id uuid, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF user_ai_provider_keys
+    LANGUAGE plpgsql
+    AS $$
+DECLARE r user_ai_provider_keys;
+BEGIN
+	UPDATE user_ai_provider_keys
+	SET
+		refresh_lease_expires_at = NOW() + (timeout_ms || ' ms')::interval
+	WHERE
+		ai_provider_id = arg_ai_provider_id
+		AND user_id = arg_user_id
+		AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at < NOW())
+	RETURNING * INTO r;
+	-- Got the lease, return the one row.
+	IF FOUND THEN
+		RETURN NEXT r;
+		RETURN;
+	END IF;
+	-- Differentiate between unable to get the lease and the row being gone.
+	IF EXISTS (SELECT 1 FROM user_ai_provider_keys WHERE ai_provider_id = arg_ai_provider_id AND user_id = arg_user_id) THEN
+		RAISE EXCEPTION 'row is currently leased by another replica'
+			USING ERRCODE = 'check_violation',
+				CONSTRAINT = 'user_ai_provider_key_active_lease';
+	END IF;
+	-- Row is gone, return nothing.
+	RETURN;
+END;
+$$;
+
+COMMENT ON FUNCTION acquire_user_ai_provider_key_refresh_lease(arg_ai_provider_id uuid, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the user AI provider key and return the row. If there is already an active lease, an exception is raised.';
+
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -3424,23 +3493,6 @@ CREATE TABLE user_ai_budget_overrides (
 
 COMMENT ON TABLE user_ai_budget_overrides IS 'Per-user AI spend override that supersedes group budget resolution.';
 
-CREATE TABLE user_ai_provider_keys (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
-    ai_provider_id uuid NOT NULL,
-    api_key text NOT NULL,
-    api_key_key_id text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_ai_provider_keys_api_key_check CHECK ((api_key <> ''::text))
-);
-
-COMMENT ON TABLE user_ai_provider_keys IS 'User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.';
-
-COMMENT ON COLUMN user_ai_provider_keys.api_key IS 'User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
-
-COMMENT ON COLUMN user_ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.';
-
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
     key character varying(256) NOT NULL,
@@ -5420,6 +5472,9 @@ ALTER TABLE ONLY user_ai_provider_keys
 
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

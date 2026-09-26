@@ -391,6 +391,25 @@ func (p *Server) aiGatewayProviderAuthForUser(
 		}
 		return aiGatewayProviderAuth{}, xerrors.Errorf("get user AI provider key: %w", err)
 	}
+	// Lazy OAuth refresh gate. Rows without OAuth state (NULL refresh or
+	// NULL expiry) pass through exactly as before: the stored key is used
+	// as-is and no refresh is attempted. A terminal refresh failure
+	// returns the typed re-auth signal with no fallback: never a different
+	// credential, never an unauthenticated request. A transient failure
+	// keeps the stored credential and proceeds with it below.
+	userKey, err = p.refreshUserAIProviderKeyIfNeeded(ctx, provider, userKey)
+	if err != nil {
+		var reauth *chaterror.ReauthRequiredError
+		if xerrors.As(err, &reauth) {
+			return aiGatewayProviderAuth{}, err
+		}
+		if ctx.Err() != nil {
+			return aiGatewayProviderAuth{}, err
+		}
+		// Transient or otherwise non-terminal: proceed with the stored
+		// credential (same key, single attempt). The failure reason is
+		// already recorded on the row for the keys page.
+	}
 	apiKey := strings.TrimSpace(userKey.APIKey)
 	if apiKey == "" {
 		return aiGatewayProviderAuth{}, nil

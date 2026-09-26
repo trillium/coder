@@ -2,6 +2,9 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +24,18 @@ var errTestDeviceExchange = xerrors.New("test device exchange failure")
 // All key material below is throwaway and invalid. These tests never touch
 // live credentials, the keychain, or a real subscription provider.
 
+// testDeviceAccessJWT mints an unsigned throwaway JWT carrying the ChatGPT
+// account claim, shaped like a real subscription access token. It is
+// invalid as a credential and never leaves the test.
+func testDeviceAccessJWT(t testing.TB, accountID string) string {
+	t.Helper()
+	claims, err := json.Marshal(map[string]any{
+		"https://api.openai.com/auth": map[string]any{"chatgpt_account_id": accountID},
+	})
+	require.NoError(t, err)
+	return "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".c2ln"
+}
+
 // fakeAIDeviceExchanger scripts one grant's provider side.
 type fakeAIDeviceExchanger struct {
 	mu            sync.Mutex
@@ -30,13 +45,13 @@ type fakeAIDeviceExchanger struct {
 	requestErr    error
 	polls         []AIDevicePollOutcome
 	pollErr       error
-	exchangeToken string
+	exchangeGrant AIDeviceTokenGrant
 	exchangeErr   error
 	exchanges     int
 	pollCalls     int
 }
 
-func (f *fakeAIDeviceExchanger) RequestDeviceCode(_ context.Context) (string, string, int, error) {
+func (f *fakeAIDeviceExchanger) RequestDeviceCode(_ context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error) {
 	if f.requestErr != nil {
 		return "", "", 0, f.requestErr
 	}
@@ -58,14 +73,14 @@ func (f *fakeAIDeviceExchanger) PollDeviceToken(_ context.Context, _, _ string) 
 	return next, nil
 }
 
-func (f *fakeAIDeviceExchanger) ExchangeAuthorizationCode(_ context.Context, _, _ string) (string, error) {
+func (f *fakeAIDeviceExchanger) ExchangeAuthorizationCode(_ context.Context, _, _ string) (AIDeviceTokenGrant, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.exchanges++
 	if f.exchangeErr != nil {
-		return "", f.exchangeErr
+		return AIDeviceTokenGrant{}, f.exchangeErr
 	}
-	return f.exchangeToken, nil
+	return f.exchangeGrant, nil
 }
 
 func testChatGPTProvider() database.AIProvider {
@@ -93,11 +108,15 @@ func TestAIDeviceGrantLifecycle(t *testing.T) {
 	owner := uuid.New()
 	provider := testChatGPTProvider()
 	fake := &fakeAIDeviceExchanger{
-		deviceAuthID:  "test-device-auth-id",
-		userCode:      "ABCD-1234",
-		interval:      5,
-		polls:         []AIDevicePollOutcome{AIDeviceGrantPending(), AIDeviceGrantComplete("test-auth-code", "test-verifier")},
-		exchangeToken: "test-device-access-token",
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantPending(), AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken:  testDeviceAccessJWT(t, "acct-test-123"),
+			RefreshToken: "test-device-refresh-token", // #nosec G101 -- test fixture, not a credential.
+			ExpiresIn:    3600,
+		},
 	}
 	manager, clock := testDeviceManager(t, fake)
 
@@ -107,9 +126,9 @@ func TestAIDeviceGrantLifecycle(t *testing.T) {
 	initResp := aiDeviceGrantInitiateResponse(grant, clock.Now())
 	require.Equal(t, "ABCD-1234", initResp.UserCode)
 	require.Contains(t, initResp.VerificationURI, "auth.openai.com")
-	require.NotContains(t, initResp.VerificationURI, "test-device-access-token")
-	require.True(t, initResp.StoresAccessTokenOnly)
-	require.False(t, initResp.RefreshSupported)
+	require.NotContains(t, initResp.VerificationURI, "eyJhbGciOiJub25lIn0")
+	require.False(t, initResp.StoresAccessTokenOnly)
+	require.True(t, initResp.RefreshSupported)
 	require.NotEmpty(t, initResp.ReauthMessage)
 	require.Equal(t, 15*60, initResp.ExpiresIn)
 	require.Equal(t, 5, initResp.PollInterval)
@@ -122,10 +141,13 @@ func TestAIDeviceGrantLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.AIDeviceGrantStatusAuthorized, authorized.status)
 	require.Equal(t, 1, fake.exchanges)
+	require.Equal(t, "acct-test-123", authorized.oauth.AccountID)
+	require.Equal(t, "test-device-refresh-token", authorized.oauth.RefreshToken)
 	pollResp := aiDeviceGrantPollResponse(authorized, clock.Now())
-	require.Equal(t, "test-device-access-token", pollResp.APIKey)
-	require.True(t, pollResp.StoresAccessTokenOnly)
-	require.False(t, pollResp.RefreshSupported)
+	require.Equal(t, fake.exchangeGrant.AccessToken, pollResp.APIKey, "no persist hook: access token still rides the poll response")
+	require.NotContains(t, pollResp.APIKey, "test-device-refresh-token")
+	require.False(t, pollResp.StoresAccessTokenOnly)
+	require.True(t, pollResp.RefreshSupported)
 	require.NotEmpty(t, pollResp.ReauthMessage)
 
 	again, err := manager.poll(ctx, grant.id, owner)
@@ -263,12 +285,16 @@ func TestAIDeviceGrantExchangeRetry(t *testing.T) {
 	owner := uuid.New()
 	provider := testChatGPTProvider()
 	fake := &fakeAIDeviceExchanger{
-		deviceAuthID:  "test-device-auth-id",
-		userCode:      "ABCD-1234",
-		interval:      5,
-		polls:         []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
-		exchangeToken: "test-device-access-token",
-		exchangeErr:   errTestDeviceExchange,
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken:  testDeviceAccessJWT(t, "acct-test-123"),
+			RefreshToken: "test-device-refresh-token", // #nosec G101 -- test fixture, not a credential.
+			ExpiresIn:    3600,
+		},
+		exchangeErr: errTestDeviceExchange,
 	}
 	manager, _ := testDeviceManager(t, fake)
 
@@ -340,4 +366,236 @@ func TestAIDeviceGrantConfigSelection(t *testing.T) {
 	require.True(t, deviceFlowSupportedForProvider(database.AIProvider{Type: database.AIProviderTypeOpenai, Name: "chatgpt", Enabled: true}))
 	require.False(t, deviceFlowSupportedForProvider(database.AIProvider{Type: database.AIProviderTypeOpenai, Name: "chatgpt", Enabled: false}))
 	require.False(t, deviceFlowSupportedForProvider(database.AIProvider{Type: database.AIProviderTypeAnthropic, Name: "claude", Enabled: true}))
+}
+
+func TestAIDeviceGrantServerPersist(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	owner := uuid.New()
+	provider := testChatGPTProvider()
+	fake := &fakeAIDeviceExchanger{
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken:  testDeviceAccessJWT(t, "acct-persist-1"),
+			RefreshToken: "test-refresh-persist-1",
+			ExpiresIn:    3600,
+		},
+	}
+	manager, clock := testDeviceManager(t, fake)
+	var persisted []AIDeviceOAuthCredential
+	manager.SetPersistAuthorized(func(_ context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
+		require.Equal(t, owner, ownerID)
+		require.Equal(t, provider.ID, providerID)
+		persisted = append(persisted, cred)
+		return nil
+	})
+
+	grant, err := manager.initiate(ctx, owner, provider.ID, provider)
+	require.NoError(t, err)
+	authorized, err := manager.poll(ctx, grant.id, owner)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AIDeviceGrantStatusAuthorized, authorized.status)
+	require.True(t, authorized.persisted)
+	require.Empty(t, authorized.accessToken, "persisted grants carry no key material")
+
+	require.Len(t, persisted, 1)
+	require.Equal(t, fake.exchangeGrant.AccessToken, persisted[0].AccessToken)
+	require.Equal(t, "test-refresh-persist-1", persisted[0].RefreshToken)
+	require.Equal(t, "acct-persist-1", persisted[0].AccountID)
+	require.WithinDuration(t, clock.Now().Add(time.Hour), persisted[0].ExpiresAt, 5*time.Second)
+
+	pollResp := aiDeviceGrantPollResponse(authorized, clock.Now())
+	require.Empty(t, pollResp.APIKey, "persisted poll responses carry no key material")
+	require.NotContains(t, string(mustJSON(t, pollResp)), "test-refresh-persist-1", "refresh token never leaves the server")
+}
+
+func TestAIDeviceGrantPersistRetryWithoutReexchange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	owner := uuid.New()
+	provider := testChatGPTProvider()
+	fake := &fakeAIDeviceExchanger{
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken:  testDeviceAccessJWT(t, "acct-retry-1"),
+			RefreshToken: "test-refresh-retry-1",
+			ExpiresIn:    3600,
+		},
+	}
+	manager, _ := testDeviceManager(t, fake)
+	persistCalls := 0
+	persistErr := xerrors.New("test persist failure")
+	manager.SetPersistAuthorized(func(context.Context, uuid.UUID, uuid.UUID, AIDeviceOAuthCredential) error {
+		persistCalls++
+		return persistErr
+	})
+
+	grant, err := manager.initiate(ctx, owner, provider.ID, provider)
+	require.NoError(t, err)
+	pending, err := manager.poll(ctx, grant.id, owner)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AIDeviceGrantStatusPending, pending.status, "persist failure stays pending")
+	require.NotNil(t, pending.oauth, "exchanged triple is held for the retry")
+	require.Equal(t, 1, fake.exchanges)
+
+	persistErr = nil
+	authorized, err := manager.poll(ctx, grant.id, owner)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AIDeviceGrantStatusAuthorized, authorized.status)
+	require.Equal(t, 1, fake.exchanges, "the single-use code must not be re-exchanged")
+	require.Equal(t, 2, persistCalls)
+}
+
+func TestAIDeviceGrantAccessOnlyExchange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	owner := uuid.New()
+	provider := testChatGPTProvider()
+	fake := &fakeAIDeviceExchanger{
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken: testDeviceAccessJWT(t, "acct-access-only"),
+		},
+	}
+	manager, _ := testDeviceManager(t, fake)
+	var persisted []AIDeviceOAuthCredential
+	manager.SetPersistAuthorized(func(context.Context, uuid.UUID, uuid.UUID, AIDeviceOAuthCredential) error {
+		persisted = append(persisted, AIDeviceOAuthCredential{})
+		return nil
+	})
+
+	grant, err := manager.initiate(ctx, owner, provider.ID, provider)
+	require.NoError(t, err)
+	authorized, err := manager.poll(ctx, grant.id, owner)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AIDeviceGrantStatusAuthorized, authorized.status)
+	require.Empty(t, authorized.oauth.RefreshToken)
+	require.True(t, authorized.oauth.ExpiresAt.IsZero(), "unknown expiry persists as NULL")
+	require.Len(t, persisted, 1)
+}
+
+func TestAIDeviceGrantOpaqueTokenStaysPending(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	owner := uuid.New()
+	provider := testChatGPTProvider()
+	fake := &fakeAIDeviceExchanger{
+		deviceAuthID: "test-device-auth-id",
+		userCode:     "ABCD-1234",
+		interval:     5,
+		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
+		exchangeGrant: AIDeviceTokenGrant{
+			AccessToken:  "opaque-access-token",
+			RefreshToken: "opaque-refresh-token", // #nosec G101 -- test fixture, not a credential.
+			ExpiresIn:    3600,
+		},
+	}
+	manager, _ := testDeviceManager(t, fake)
+
+	grant, err := manager.initiate(ctx, owner, provider.ID, provider)
+	require.NoError(t, err)
+	pending, err := manager.poll(ctx, grant.id, owner)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AIDeviceGrantStatusPending, pending.status, "missing account claim never authorizes")
+	require.Nil(t, pending.oauth)
+}
+
+func TestAIDeviceAccountIDFromJWT(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		accountID, err := aiDeviceAccountIDFromJWT(testDeviceAccessJWT(t, "acct-abc"))
+		require.NoError(t, err)
+		require.Equal(t, "acct-abc", accountID)
+	})
+	t.Run("NotAJWT", func(t *testing.T) {
+		t.Parallel()
+		_, err := aiDeviceAccountIDFromJWT("opaque-token")
+		require.ErrorContains(t, err, "not a JWT")
+	})
+	t.Run("BadPayloadEncoding", func(t *testing.T) {
+		t.Parallel()
+		_, err := aiDeviceAccountIDFromJWT("eyJhbGciOiJub25lIn0.%%%.c2ln")
+		require.Error(t, err)
+	})
+	t.Run("MissingNamespace", func(t *testing.T) {
+		t.Parallel()
+		claims, err := json.Marshal(map[string]any{"sub": "user-1"})
+		require.NoError(t, err)
+		token := "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".c2ln"
+		_, err = aiDeviceAccountIDFromJWT(token)
+		require.ErrorContains(t, err, "claim namespace")
+	})
+	t.Run("MissingAccountID", func(t *testing.T) {
+		t.Parallel()
+		claims, err := json.Marshal(map[string]any{aiDeviceAuthClaimNamespace: map[string]any{}})
+		require.NoError(t, err)
+		token := "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".c2ln"
+		_, err = aiDeviceAccountIDFromJWT(token)
+		require.ErrorContains(t, err, "chatgpt_account_id")
+	})
+}
+
+func TestAIDeviceExpiresInSeconds(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, 3600, aiDeviceExpiresInSeconds(float64(3600)))
+	require.Equal(t, 3600, aiDeviceExpiresInSeconds(3600))
+	require.Equal(t, 3600, aiDeviceExpiresInSeconds(int64(3600)))
+	require.Equal(t, 3600, aiDeviceExpiresInSeconds("3600"))
+	require.Equal(t, 0, aiDeviceExpiresInSeconds(nil))
+	require.Equal(t, 0, aiDeviceExpiresInSeconds(-5))
+	require.Equal(t, 0, aiDeviceExpiresInSeconds("soon"))
+	require.Equal(t, 0, aiDeviceExpiresInSeconds(map[string]any{}))
+}
+
+func mustJSON(t testing.TB, v any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	require.NoError(t, err)
+	return raw
+}
+
+func TestUserAIProviderKeyOAuthSlots(t *testing.T) {
+	t.Parallel()
+	expiry := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+
+	oauthRow := database.UserAIProviderKey{
+		OAuthRefreshToken: sql.NullString{String: "refresh-live", Valid: true},
+		OAuthExpiry:       sql.NullTime{Time: expiry, Valid: true},
+	}
+	require.Equal(t, &expiry, userAIProviderKeyOAuthExpiry(oauthRow))
+	require.True(t, userAIProviderKeyRefreshSupported(oauthRow))
+	require.False(t, userAIProviderKeyReauthRequired(oauthRow))
+
+	transientRow := oauthRow
+	transientRow.OauthRefreshFailureReason = sql.NullString{String: "refresh failed with status 500", Valid: true}
+	require.False(t, userAIProviderKeyReauthRequired(transientRow), "transient failures never prompt")
+
+	terminalRow := database.UserAIProviderKey{
+		APIKey:                    "stale-access-token",
+		OauthRefreshFailureReason: sql.NullString{String: "invalid_grant", Valid: true},
+	}
+	require.Nil(t, userAIProviderKeyOAuthExpiry(terminalRow))
+	require.False(t, userAIProviderKeyRefreshSupported(terminalRow))
+	require.True(t, userAIProviderKeyReauthRequired(terminalRow), "terminal failure prompts exactly the re-auth signal")
+
+	staticRow := database.UserAIProviderKey{APIKey: "static-key"}
+	require.Nil(t, userAIProviderKeyOAuthExpiry(staticRow))
+	require.False(t, userAIProviderKeyRefreshSupported(staticRow))
+	require.False(t, userAIProviderKeyReauthRequired(staticRow))
+
+	missingRow := database.UserAIProviderKey{}
+	require.Nil(t, userAIProviderKeyOAuthExpiry(missingRow))
+	require.False(t, userAIProviderKeyRefreshSupported(missingRow))
+	require.False(t, userAIProviderKeyReauthRequired(missingRow))
 }

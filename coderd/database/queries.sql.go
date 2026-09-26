@@ -29794,6 +29794,41 @@ func (q *sqlQuerier) UsageEventExistsByID(ctx context.Context, id string) (bool,
 	return column_1, err
 }
 
+const acquireUserAIProviderKeyRefreshLease = `-- name: AcquireUserAIProviderKeyRefreshLease :one
+SELECT id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at FROM acquire_user_ai_provider_key_refresh_lease($1, $2, $3)
+`
+
+type AcquireUserAIProviderKeyRefreshLeaseParams struct {
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	TimeoutMs    int64     `db:"timeout_ms" json:"timeout_ms"`
+}
+
+// Set the lease to expire according to the provided timeout. If there is
+// already a lease, an exception is raised. Mirrors
+// AcquireExternalAuthLinkRefreshLease.
+func (q *sqlQuerier) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg AcquireUserAIProviderKeyRefreshLeaseParams) (UserAIProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, acquireUserAIProviderKeyRefreshLease, arg.AIProviderID, arg.UserID, arg.TimeoutMs)
+	var i UserAIProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
+	)
+	return i, err
+}
+
 const deleteUserAIProviderKey = `-- name: DeleteUserAIProviderKey :exec
 DELETE FROM
     user_ai_provider_keys
@@ -29826,7 +29861,7 @@ func (q *sqlQuerier) DeleteUserAIProviderKeysByProviderID(ctx context.Context, a
 
 const getUserAIProviderKeyByProviderID = `-- name: GetUserAIProviderKeyByProviderID :one
 SELECT
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     user_ai_provider_keys
 WHERE
@@ -29850,13 +29885,20 @@ func (q *sqlQuerier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg G
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
 
 const getUserAIProviderKeys = `-- name: GetUserAIProviderKeys :many
 SELECT
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     user_ai_provider_keys
 ORDER BY
@@ -29885,6 +29927,13 @@ func (q *sqlQuerier) GetUserAIProviderKeys(ctx context.Context) ([]UserAIProvide
 			&i.ApiKeyKeyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OAuthRefreshToken,
+			&i.OAuthRefreshTokenKeyID,
+			&i.OAuthExpiry,
+			&i.AccountID,
+			&i.OAuthExtra,
+			&i.OauthRefreshFailureReason,
+			&i.RefreshLeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -29901,7 +29950,7 @@ func (q *sqlQuerier) GetUserAIProviderKeys(ctx context.Context) ([]UserAIProvide
 
 const getUserAIProviderKeysByUserID = `-- name: GetUserAIProviderKeysByUserID :many
 SELECT
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 FROM
     user_ai_provider_keys
 WHERE
@@ -29929,6 +29978,13 @@ func (q *sqlQuerier) GetUserAIProviderKeysByUserID(ctx context.Context, userID u
 			&i.ApiKeyKeyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OAuthRefreshToken,
+			&i.OAuthRefreshTokenKeyID,
+			&i.OAuthExpiry,
+			&i.AccountID,
+			&i.OAuthExtra,
+			&i.OauthRefreshFailureReason,
+			&i.RefreshLeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -29943,27 +29999,60 @@ func (q *sqlQuerier) GetUserAIProviderKeysByUserID(ctx context.Context, userID u
 	return items, nil
 }
 
+const releaseUserAIProviderKeyRefreshLease = `-- name: ReleaseUserAIProviderKeyRefreshLease :exec
+UPDATE
+    user_ai_provider_keys
+SET
+    refresh_lease_expires_at = NULL
+WHERE
+    ai_provider_id = $1
+    AND user_id = $2
+    AND refresh_lease_expires_at = $3
+`
+
+type ReleaseUserAIProviderKeyRefreshLeaseParams struct {
+	AIProviderID          uuid.UUID    `db:"ai_provider_id" json:"ai_provider_id"`
+	UserID                uuid.UUID    `db:"user_id" json:"user_id"`
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+}
+
+// The lease is only removed if it is the current lease.
+func (q *sqlQuerier) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg ReleaseUserAIProviderKeyRefreshLeaseParams) error {
+	_, err := q.db.ExecContext(ctx, releaseUserAIProviderKeyRefreshLease, arg.AIProviderID, arg.UserID, arg.RefreshLeaseExpiresAt)
+	return err
+}
+
 const updateEncryptedUserAIProviderKey = `-- name: UpdateEncryptedUserAIProviderKey :one
 UPDATE
     user_ai_provider_keys
 SET
     api_key = $1::text,
     api_key_key_id = $2::text,
+    oauth_refresh_token = $3::text,
+    oauth_refresh_token_key_id = $4::text,
     updated_at = NOW()
 WHERE
-    id = $3::uuid
+    id = $5::uuid
 RETURNING
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpdateEncryptedUserAIProviderKeyParams struct {
-	APIKey      string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	APIKey                 string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID            sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	OAuthRefreshToken      sql.NullString `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	ID                     uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, updateEncryptedUserAIProviderKey, arg.APIKey, arg.ApiKeyKeyID, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateEncryptedUserAIProviderKey,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.ID,
+	)
 	var i UserAIProviderKey
 	err := row.Scan(
 		&i.ID,
@@ -29973,6 +30062,13 @@ func (q *sqlQuerier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg U
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
@@ -29988,7 +30084,7 @@ WHERE
     user_id = $3::uuid
     AND ai_provider_id = $4::uuid
 RETURNING
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpdateUserAIProviderKeyParams struct {
@@ -30014,6 +30110,93 @@ func (q *sqlQuerier) UpdateUserAIProviderKey(ctx context.Context, arg UpdateUser
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
+	)
+	return i, err
+}
+
+const updateUserAIProviderKeyOAuth = `-- name: UpdateUserAIProviderKeyOAuth :one
+UPDATE
+    user_ai_provider_keys
+SET
+    updated_at = NOW(),
+    api_key = $1::text,
+    api_key_key_id = $2::text,
+    oauth_refresh_token = $3::text,
+    oauth_refresh_token_key_id = $4::text,
+    oauth_expiry = $5::timestamptz,
+    account_id = $6::text,
+    oauth_extra = $7::jsonb,
+    oauth_refresh_failure_reason = $8::text
+WHERE
+    user_id = $9::uuid
+    AND ai_provider_id = $10::uuid
+    AND (
+        refresh_lease_expires_at = $11::timestamptz
+        OR $11::timestamptz IS NULL
+    )
+RETURNING
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
+`
+
+type UpdateUserAIProviderKeyOAuthParams struct {
+	APIKey                    string                `db:"api_key" json:"api_key"`
+	ApiKeyKeyID               sql.NullString        `db:"api_key_key_id" json:"api_key_key_id"`
+	OAuthRefreshToken         sql.NullString        `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID    sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry               sql.NullTime          `db:"oauth_expiry" json:"oauth_expiry"`
+	AccountID                 sql.NullString        `db:"account_id" json:"account_id"`
+	OAuthExtra                pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	OauthRefreshFailureReason sql.NullString        `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	UserID                    uuid.UUID             `db:"user_id" json:"user_id"`
+	AIProviderID              uuid.UUID             `db:"ai_provider_id" json:"ai_provider_id"`
+	RefreshLeaseExpiresAt     sql.NullTime          `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+}
+
+// UpdateUserAIProviderKeyOAuth writes the rotated OAuth credential triple
+// (and failure bookkeeping) under the refresh lease. If a refresh lease
+// is provided, the row is only updated if the lease matches, mirroring
+// UpdateExternalAuthLink. Rotation persist MUST happen before the new
+// access token is used: refresh rotates both tokens, so writing after the
+// request risks losing the new refresh token on a crash and permanently
+// breaking the credential. A terminal failure (invalid_grant) passes NULL
+// refresh material to take the down-path back to static-secret behavior.
+func (q *sqlQuerier) UpdateUserAIProviderKeyOAuth(ctx context.Context, arg UpdateUserAIProviderKeyOAuthParams) (UserAIProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateUserAIProviderKeyOAuth,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.OAuthExpiry,
+		arg.AccountID,
+		arg.OAuthExtra,
+		arg.OauthRefreshFailureReason,
+		arg.UserID,
+		arg.AIProviderID,
+		arg.RefreshLeaseExpiresAt,
+	)
+	var i UserAIProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
@@ -30025,6 +30208,12 @@ INSERT INTO user_ai_provider_keys (
     ai_provider_id,
     api_key,
     api_key_key_id,
+    oauth_refresh_token,
+    oauth_refresh_token_key_id,
+    oauth_expiry,
+    account_id,
+    oauth_extra,
+    oauth_refresh_failure_reason,
     created_at,
     updated_at
 ) VALUES (
@@ -30033,31 +30222,55 @@ INSERT INTO user_ai_provider_keys (
     $3::uuid,
     $4::text,
     $5::text,
-    $6::timestamptz,
-    $7::timestamptz
+    $6::text,
+    $7::text,
+    $8::timestamptz,
+    $9::text,
+    $10::jsonb,
+    $11::text,
+    $12::timestamptz,
+    $13::timestamptz
 )
 ON CONFLICT (user_id, ai_provider_id) DO UPDATE
 SET
     api_key = EXCLUDED.api_key,
     api_key_key_id = EXCLUDED.api_key_key_id,
+    oauth_refresh_token = EXCLUDED.oauth_refresh_token,
+    oauth_refresh_token_key_id = EXCLUDED.oauth_refresh_token_key_id,
+    oauth_expiry = EXCLUDED.oauth_expiry,
+    account_id = EXCLUDED.account_id,
+    oauth_extra = EXCLUDED.oauth_extra,
+    oauth_refresh_failure_reason = EXCLUDED.oauth_refresh_failure_reason,
     updated_at = EXCLUDED.updated_at
 RETURNING
-    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at, oauth_refresh_token, oauth_refresh_token_key_id, oauth_expiry, account_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpsertUserAIProviderKeyParams struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	AIProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
-	APIKey       string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID  sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+	ID                        uuid.UUID             `db:"id" json:"id"`
+	UserID                    uuid.UUID             `db:"user_id" json:"user_id"`
+	AIProviderID              uuid.UUID             `db:"ai_provider_id" json:"ai_provider_id"`
+	APIKey                    string                `db:"api_key" json:"api_key"`
+	ApiKeyKeyID               sql.NullString        `db:"api_key_key_id" json:"api_key_key_id"`
+	OAuthRefreshToken         sql.NullString        `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID    sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry               sql.NullTime          `db:"oauth_expiry" json:"oauth_expiry"`
+	AccountID                 sql.NullString        `db:"account_id" json:"account_id"`
+	OAuthExtra                pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	OauthRefreshFailureReason sql.NullString        `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	CreatedAt                 time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                 time.Time             `db:"updated_at" json:"updated_at"`
 }
 
 // UpsertUserAIProviderKey preserves the original id and created_at when the
 // user/provider pair already exists. On conflict, callers provide id and
 // created_at for the insert path only.
+//
+// OAuth columns overwrite wholesale (NULL clears): a pasted/static replace
+// carries no OAuth material and drops OAuth state by definition, while the
+// server-side device-grant approval path carries the full triple. The
+// dashboard no longer PUTs after a server-persisted grant, so a
+// server-persisted refresh token cannot be wiped by a lagging PUT.
 func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIProviderKey,
 		arg.ID,
@@ -30065,6 +30278,12 @@ func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUser
 		arg.AIProviderID,
 		arg.APIKey,
 		arg.ApiKeyKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.OAuthExpiry,
+		arg.AccountID,
+		arg.OAuthExtra,
+		arg.OauthRefreshFailureReason,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -30077,6 +30296,13 @@ func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUser
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OAuthRefreshToken,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExpiry,
+		&i.AccountID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }

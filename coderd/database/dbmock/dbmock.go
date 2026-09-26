@@ -118,6 +118,21 @@ func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, limitVal any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, limitVal)
 }
 
+// AcquireUserAIProviderKeyRefreshLease mocks base method.
+func (m *MockStore) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireUserAIProviderKeyRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireUserAIProviderKeyRefreshLease indicates an expected call of AcquireUserAIProviderKeyRefreshLease.
+func (mr *MockStoreMockRecorder) AcquireUserAIProviderKeyRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireUserAIProviderKeyRefreshLease", reflect.TypeOf((*MockStore)(nil).AcquireUserAIProviderKeyRefreshLease), ctx, arg)
+}
+
 // ActivityBumpWorkspace mocks base method.
 func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
@@ -9593,6 +9608,20 @@ func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
 }
 
+// ReleaseUserAIProviderKeyRefreshLease mocks base method.
+func (m *MockStore) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg database.ReleaseUserAIProviderKeyRefreshLeaseParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseUserAIProviderKeyRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseUserAIProviderKeyRefreshLease indicates an expected call of ReleaseUserAIProviderKeyRefreshLease.
+func (mr *MockStoreMockRecorder) ReleaseUserAIProviderKeyRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseUserAIProviderKeyRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseUserAIProviderKeyRefreshLease), ctx, arg)
+}
+
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10930,6 +10959,21 @@ func (m *MockStore) UpdateUserAIProviderKey(ctx context.Context, arg database.Up
 func (mr *MockStoreMockRecorder) UpdateUserAIProviderKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateUserAIProviderKey), ctx, arg)
+}
+
+// UpdateUserAIProviderKeyOAuth mocks base method.
+func (m *MockStore) UpdateUserAIProviderKeyOAuth(ctx context.Context, arg database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserAIProviderKeyOAuth", ctx, arg)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserAIProviderKeyOAuth indicates an expected call of UpdateUserAIProviderKeyOAuth.
+func (mr *MockStoreMockRecorder) UpdateUserAIProviderKeyOAuth(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAIProviderKeyOAuth", reflect.TypeOf((*MockStore)(nil).UpdateUserAIProviderKeyOAuth), ctx, arg)
 }
 
 // UpdateUserAgentChatSendShortcut mocks base method.

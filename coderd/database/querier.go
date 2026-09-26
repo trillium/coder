@@ -40,6 +40,10 @@ type sqlcQuerier interface {
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error)
+	// Set the lease to expire according to the provided timeout. If there is
+	// already a lease, an exception is raised. Mirrors
+	// AcquireExternalAuthLinkRefreshLease.
+	AcquireUserAIProviderKeyRefreshLease(ctx context.Context, arg AcquireUserAIProviderKeyRefreshLeaseParams) (UserAIProviderKey, error)
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
@@ -1380,6 +1384,8 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	// The lease is only removed if it is the current lease.
+	ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, arg ReleaseUserAIProviderKeyRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
@@ -1598,6 +1604,15 @@ type sqlcQuerier interface {
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error
 	UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAIProviderKey, error)
+	// UpdateUserAIProviderKeyOAuth writes the rotated OAuth credential triple
+	// (and failure bookkeeping) under the refresh lease. If a refresh lease
+	// is provided, the row is only updated if the lease matches, mirroring
+	// UpdateExternalAuthLink. Rotation persist MUST happen before the new
+	// access token is used: refresh rotates both tokens, so writing after the
+	// request risks losing the new refresh token on a crash and permanently
+	// breaking the credential. A terminal failure (invalid_grant) passes NULL
+	// refresh material to take the down-path back to static-secret behavior.
+	UpdateUserAIProviderKeyOAuth(ctx context.Context, arg UpdateUserAIProviderKeyOAuthParams) (UserAIProviderKey, error)
 	UpdateUserAgentChatSendShortcut(ctx context.Context, arg UpdateUserAgentChatSendShortcutParams) (string, error)
 	UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error)
 	UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error)
@@ -1746,6 +1761,12 @@ type sqlcQuerier interface {
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and
 	// created_at for the insert path only.
+	//
+	// OAuth columns overwrite wholesale (NULL clears): a pasted/static replace
+	// carries no OAuth material and drops OAuth state by definition, while the
+	// server-side device-grant approval path carries the full triple. The
+	// dashboard no longer PUTs after a server-persisted grant, so a
+	// server-persisted refresh token cannot be wiped by a lagging PUT.
 	UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAIProviderKey, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
