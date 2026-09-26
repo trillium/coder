@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"sync"
 	"testing"
 	"time"
 
@@ -25,7 +24,6 @@ import (
 
 // scriptedBrowserExchanger serves one scripted token endpoint per test.
 type scriptedBrowserExchanger struct {
-	mu            sync.Mutex
 	exchangeGrant coderd.AIDeviceTokenGrant
 }
 
