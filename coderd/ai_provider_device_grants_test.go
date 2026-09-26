@@ -64,7 +64,7 @@ func scriptedTokenGrant(t testing.TB, accountID string) coderd.AIDeviceTokenGran
 	t.Helper()
 	return coderd.AIDeviceTokenGrant{
 		AccessToken:  scriptedAccessJWT(t, accountID),
-		RefreshToken: "test-device-refresh-token",
+		RefreshToken: "test-device-refresh-token", // #nosec G101 -- test fixture, not a credential.
 		ExpiresIn:    3600,
 	}
 }
@@ -155,7 +155,7 @@ func TestUserAIDeviceGrants(t *testing.T) {
 		require.False(t, authorized.StoresAccessTokenOnly)
 		require.True(t, authorized.RefreshSupported)
 		require.NotEmpty(t, authorized.ReauthMessage)
-		authorizedJSON, err := json.Marshal(authorized)
+		authorizedJSON, err := json.Marshal(authorized) // #nosec G117 -- test asserts the refresh token is absent from this payload.
 		require.NoError(t, err)
 		require.NotContains(t, string(authorizedJSON), "test-device-refresh-token", "refresh token never leaves the server")
 

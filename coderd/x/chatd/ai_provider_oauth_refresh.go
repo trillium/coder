@@ -74,7 +74,7 @@ type aiProviderOAuthConfig struct {
 func aiProviderOAuthConfigForProvider(providerType database.AIProviderType, name string) (aiProviderOAuthConfig, bool) {
 	if providerType == database.AIProviderTypeOpenai && name == "chatgpt" {
 		return aiProviderOAuthConfig{
-			clientID: "app_EMoamEEZ73f0CkXaXp7hrann",
+			clientID: "app_EMoamEEZ73f0CkXaXp7hrann", // #nosec G101 -- public OAuth client ID, not a secret.
 			tokenURL: "https://auth.openai.com/oauth/token",
 		}, true
 	}
@@ -222,10 +222,10 @@ func doRefreshUserAIProviderKeyOAuth(
 		if xerrors.As(err, &terminal) {
 			return recordUserAIProviderTerminalFailure(ctx, store, provider, leased, terminal.reason)
 		}
-		return recordUserAIProviderTransientFailure(ctx, store, provider, leased, logger, err)
+		return recordUserAIProviderTransientFailure(ctx, store, leased, logger, err)
 	}
 
-	return persistUserAIProviderRefreshedTokens(ctx, store, provider, leased, tokens)
+	return persistUserAIProviderRefreshedTokens(ctx, store, leased, tokens)
 }
 
 // oauthRefreshTokenChanged reports whether the leased row's refresh state
@@ -412,13 +412,12 @@ func truncateOAuthFailureDetail(body []byte) string {
 func recordUserAIProviderTransientFailure(
 	ctx context.Context,
 	store userAIProviderKeyOAuthStore,
-	provider database.AIProvider,
 	leased database.UserAIProviderKey,
 	logger slog.Logger,
 	refreshErr error,
 ) (database.UserAIProviderKey, error) {
 	reason := truncateOAuthFailureDetail([]byte(refreshErr.Error()))
-	logger.Warn(ctx, "AI provider token refresh failed transiently, keeping credential for retry",
+	logger.Warn(ctx, "ai provider token refresh failed transiently, keeping credential for retry",
 		slog.F("user_id", leased.UserID), slog.F("ai_provider_id", leased.AIProviderID),
 		slog.F("reason", reason))
 	updated, err := store.UpdateUserAIProviderKeyOAuth(ctx, database.UpdateUserAIProviderKeyOAuthParams{
@@ -483,7 +482,6 @@ func recordUserAIProviderTerminalFailure(
 func persistUserAIProviderRefreshedTokens(
 	ctx context.Context,
 	store userAIProviderKeyOAuthStore,
-	provider database.AIProvider,
 	leased database.UserAIProviderKey,
 	tokens *aiProviderOAuthRefreshedTokens,
 ) (database.UserAIProviderKey, error) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -864,12 +865,19 @@ func persistAIDeviceGrantCredential(db database.Store, clock quartz.Clock) func(
 	return func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
 		now := clock.Now()
 		params := database.UpsertUserAIProviderKeyParams{
-			ID:           uuid.New(),
-			UserID:       ownerID,
-			AIProviderID: providerID,
-			APIKey:       cred.AccessToken,
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			ID:                        uuid.New(),
+			UserID:                    ownerID,
+			AIProviderID:              providerID,
+			APIKey:                    cred.AccessToken,
+			ApiKeyKeyID:               sql.NullString{},
+			OAuthRefreshToken:         sql.NullString{},
+			OAuthRefreshTokenKeyID:    sql.NullString{},
+			OAuthExpiry:               sql.NullTime{},
+			AccountID:                 sql.NullString{},
+			OAuthExtra:                pqtype.NullRawMessage{},
+			OauthRefreshFailureReason: sql.NullString{},
+			CreatedAt:                 now,
+			UpdatedAt:                 now,
 		}
 		if strings.TrimSpace(cred.AccountID) != "" {
 			params.AccountID = sql.NullString{String: cred.AccountID, Valid: true}

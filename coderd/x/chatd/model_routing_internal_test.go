@@ -1193,12 +1193,12 @@ func TestAIGatewayProviderAuthForUserOAuthGate(t *testing.T) {
 	provider := database.AIProvider{ID: uuid.New(), Type: database.AIProviderTypeOpenai, Name: "chatgpt", Enabled: true}
 	oauthRow := func() database.UserAIProviderKey {
 		return database.UserAIProviderKey{
-			ID:                  uuid.New(),
-			UserID:              ownerID,
-			AIProviderID:        provider.ID,
-			APIKey:              "stale-access-token",
-			OAuthRefreshToken:   sql.NullString{String: "refresh-live", Valid: true},
-			OAuthExpiry:         sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+			ID:                uuid.New(),
+			UserID:            ownerID,
+			AIProviderID:      provider.ID,
+			APIKey:            "stale-access-token",
+			OAuthRefreshToken: sql.NullString{String: "refresh-live", Valid: true},
+			OAuthExpiry:       sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
 		}
 	}
 	newGateServer := func(t *testing.T, mock *dbmock.MockStore, tokenHandler http.HandlerFunc) *Server {

@@ -1,4 +1,4 @@
-package chatd
+package chatd //nolint:testpackage // Exercises unexported refresh helpers.
 
 import (
 	"context"
@@ -409,7 +409,7 @@ func TestAIProviderOAuthRefreshLeaseContentionTimeout(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	waitCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	waitCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 	defer cancel()
 	_, err = doRefreshUserAIProviderKeyOAuth(waitCtx, store, client, clock, testutil.Logger(t),
 		aiProviderOAuthConfig{clientID: "test-client", tokenURL: endpoint.server.URL}, provider, key)

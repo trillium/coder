@@ -114,7 +114,7 @@ func TestAIDeviceGrantLifecycle(t *testing.T) {
 		polls:        []AIDevicePollOutcome{AIDeviceGrantPending(), AIDeviceGrantComplete("test-auth-code", "test-verifier")},
 		exchangeGrant: AIDeviceTokenGrant{
 			AccessToken:  testDeviceAccessJWT(t, "acct-test-123"),
-			RefreshToken: "test-device-refresh-token",
+			RefreshToken: "test-device-refresh-token", // #nosec G101 -- test fixture, not a credential.
 			ExpiresIn:    3600,
 		},
 	}
@@ -291,7 +291,7 @@ func TestAIDeviceGrantExchangeRetry(t *testing.T) {
 		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
 		exchangeGrant: AIDeviceTokenGrant{
 			AccessToken:  testDeviceAccessJWT(t, "acct-test-123"),
-			RefreshToken: "test-device-refresh-token",
+			RefreshToken: "test-device-refresh-token", // #nosec G101 -- test fixture, not a credential.
 			ExpiresIn:    3600,
 		},
 		exchangeErr: errTestDeviceExchange,
@@ -495,7 +495,7 @@ func TestAIDeviceGrantOpaqueTokenStaysPending(t *testing.T) {
 		polls:        []AIDevicePollOutcome{AIDeviceGrantComplete("test-auth-code", "test-verifier")},
 		exchangeGrant: AIDeviceTokenGrant{
 			AccessToken:  "opaque-access-token",
-			RefreshToken: "opaque-refresh-token",
+			RefreshToken: "opaque-refresh-token", // #nosec G101 -- test fixture, not a credential.
 			ExpiresIn:    3600,
 		},
 	}
@@ -573,28 +573,29 @@ func TestUserAIProviderKeyOAuthSlots(t *testing.T) {
 		OAuthRefreshToken: sql.NullString{String: "refresh-live", Valid: true},
 		OAuthExpiry:       sql.NullTime{Time: expiry, Valid: true},
 	}
-	require.Equal(t, &expiry, userAIProviderKeyOAuthExpiry(oauthRow, true))
-	require.True(t, userAIProviderKeyRefreshSupported(oauthRow, true))
-	require.False(t, userAIProviderKeyReauthRequired(oauthRow, true))
+	require.Equal(t, &expiry, userAIProviderKeyOAuthExpiry(oauthRow))
+	require.True(t, userAIProviderKeyRefreshSupported(oauthRow))
+	require.False(t, userAIProviderKeyReauthRequired(oauthRow))
 
 	transientRow := oauthRow
 	transientRow.OauthRefreshFailureReason = sql.NullString{String: "refresh failed with status 500", Valid: true}
-	require.False(t, userAIProviderKeyReauthRequired(transientRow, true), "transient failures never prompt")
+	require.False(t, userAIProviderKeyReauthRequired(transientRow), "transient failures never prompt")
 
 	terminalRow := database.UserAIProviderKey{
 		APIKey:                    "stale-access-token",
 		OauthRefreshFailureReason: sql.NullString{String: "invalid_grant", Valid: true},
 	}
-	require.Nil(t, userAIProviderKeyOAuthExpiry(terminalRow, true))
-	require.False(t, userAIProviderKeyRefreshSupported(terminalRow, true))
-	require.True(t, userAIProviderKeyReauthRequired(terminalRow, true), "terminal failure prompts exactly the re-auth signal")
+	require.Nil(t, userAIProviderKeyOAuthExpiry(terminalRow))
+	require.False(t, userAIProviderKeyRefreshSupported(terminalRow))
+	require.True(t, userAIProviderKeyReauthRequired(terminalRow), "terminal failure prompts exactly the re-auth signal")
 
 	staticRow := database.UserAIProviderKey{APIKey: "static-key"}
-	require.Nil(t, userAIProviderKeyOAuthExpiry(staticRow, true))
-	require.False(t, userAIProviderKeyRefreshSupported(staticRow, true))
-	require.False(t, userAIProviderKeyReauthRequired(staticRow, true))
+	require.Nil(t, userAIProviderKeyOAuthExpiry(staticRow))
+	require.False(t, userAIProviderKeyRefreshSupported(staticRow))
+	require.False(t, userAIProviderKeyReauthRequired(staticRow))
 
-	require.Nil(t, userAIProviderKeyOAuthExpiry(database.UserAIProviderKey{}, false))
-	require.False(t, userAIProviderKeyRefreshSupported(database.UserAIProviderKey{}, false))
-	require.False(t, userAIProviderKeyReauthRequired(database.UserAIProviderKey{}, false))
+	missingRow := database.UserAIProviderKey{}
+	require.Nil(t, userAIProviderKeyOAuthExpiry(missingRow))
+	require.False(t, userAIProviderKeyRefreshSupported(missingRow))
+	require.False(t, userAIProviderKeyReauthRequired(missingRow))
 }

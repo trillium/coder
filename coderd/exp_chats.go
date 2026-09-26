@@ -6834,9 +6834,9 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 			HasProviderAPIKey:   hasProviderKey,
 			BYOKEnabled:         byokEnabled,
 			DeviceFlowSupported: deviceFlowSupportedForProvider(provider),
-			OAuthExpiry:         userAIProviderKeyOAuthExpiry(userKey, hasUserKey),
-			RefreshSupported:    userAIProviderKeyRefreshSupported(userKey, hasUserKey),
-			ReauthRequired:      userAIProviderKeyReauthRequired(userKey, hasUserKey),
+			OAuthExpiry:         userAIProviderKeyOAuthExpiry(userKey),
+			RefreshSupported:    userAIProviderKeyRefreshSupported(userKey),
+			ReauthRequired:      userAIProviderKeyReauthRequired(userKey),
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, configs)
@@ -6961,8 +6961,8 @@ func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 
 // userAIProviderKeyOAuthExpiry reports the saved access-token expiry for an
 // OAuth-derived key, or nil for static keys and missing rows.
-func userAIProviderKeyOAuthExpiry(key database.UserAIProviderKey, hasKey bool) *time.Time {
-	if !hasKey || !key.OAuthExpiry.Valid {
+func userAIProviderKeyOAuthExpiry(key database.UserAIProviderKey) *time.Time {
+	if !key.OAuthExpiry.Valid {
 		return nil
 	}
 	expiry := key.OAuthExpiry.Time
@@ -6971,17 +6971,14 @@ func userAIProviderKeyOAuthExpiry(key database.UserAIProviderKey, hasKey bool) *
 
 // userAIProviderKeyRefreshSupported reports the server refreshes this saved
 // OAuth sign-in automatically: a live refresh token is present.
-func userAIProviderKeyRefreshSupported(key database.UserAIProviderKey, hasKey bool) bool {
-	return hasKey && key.OAuthRefreshToken.Valid && strings.TrimSpace(key.OAuthRefreshToken.String) != ""
+func userAIProviderKeyRefreshSupported(key database.UserAIProviderKey) bool {
+	return key.OAuthRefreshToken.Valid && strings.TrimSpace(key.OAuthRefreshToken.String) != ""
 }
 
 // userAIProviderKeyReauthRequired reports the saved OAuth credential died:
 // a failure reason is recorded and the refresh token is gone (terminal
 // down-path). Transient failures keep the refresh token and never prompt.
-func userAIProviderKeyReauthRequired(key database.UserAIProviderKey, hasKey bool) bool {
-	if !hasKey {
-		return false
-	}
+func userAIProviderKeyReauthRequired(key database.UserAIProviderKey) bool {
 	if !key.OauthRefreshFailureReason.Valid || strings.TrimSpace(key.OauthRefreshFailureReason.String) == "" {
 		return false
 	}
