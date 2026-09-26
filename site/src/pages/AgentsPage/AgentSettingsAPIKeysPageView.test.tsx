@@ -701,6 +701,66 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		).toBeInTheDocument();
 	});
 
+	it("disables Cancel sign-in while the exchange is in flight", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		let releaseExchange!: (value: AIBrowserGrantExchangeResponse) => void;
+		const exchangeGate = new Promise<AIBrowserGrantExchangeResponse>(
+			(resolve) => {
+				releaseExchange = resolve;
+			},
+		);
+		const exchangeSpy = vi
+			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
+			.mockReturnValue(exchangeGate);
+		const cancelSpy = vi
+			.spyOn(API.experimental, "cancelUserAIBrowserGrant")
+			.mockResolvedValue(undefined);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"http://localhost:1455/auth/callback?code=test-code",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(exchangeSpy).toHaveBeenCalledTimes(1);
+		});
+		// The exchange is still in flight: Cancel must stay disabled so a
+		// cancel cannot race the in-flight server-side persist.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Cancel sign-in" }),
+			).toBeDisabled();
+		});
+		expect(cancelSpy).not.toHaveBeenCalled();
+
+		releaseExchange(browserExchange({ status: "authorized" }));
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", {
+					name: "Sign in with ChatGPT in your browser",
+				}),
+			).toBeInTheDocument();
+		});
+		expect(cancelSpy).not.toHaveBeenCalled();
+	});
+
 	it("surfaces expiry with the re-auth path", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
