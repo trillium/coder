@@ -1253,6 +1253,17 @@ type UserAIProviderKeyConfig struct {
 	// in-dashboard device-code sign-in (ChatGPT first, provider-generic
 	// shape for later providers).
 	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// OAuthExpiry is when the saved access token expires, when the key
+	// came from an OAuth sign-in. Absent for pasted static keys.
+	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
+	// RefreshSupported reports the server refreshes this OAuth sign-in
+	// automatically. It flips only when the refresher ships; a saved
+	// static key never refreshes.
+	RefreshSupported bool `json:"refresh_supported"`
+	// ReauthRequired reports the saved OAuth credential died (terminal
+	// refresh failure): exactly one re-auth prompt renders, reusing the
+	// device-code initiate path. The saved key is kept.
+	ReauthRequired bool `json:"reauth_required"`
 }
 
 // CreateUserAIProviderKeyRequest creates or replaces a user's API key
@@ -1285,19 +1296,22 @@ type AIDeviceGrantInitiateResponse struct {
 	VerificationURIComplete string    `json:"verification_uri_complete,omitempty"`
 	ExpiresIn               int       `json:"expires_in"`
 	PollInterval            int       `json:"poll_interval"`
-	// StoresAccessTokenOnly and RefreshSupported document the no-refresh
-	// honesty: Coder persists the access token from this sign-in as the
-	// BYOK user key and never refreshes it server-side. When the token
-	// expires, re-auth is a fresh device-code round.
+	// StoresAccessTokenOnly and RefreshSupported document the refresh
+	// honesty: Coder persists the full OAuth credential from this sign-in
+	// server-side and refreshes it lazily per request. When refresh fails
+	// terminally, re-auth is a fresh device-code round.
 	StoresAccessTokenOnly bool   `json:"stores_access_token_only"`
 	RefreshSupported      bool   `json:"refresh_supported"`
 	ReauthMessage         string `json:"reauth_message"`
 }
 
 // AIDeviceGrantPollResponse reports grant status. APIKey is present only
-// on authorized polls, only for the owning user, and is saved into the
-// BYOK slot by the dashboard through the existing user-keys endpoint;
-// the grant runner itself never writes key material.
+// on authorized polls for grants without server-side persistence, only
+// for the owning user, and is saved into the BYOK slot by the dashboard
+// through the existing user-keys endpoint. Server-persisted grants carry
+// no key material here: the credential already reached the user key row
+// and the dashboard must not PUT after them. The refresh token never
+// appears in this response in either case.
 type AIDeviceGrantPollResponse struct {
 	GrantID                 uuid.UUID           `json:"grant_id" format:"uuid"`
 	ProviderID              uuid.UUID           `json:"provider_id" format:"uuid"`
@@ -1327,6 +1341,15 @@ type UserChatProviderConfig struct {
 	// DeviceFlowSupported mirrors UserAIProviderKeyConfig: whether the
 	// paved device-code sign-in is available for this provider.
 	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// OAuthExpiry mirrors UserAIProviderKeyConfig: access-token expiry for
+	// OAuth sign-ins, absent for static keys.
+	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
+	// RefreshSupported mirrors UserAIProviderKeyConfig: the server
+	// refreshes this OAuth sign-in automatically.
+	RefreshSupported bool `json:"refresh_supported"`
+	// ReauthRequired mirrors UserAIProviderKeyConfig: the saved OAuth
+	// credential died and exactly one re-auth prompt renders.
+	ReauthRequired bool `json:"reauth_required"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
@@ -1753,13 +1776,17 @@ const (
 	ChatErrorKindTimeout              ChatErrorKind = "timeout"
 	ChatErrorKindStreamSilenceTimeout ChatErrorKind = "stream_silence_timeout"
 	ChatErrorKindAuth                 ChatErrorKind = "auth"
-	ChatErrorKindConfig               ChatErrorKind = "config"
-	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
-	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
-	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
-	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
-	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
+	// ChatErrorKindReauthRequired signals a dead saved OAuth credential:
+	// the user must sign in again through the device-code flow. It is
+	// terminal, never retried, and never falls back to another credential.
+	ChatErrorKindReauthRequired     ChatErrorKind = "reauth_required"
+	ChatErrorKindConfig             ChatErrorKind = "config"
+	ChatErrorKindUsageLimit         ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey         ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled   ChatErrorKind = "provider_disabled"
+	ChatErrorKindContentFilter      ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied         ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1771,6 +1798,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindTimeout,
 	ChatErrorKindStreamSilenceTimeout,
 	ChatErrorKindAuth,
+	ChatErrorKindReauthRequired,
 	ChatErrorKindConfig,
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,

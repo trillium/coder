@@ -1,15 +1,18 @@
 package chatd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -1180,4 +1183,101 @@ func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
 		{apiKeyID: sharedAPIKeyID, workspaceID: uuid.Nil},
 		{apiKeyID: sharedAPIKeyID, workspaceID: wsID2},
 	}, got)
+}
+
+func TestAIGatewayProviderAuthForUserOAuthGate(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	ownerID := uuid.New()
+	provider := database.AIProvider{ID: uuid.New(), Type: database.AIProviderTypeOpenai, Name: "chatgpt", Enabled: true}
+	oauthRow := func() database.UserAIProviderKey {
+		return database.UserAIProviderKey{
+			ID:                  uuid.New(),
+			UserID:              ownerID,
+			AIProviderID:        provider.ID,
+			APIKey:              "stale-access-token",
+			OAuthRefreshToken:   sql.NullString{String: "refresh-live", Valid: true},
+			OAuthExpiry:         sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+		}
+	}
+	newGateServer := func(t *testing.T, mock *dbmock.MockStore, tokenHandler http.HandlerFunc) *Server {
+		t.Helper()
+		tokenServer := httptest.NewServer(tokenHandler)
+		t.Cleanup(tokenServer.Close)
+		return &Server{
+			db:                     mock,
+			allowBYOK:              true,
+			logger:                 slogtest.Make(t, nil),
+			oauthRefreshHTTPClient: tokenServer.Client(),
+			oauthRefreshTestConfig: &aiProviderOAuthConfig{clientID: "test-client", tokenURL: tokenServer.URL},
+		}
+	}
+
+	t.Run("TerminalFailureSurfacesReauthWithNoFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mock := dbmock.NewMockStore(ctrl)
+		mock.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), gomock.Any()).Return(oauthRow(), nil)
+		mock.EXPECT().AcquireUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+				row := oauthRow()
+				row.RefreshLeaseExpiresAt = sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true}
+				return row, nil
+			})
+		mock.EXPECT().UpdateUserAIProviderKeyOAuth(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+				row := oauthRow()
+				row.OAuthRefreshToken = params.OAuthRefreshToken
+				row.OauthRefreshFailureReason = params.OauthRefreshFailureReason
+				return row, nil
+			})
+		mock.EXPECT().ReleaseUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).Return(nil)
+
+		server := newGateServer(t, mock, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error": "invalid_grant"}`))
+		})
+
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		require.Error(t, err)
+		require.Empty(t, auth.Headers, "terminal failure yields no auth: never another credential, never unauthenticated-with-fallback")
+		var reauth *chaterror.ReauthRequiredError
+		require.ErrorAs(t, err, &reauth)
+		require.Equal(t, provider.ID, reauth.ProviderID)
+		require.Equal(t, codersdk.ChatErrorKindReauthRequired, chaterror.Classify(err).Kind)
+	})
+
+	t.Run("TransientFailureProceedsWithStoredKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mock := dbmock.NewMockStore(ctrl)
+		mock.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), gomock.Any()).Return(oauthRow(), nil)
+		mock.EXPECT().AcquireUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+				row := oauthRow()
+				row.RefreshLeaseExpiresAt = sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true}
+				return row, nil
+			})
+		mock.EXPECT().UpdateUserAIProviderKeyOAuth(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+				row := oauthRow()
+				row.OauthRefreshFailureReason = params.OauthRefreshFailureReason
+				return row, nil
+			})
+		mock.EXPECT().ReleaseUserAIProviderKeyRefreshLease(gomock.Any(), gomock.Any()).Return(nil)
+
+		server := newGateServer(t, mock, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte(`upstream blip`))
+		})
+
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		require.NoError(t, err)
+		require.Equal(t, "Bearer stale-access-token", auth.Headers["Authorization"],
+			"transient failure keeps the same credential for a single attempt")
+	})
 }

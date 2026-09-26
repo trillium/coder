@@ -1025,6 +1025,8 @@ describe("providerInfoByIDFromUserConfigs", () => {
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
 				device_flow_supported: false,
+				refresh_supported: false,
+				reauth_required: false,
 			},
 		]);
 
@@ -1051,6 +1053,8 @@ describe("providerTypeByIDFromUserConfigs", () => {
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
 				device_flow_supported: false,
+				refresh_supported: false,
+				reauth_required: false,
 			},
 		]);
 

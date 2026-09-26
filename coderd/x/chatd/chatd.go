@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -215,6 +216,18 @@ type Server struct {
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
+
+	// aiProviderOAuthRefreshGroup collapses concurrent refreshes for one
+	// (provider, user) into a single exchange, mirroring the externalauth
+	// singleflight discipline.
+	aiProviderOAuthRefreshGroup singleflight.Group
+	// oauthRefreshHTTPClient talks to the subscription provider token
+	// endpoint. Tests override it; production uses a 15s-timeout client.
+	oauthRefreshHTTPClient *http.Client
+	// oauthRefreshTestConfig overrides the provider token endpoint. Test
+	// seam only: production always resolves the endpoint from the
+	// provider row.
+	oauthRefreshTestConfig *aiProviderOAuthConfig
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {

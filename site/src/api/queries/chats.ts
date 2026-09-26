@@ -2243,6 +2243,9 @@ export const userChatProviderConfigs = () => ({
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
 			device_flow_supported: config.device_flow_supported,
+			oauth_expiry: config.oauth_expiry,
+			refresh_supported: config.refresh_supported,
+			reauth_required: config.reauth_required,
 		}));
 	},
 });

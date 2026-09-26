@@ -557,7 +557,22 @@ func (db *dbCrypt) UpdateEncryptedAIProviderKey(ctx context.Context, params data
 }
 
 func (db *dbCrypt) decryptUserAIProviderKey(key *database.UserAIProviderKey) error {
-	return db.decryptField(&key.APIKey, key.ApiKeyKeyID)
+	if err := db.decryptField(&key.APIKey, key.ApiKeyKeyID); err != nil {
+		return err
+	}
+	return db.decryptField(&key.OAuthRefreshToken.String, key.OAuthRefreshTokenKeyID)
+}
+
+// encryptUserAIOAuthRefreshToken encrypts the nullable OAuth refresh token
+// when present, normalizing absent material to NULL so no stale key id
+// survives alongside a cleared token.
+func (db *dbCrypt) encryptUserAIOAuthRefreshToken(params *database.UpsertUserAIProviderKeyParams) error {
+	if !params.OAuthRefreshToken.Valid || strings.TrimSpace(params.OAuthRefreshToken.String) == "" {
+		params.OAuthRefreshToken = sql.NullString{}
+		params.OAuthRefreshTokenKeyID = sql.NullString{}
+		return nil
+	}
+	return db.encryptField(&params.OAuthRefreshToken.String, &params.OAuthRefreshTokenKeyID)
 }
 
 func (db *dbCrypt) GetUserAIProviderKeyByProviderID(ctx context.Context, params database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
@@ -603,6 +618,9 @@ func (db *dbCrypt) UpsertUserAIProviderKey(ctx context.Context, params database.
 	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
 		return database.UserAIProviderKey{}, err
 	}
+	if err := db.encryptUserAIOAuthRefreshToken(&params); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
 
 	key, err := db.Store.UpsertUserAIProviderKey(ctx, params)
 	if err != nil {
@@ -631,10 +649,64 @@ func (db *dbCrypt) UpdateUserAIProviderKey(ctx context.Context, params database.
 	return key, nil
 }
 
+// encryptUserAIOAuthUpdateParams encrypts the nullable OAuth refresh token
+// on the lease-gated update path, normalizing absent material to NULL.
+func (db *dbCrypt) encryptUserAIOAuthUpdateParams(params *database.UpdateUserAIProviderKeyOAuthParams) error {
+	if !params.OAuthRefreshToken.Valid || strings.TrimSpace(params.OAuthRefreshToken.String) == "" {
+		params.OAuthRefreshToken = sql.NullString{}
+		params.OAuthRefreshTokenKeyID = sql.NullString{}
+		return nil
+	}
+	return db.encryptField(&params.OAuthRefreshToken.String, &params.OAuthRefreshTokenKeyID)
+}
+
+func (db *dbCrypt) AcquireUserAIProviderKeyRefreshLease(ctx context.Context, params database.AcquireUserAIProviderKeyRefreshLeaseParams) (database.UserAIProviderKey, error) {
+	key, err := db.Store.AcquireUserAIProviderKeyRefreshLease(ctx, params)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := db.decryptUserAIProviderKey(&key); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) ReleaseUserAIProviderKeyRefreshLease(ctx context.Context, params database.ReleaseUserAIProviderKeyRefreshLeaseParams) error {
+	return db.Store.ReleaseUserAIProviderKeyRefreshLease(ctx, params)
+}
+
+func (db *dbCrypt) UpdateUserAIProviderKeyOAuth(ctx context.Context, params database.UpdateUserAIProviderKeyOAuthParams) (database.UserAIProviderKey, error) {
+	if strings.TrimSpace(params.APIKey) == "" {
+		params.ApiKeyKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := db.encryptUserAIOAuthUpdateParams(&params); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+
+	key, err := db.Store.UpdateUserAIProviderKeyOAuth(ctx, params)
+	if err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	if err := db.decryptUserAIProviderKey(&key); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	return key, nil
+}
+
 func (db *dbCrypt) UpdateEncryptedUserAIProviderKey(ctx context.Context, params database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	if strings.TrimSpace(params.APIKey) == "" {
 		params.ApiKeyKeyID = sql.NullString{}
 	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserAIProviderKey{}, err
+	}
+	// Rotation re-encrypts the refresh token under the new key too: without
+	// this the OAuth credential would stay sealed under the revoked key.
+	if !params.OAuthRefreshToken.Valid || strings.TrimSpace(params.OAuthRefreshToken.String) == "" {
+		params.OAuthRefreshToken = sql.NullString{}
+		params.OAuthRefreshTokenKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.OAuthRefreshToken.String, &params.OAuthRefreshTokenKeyID); err != nil {
 		return database.UserAIProviderKey{}, err
 	}
 

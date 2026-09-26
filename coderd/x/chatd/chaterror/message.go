@@ -51,6 +51,12 @@ func terminalMessage(classified ClassifiedError) string {
 			subject,
 		))
 
+	case codersdk.ChatErrorKindReauthRequired:
+		return stringutil.Capitalize(fmt.Sprintf(
+			"%s sign-in expired."+
+				" Sign in again to continue.",
+			subject,
+		))
 	case codersdk.ChatErrorKindMissingKey:
 		return "This conversation was started with an API key that is no longer available." +
 			" Send your message again to continue."

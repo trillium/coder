@@ -6794,9 +6794,9 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	keysByProviderID := make(map[uuid.UUID]struct{}, len(keys))
+	keysByProviderID := make(map[uuid.UUID]database.UserAIProviderKey, len(keys))
 	for _, key := range keys {
-		keysByProviderID[key.AIProviderID] = struct{}{}
+		keysByProviderID[key.AIProviderID] = key
 	}
 
 	visibleProviders := make([]database.AIProvider, 0, len(providers))
@@ -6826,7 +6826,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	byokEnabled := api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value()
 	configs := make([]codersdk.UserAIProviderKeyConfig, 0, len(visibleProviders))
 	for _, provider := range visibleProviders {
-		_, hasUserKey := keysByProviderID[provider.ID]
+		userKey, hasUserKey := keysByProviderID[provider.ID]
 		_, hasProviderKey := providerKeysByProviderID[provider.ID]
 		configs = append(configs, codersdk.UserAIProviderKeyConfig{
 			Provider:            convertAIProviderSummary(provider),
@@ -6834,6 +6834,9 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 			HasProviderAPIKey:   hasProviderKey,
 			BYOKEnabled:         byokEnabled,
 			DeviceFlowSupported: deviceFlowSupportedForProvider(provider),
+			OAuthExpiry:         userAIProviderKeyOAuthExpiry(userKey, hasUserKey),
+			RefreshSupported:    userAIProviderKeyRefreshSupported(userKey, hasUserKey),
+			ReauthRequired:      userAIProviderKeyReauthRequired(userKey, hasUserKey),
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, configs)
@@ -6924,6 +6927,11 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		HasProviderAPIKey:   len(providerKeys) > 0,
 		BYOKEnabled:         true,
 		DeviceFlowSupported: deviceFlowSupportedForProvider(provider),
+		// A pasted/static replace carries no OAuth material by
+		// definition: no expiry, no refresh, no re-auth prompt.
+		OAuthExpiry:      nil,
+		RefreshSupported: false,
+		ReauthRequired:   false,
 	})
 }
 
@@ -6949,6 +6957,35 @@ func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// userAIProviderKeyOAuthExpiry reports the saved access-token expiry for an
+// OAuth-derived key, or nil for static keys and missing rows.
+func userAIProviderKeyOAuthExpiry(key database.UserAIProviderKey, hasKey bool) *time.Time {
+	if !hasKey || !key.OAuthExpiry.Valid {
+		return nil
+	}
+	expiry := key.OAuthExpiry.Time
+	return &expiry
+}
+
+// userAIProviderKeyRefreshSupported reports the server refreshes this saved
+// OAuth sign-in automatically: a live refresh token is present.
+func userAIProviderKeyRefreshSupported(key database.UserAIProviderKey, hasKey bool) bool {
+	return hasKey && key.OAuthRefreshToken.Valid && strings.TrimSpace(key.OAuthRefreshToken.String) != ""
+}
+
+// userAIProviderKeyReauthRequired reports the saved OAuth credential died:
+// a failure reason is recorded and the refresh token is gone (terminal
+// down-path). Transient failures keep the refresh token and never prompt.
+func userAIProviderKeyReauthRequired(key database.UserAIProviderKey, hasKey bool) bool {
+	if !hasKey {
+		return false
+	}
+	if !key.OauthRefreshFailureReason.Valid || strings.TrimSpace(key.OauthRefreshFailureReason.String) == "" {
+		return false
+	}
+	return !key.OAuthRefreshToken.Valid || strings.TrimSpace(key.OAuthRefreshToken.String) == ""
 }
 
 // userAIProviderKeyStatusByProviderID returns only credential presence for the
