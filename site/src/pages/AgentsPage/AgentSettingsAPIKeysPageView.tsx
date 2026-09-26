@@ -601,7 +601,10 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 								variant="outline"
 								size="sm"
 								onClick={handleCancel}
-								disabled={cancelMutation.isPending}
+								disabled={
+									cancelMutation.isPending ||
+									exchangeMutation.isPending
+								}
 							>
 								<Spinner loading={cancelMutation.isPending} />
 								Cancel sign-in
