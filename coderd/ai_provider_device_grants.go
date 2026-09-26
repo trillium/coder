@@ -703,6 +703,11 @@ func (api *API) postUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{Message: "Failed to start device sign-in with the provider."})
 		return
 	}
+	api.Logger.Info(ctx, "ai device grant initiated",
+		slog.F("user_id", targetUser.ID),
+		slog.F("ai_provider_id", provider.ID),
+		slog.F("grant_id", grant.id),
+	)
 	httpapi.Write(ctx, rw, http.StatusCreated, aiDeviceGrantInitiateResponse(grant, api.Clock.Now()))
 }
 
@@ -745,6 +750,14 @@ func (api *API) getUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	if grant.providerID != provider.ID {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+	if grant.status != codersdk.AIDeviceGrantStatusPending {
+		api.Logger.Info(ctx, "ai device grant terminal state",
+			slog.F("user_id", targetUser.ID),
+			slog.F("ai_provider_id", provider.ID),
+			slog.F("grant_id", grantID),
+			slog.F("status", string(grant.status)),
+		)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, aiDeviceGrantPollResponse(grant, api.Clock.Now()))
 }
