@@ -6908,13 +6908,19 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	}
 	now := api.Clock.Now()
 	_, err = api.Database.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
-		ID:           uuid.New(),
-		UserID:       targetUser.ID,
-		AIProviderID: providerID,
-		APIKey:       req.APIKey,
-		ApiKeyKeyID:  sql.NullString{},
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                        uuid.New(),
+		UserID:                    targetUser.ID,
+		AIProviderID:              providerID,
+		APIKey:                    req.APIKey,
+		ApiKeyKeyID:               sql.NullString{},
+		OAuthRefreshToken:         sql.NullString{},
+		OAuthRefreshTokenKeyID:    sql.NullString{},
+		OAuthExpiry:               sql.NullTime{},
+		AccountID:                 sql.NullString{},
+		OAuthExtra:                pqtype.NullRawMessage{},
+		OauthRefreshFailureReason: sql.NullString{},
+		CreatedAt:                 now,
+		UpdatedAt:                 now,
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "failed to update user AI provider key", slog.Error(err), slog.F("user_id", targetUser.ID), slog.F("ai_provider_id", providerID))

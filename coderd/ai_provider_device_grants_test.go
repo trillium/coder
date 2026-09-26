@@ -32,7 +32,7 @@ type scriptedDeviceExchanger struct {
 	exchangeGrant coderd.AIDeviceTokenGrant
 }
 
-func (f *scriptedDeviceExchanger) RequestDeviceCode(_ context.Context) (string, string, int, error) {
+func (f *scriptedDeviceExchanger) RequestDeviceCode(_ context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error) {
 	return "test-device-auth-id", f.userCode, f.interval, nil
 }
 

@@ -270,7 +270,7 @@ type httpAIDeviceGrantExchanger struct {
 	httpClient *http.Client
 }
 
-func (e *httpAIDeviceGrantExchanger) RequestDeviceCode(ctx context.Context) (string, string, int, error) {
+func (e *httpAIDeviceGrantExchanger) RequestDeviceCode(ctx context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error) {
 	body, _ := json.Marshal(map[string]string{"client_id": e.config.clientID})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.deviceUserCodeURL, strings.NewReader(string(body)))
 	if err != nil {
@@ -994,6 +994,8 @@ func (api *API) postUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.AIDeviceGrantPollResponse
 // @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant} [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	targetUser, provider, ok := api.resolveAIDeviceGrantTarget(ctx, rw, r)

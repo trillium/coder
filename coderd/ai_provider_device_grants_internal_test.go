@@ -51,7 +51,7 @@ type fakeAIDeviceExchanger struct {
 	pollCalls     int
 }
 
-func (f *fakeAIDeviceExchanger) RequestDeviceCode(_ context.Context) (string, string, int, error) {
+func (f *fakeAIDeviceExchanger) RequestDeviceCode(_ context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error) {
 	if f.requestErr != nil {
 		return "", "", 0, f.requestErr
 	}
