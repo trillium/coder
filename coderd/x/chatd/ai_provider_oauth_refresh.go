@@ -496,7 +496,7 @@ func persistUserAIProviderRefreshedTokens(
 		refreshToken = sql.NullString{String: tokens.RefreshToken, Valid: true}
 		refreshTokenKeyID = sql.NullString{}
 	}
-	expiry := sql.NullTime{}
+	expiry := leased.OAuthExpiry
 	if !tokens.ExpiresAt.IsZero() {
 		expiry = sql.NullTime{Time: tokens.ExpiresAt, Valid: true}
 	}
