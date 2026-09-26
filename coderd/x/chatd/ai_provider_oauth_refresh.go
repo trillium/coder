@@ -435,7 +435,7 @@ func recordUserAIProviderTransientFailure(
 		RefreshLeaseExpiresAt:     leased.RefreshLeaseExpiresAt,
 	})
 	if err != nil {
-		return leased, xerrors.Errorf("record transient refresh failure: %w", refreshErr)
+		return leased, xerrors.Errorf("record transient refresh failure (%s): %w", reason, err)
 	}
 	// Best effort: the caller's request proceeds with the stale token.
 	// A 401 from upstream then surfaces through the normal error path.

@@ -748,7 +748,9 @@ func (m *AIDeviceGrantManager) complete(ctx context.Context, grantID, callerID u
 	// triple keeps it, and this poll reuses it.
 	if current.oauth == nil && exchanged != nil {
 		current.oauth = exchanged
-		current.accessToken = exchanged.AccessToken
+		if persist == nil {
+			current.accessToken = exchanged.AccessToken
+		}
 	}
 	if current.oauth == nil {
 		snapshot := *current
