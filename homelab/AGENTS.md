@@ -22,6 +22,28 @@ upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
 - **Database:** built-in PostgreSQL. No automated backup exists (no crontab
   on lnx as of 2026-09-24) — treat the container as non-deletable and record
   any backup procedure here once one exists. See open questions below.
+- **Server container is disposable BUT the database is not (learned 2026-09-25
+  the hard way).** Built-in Postgres lives at
+  `/home/coder/.config/coderv2/postgres` INSIDE the container filesystem —
+  NOT in either mount (`/var/lib/coder` on the host has always been empty).
+  `docker rm coder` deletes the entire control-plane database (users,
+  templates, providers, keys, workspaces, chats). Never rm without a backup:
+  cold copy via `docker cp coder:/home/coder/.config/coderv2/postgres
+  ~/coder-db-backup/pgdata-<date>` (host dir mode 700; crash-consistent,
+  WAL replays on restore). First backup: `~/coder-db-backup/pgdata-20250925-1`
+  (141M). Standing gaps: (a) no scheduled dumps yet, (b) data should move
+  onto a persistent mount. Recreate recipe (same image/mounts/env/ports,
+  plus `--group-add 984` for the Docker socket or builds fail):
+  `docker stop coder && docker rm coder && docker run -d --name coder
+  --user 1000:1000 --group-add 984 -p 7080:7080
+  -v /var/lib/coder:/var/lib/coder -v /var/run/docker.sock:/var/run/docker.sock
+  -e CODER_ACCESS_URL=http://lnx.hippo-tilapia.ts.net:7080
+  -e CODER_HTTP_ADDRESS=0.0.0.0:7080
+  -e CODER_MCP_ALLOWED_PRIVATE_CIDRS=100.64.0.0/10
+  --restart unless-stopped coder-keep:pre-oauth-deploy-20260924 server`
+  (`--group-add 984` is the Docker-socket group; without it, builds fail
+  with permission denied. Running workspaces survive the restart and their
+  agents reconnect on their own.)
 - **Provisioning:** built-in provisioner daemons (`scope=organization`,
   key `built-in`); no separate provisionerd on this single host.
 - **CLI auth (this machine):** `coder` CLI is logged in as `trillium-admin`.
