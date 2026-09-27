@@ -351,8 +351,8 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	}
 	for provider, baseURL := range fallback.BaseURLByProvider {
 		if normalized := NormalizeProvider(provider); normalized != "" {
-			if url := strings.TrimSpace(baseURL); url != "" {
-				merged.BaseURLByProvider[normalized] = url
+			if trimmed := strings.TrimSpace(baseURL); trimmed != "" {
+				merged.BaseURLByProvider[normalized] = trimmed
 			}
 		}
 	}
@@ -396,8 +396,8 @@ func ResolveUserProviderKeys(
 			continue
 		}
 
-		if url := strings.TrimSpace(provider.BaseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
+		if trimmed := strings.TrimSpace(provider.BaseURL); trimmed != "" {
+			merged.BaseURLByProvider[normalizedProvider] = trimmed
 		}
 		merged.setRegion(normalizedProvider, provider.Region)
 
