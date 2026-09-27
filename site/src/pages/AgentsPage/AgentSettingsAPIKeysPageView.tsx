@@ -270,8 +270,11 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 		);
 	}
 
-	const verificationUrl =
-		grant.verification_uri_complete || grant.verification_uri;
+	// Always link the bare verification URI so the user lands on the
+	// provider's device-code entry page and types the code themselves.
+	// The server's verification_uri_complete appends the code to the URL
+	// path, which OpenAI's device page does not consume correctly.
+	const verificationUrl = grant.verification_uri;
 	let statusLine: ReactNode;
 	if (pollQuery.isError) {
 		statusLine = (

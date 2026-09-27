@@ -313,9 +313,12 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 			);
 		});
 		expect(screen.getByText("ABCD-1234")).toBeInTheDocument();
+		// The link must use the bare verification_uri (not
+		// verification_uri_complete) so the user lands on the provider's
+		// device-code entry page and types the code.
 		expect(screen.getByRole("link")).toHaveAttribute(
 			"href",
-			"https://auth.example.com/device/ABCD-1234",
+			"https://auth.example.com/device",
 		);
 		expect(screen.getByText(/Waiting for approval/)).toBeInTheDocument();
 	});
@@ -455,6 +458,41 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		expect(
 			screen.getByRole("button", { name: "Start over" }),
 		).toBeInTheDocument();
+	});
+
+	it("renders the bare verification URI as the link, not the code-in-path form", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await screen.findByText("ABCD-1234");
+		// The link must point to the bare verification_uri so the user
+		// stays on the provider's code-entry page. It must NOT use the
+		// verification_uri_complete (which embeds the code in the path and
+		// causes OpenAI's device page to lose the return path).
+		const link = screen.getByRole("link");
+		expect(link).toHaveAttribute("href", deviceGrant.verification_uri);
+		expect(link).not.toHaveAttribute(
+			"href",
+			deviceGrant.verification_uri_complete,
+		);
+		// The user code is shown prominently for the user to type.
+		expect(screen.getByText(deviceGrant.user_code)).toBeInTheDocument();
 	});
 });
 

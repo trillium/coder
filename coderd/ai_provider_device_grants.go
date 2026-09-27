@@ -845,7 +845,7 @@ func aiDeviceGrantInitiateResponse(grant *aiDeviceGrant, now time.Time) codersdk
 		ProviderID:              grant.providerID,
 		UserCode:                grant.userCode,
 		VerificationURI:         grant.config.verificationURI,
-		VerificationURIComplete: grant.config.verificationURI + "/" + grant.userCode,
+		VerificationURIComplete: "", // omit: path-append form is not RFC 8628 compliant
 		ExpiresIn:               grantSecondsLeft(grant, now),
 		PollInterval:            grant.intervalSecs,
 		StoresAccessTokenOnly:   false,
@@ -900,7 +900,7 @@ func aiDeviceGrantPollResponse(grant *aiDeviceGrant, now time.Time) codersdk.AID
 		Status:                  grant.status,
 		UserCode:                grant.userCode,
 		VerificationURI:         grant.config.verificationURI,
-		VerificationURIComplete: grant.config.verificationURI + "/" + grant.userCode,
+		VerificationURIComplete: "", // omit: path-append form is not RFC 8628 compliant
 		ExpiresIn:               grantSecondsLeft(grant, now),
 		PollInterval:            grant.intervalSecs,
 		APIKey:                  grant.accessToken,
