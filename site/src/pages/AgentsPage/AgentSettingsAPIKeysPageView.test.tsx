@@ -29,6 +29,9 @@ const createProvider = (
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
 	device_flow_supported: overrides.device_flow_supported ?? false,
+	oauth_expiry: overrides.oauth_expiry,
+	refresh_supported: overrides.refresh_supported ?? false,
+	reauth_required: overrides.reauth_required ?? false,
 });
 
 const baseProvider = createProvider({
@@ -51,6 +54,8 @@ const savedKeyConfig: UserAIProviderKeyConfig = {
 	has_provider_api_key: false,
 	byok_enabled: true,
 	device_flow_supported: false,
+	refresh_supported: false,
+	reauth_required: false,
 };
 
 const defaultProps: AgentSettingsAPIKeysPageViewProps = {
@@ -229,8 +234,8 @@ const deviceGrant: AIDeviceGrantInitiateResponse = {
 	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
 	expires_in: 900,
 	poll_interval: 5,
-	stores_access_token_only: true,
-	refresh_supported: false,
+	stores_access_token_only: false,
+	refresh_supported: true,
 	reauth_message: "Test re-auth message.",
 };
 
@@ -245,8 +250,8 @@ const devicePoll = (
 	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
 	expires_in: 900,
 	poll_interval: 5,
-	stores_access_token_only: true,
-	refresh_supported: false,
+	stores_access_token_only: false,
+	refresh_supported: true,
 	reauth_message: "Test re-auth message.",
 	...overrides,
 });
@@ -392,6 +397,40 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		).toBeInTheDocument();
 	});
 
+	it("completes a server-persisted grant with no dashboard PUT", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		// Authorized with no api_key: the credential already reached the
+		// key row server-side, so the dashboard must not PUT after it.
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "authorized" }),
+		);
+		const upsertSpy = vi
+			.spyOn(API.experimental, "upsertUserAIProviderKey")
+			.mockResolvedValue(savedKeyConfig);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+			).toBeInTheDocument();
+		});
+		expect(upsertSpy).not.toHaveBeenCalled();
+		expect(screen.queryByText("ABCD-1234")).not.toBeInTheDocument();
+	});
+
 	it("surfaces expiry with the re-auth path", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
@@ -416,5 +455,101 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		expect(
 			screen.getByRole("button", { name: "Start over" }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("AgentSettingsAPIKeysPageView OAuth refresh state", () => {
+	it("shows expiry and auto-refresh for an OAuth-derived key", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					{
+						...chatgptProvider,
+						has_user_api_key: true,
+						oauth_expiry: "2030-05-01T12:00:00Z",
+						refresh_supported: true,
+					},
+				]}
+			/>,
+		);
+
+		expect(screen.getByText("Key saved")).toBeInTheDocument();
+		// The expiry note is the only copy naming the access token: the
+		// sign-in panel below also mentions automatic refresh.
+		expect(
+			screen.getByText(/Access token expires.*refreshes it automatically/),
+		).toBeInTheDocument();
+	});
+
+	it("shows no expiry or refresh claims for a static key", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[{ ...baseProvider, has_user_api_key: true }]}
+			/>,
+		);
+
+		expect(screen.getByText("Key saved")).toBeInTheDocument();
+		expect(screen.queryByText(/Access token expires/)).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/refreshes it automatically/),
+		).not.toBeInTheDocument();
+	});
+
+	it("renders exactly one re-auth prompt and never a saved-key badge", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		const queryClient = createTestQueryClient();
+		const view = () => (
+			<QueryClientProvider client={queryClient}>
+				<AgentSettingsAPIKeysPageView
+					{...defaultProps}
+					providers={[
+						{
+							...chatgptProvider,
+							has_user_api_key: true,
+							reauth_required: true,
+						},
+					]}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(view());
+
+		expect(screen.getByText("Sign-in expired")).toBeInTheDocument();
+		expect(screen.queryByText("Key saved")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/The shared deployment key is being used/),
+		).not.toBeInTheDocument();
+
+		// Exactly one prompt, reusing the device-grant initiate path.
+		const prompts = screen.getAllByRole("button", {
+			name: "Sign in again with ChatGPT",
+		});
+		expect(prompts).toHaveLength(1);
+
+		// A second identical failure re-renders the same banner instead of
+		// stacking another prompt.
+		rerender(view());
+		expect(
+			screen.getAllByRole("button", { name: "Sign in again with ChatGPT" }),
+		).toHaveLength(1);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in again with ChatGPT" }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+			);
+		});
+		await screen.findByText("ABCD-1234");
 	});
 });

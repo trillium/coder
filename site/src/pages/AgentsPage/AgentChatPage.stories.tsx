@@ -376,6 +376,8 @@ const buildQueries = (
 					has_central_api_key_fallback: true,
 					byok_enabled: true,
 					device_flow_supported: false,
+					refresh_supported: false,
+					reauth_required: false,
 				},
 			],
 		},
@@ -954,6 +956,8 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 				has_provider_api_key: true,
 				byok_enabled: true,
 				device_flow_supported: false,
+				refresh_supported: false,
+				reauth_required: false,
 			},
 		]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);

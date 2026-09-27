@@ -2548,6 +2548,7 @@ export type ChatErrorKind =
 	| "overloaded"
 	| "provider_disabled"
 	| "rate_limit"
+	| "reauth_required"
 	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
@@ -2563,6 +2564,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"overloaded",
 	"provider_disabled",
 	"rate_limit",
+	"reauth_required",
 	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
@@ -10938,6 +10940,23 @@ export interface UserAIProviderKeyConfig {
 	 * shape for later providers).
 	 */
 	readonly device_flow_supported: boolean;
+	/**
+	 * OAuthExpiry is when the saved access token expires, when the key
+	 * came from an OAuth sign-in. Absent for pasted static keys.
+	 */
+	readonly oauth_expiry?: string;
+	/**
+	 * RefreshSupported reports the server refreshes this OAuth sign-in
+	 * automatically. It flips only when the refresher ships; a saved
+	 * static key never refreshes.
+	 */
+	readonly refresh_supported: boolean;
+	/**
+	 * ReauthRequired reports the saved OAuth credential died (terminal
+	 * refresh failure): exactly one re-auth prompt renders, reusing the
+	 * device-code initiate path. The saved key is kept.
+	 */
+	readonly reauth_required: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -11089,6 +11108,21 @@ export interface UserChatProviderConfig {
 	 * paved device-code sign-in is available for this provider.
 	 */
 	readonly device_flow_supported: boolean;
+	/**
+	 * OAuthExpiry mirrors UserAIProviderKeyConfig: access-token expiry for
+	 * OAuth sign-ins, absent for static keys.
+	 */
+	readonly oauth_expiry?: string;
+	/**
+	 * RefreshSupported mirrors UserAIProviderKeyConfig: the server
+	 * refreshes this OAuth sign-in automatically.
+	 */
+	readonly refresh_supported: boolean;
+	/**
+	 * ReauthRequired mirrors UserAIProviderKeyConfig: the saved OAuth
+	 * credential died and exactly one re-auth prompt renders.
+	 */
+	readonly reauth_required: boolean;
 }
 
 // From codersdk/insights.go

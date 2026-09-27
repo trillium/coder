@@ -2,6 +2,8 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -26,9 +29,11 @@ import (
 // Device-code grants pave the in-dashboard OAuth flow for Coder Agents
 // BYOK keys. A user starts a grant against their own provider key slot,
 // approves the displayed user code at the subscription provider, and the
-// dashboard polls the grant and saves the resulting access token through
-// the existing user-keys endpoint. The runner never writes key material
-// itself; the encrypted BYOK slot stays the only credential store.
+// runner persists the resulting credential server-side to the encrypted
+// BYOK slot on approval, so the refresh token never leaves the server.
+// Grants without server-side persistence (persist hook unset, tests) keep
+// the legacy shape: the poll response carries the access token for the
+// dashboard to save through the existing user-keys endpoint.
 //
 // The polling discipline mirrors Pi's device-code module
 // (packages/ai/src/auth/oauth/device-code.ts): honor the server-provided
@@ -56,7 +61,7 @@ const (
 	aiDeviceChatGPTScope           = "openid profile email offline_access"
 	aiDeviceChatGPTProviderType    = database.AIProviderTypeOpenai
 	aiDeviceChatGPTProviderName    = "chatgpt"
-	aiDeviceReauthMessage          = "Coder stores the access token from this sign-in as your personal key. There is no background refresh: when it expires, sign in again for a fresh code."
+	aiDeviceReauthMessage          = "Coder keeps this sign-in fresh automatically. If the sign-in expires, sign in again for a fresh code."
 )
 
 // aiDeviceGrantConfig is the provider-generic shape for one subscription
@@ -169,13 +174,95 @@ func AIDeviceGrantFailed(message string) AIDevicePollOutcome {
 	return AIDevicePollOutcome{kind: aiDevicePollFailed, message: message}
 }
 
+// AIDeviceTokenGrant is the full token shape from one approved device-code
+// exchange: access plus refresh plus lifetime. The runner persists all of
+// it server-side on approval; the refresh token never leaves the server.
+type AIDeviceTokenGrant struct {
+	AccessToken string
+	// RefreshToken is empty when the provider issues access-only tokens.
+	// An empty refresh persists as NULL, which means static-secret
+	// behavior: the access token is used as-is, no refresh attempted.
+	RefreshToken string
+	// ExpiresIn is whole seconds until access-token expiry from expires_in.
+	// Zero or negative means unknown: persisted as NULL, no refresh
+	// attempted.
+	ExpiresIn int
+}
+
 // AIDeviceGrantExchanger talks to one subscription provider's
 // device-code endpoints. Tests substitute fakes through
 // AIDeviceGrantManager.ClientFactory.
 type AIDeviceGrantExchanger interface {
 	RequestDeviceCode(ctx context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error)
 	PollDeviceToken(ctx context.Context, deviceAuthID, userCode string) (AIDevicePollOutcome, error)
-	ExchangeAuthorizationCode(ctx context.Context, authorizationCode, verifier string) (accessToken string, err error)
+	ExchangeAuthorizationCode(ctx context.Context, authorizationCode, verifier string) (AIDeviceTokenGrant, error)
+}
+
+// aiDeviceAuthClaimNamespace is the JWT claim namespace carrying the
+// ChatGPT account id, per the portable OAuth refresh spec.
+const aiDeviceAuthClaimNamespace = "https://api.openai.com/auth"
+
+// aiDeviceAccountIDFromJWT derives the provider account id from the access
+// JWT: base64url-decode the payload, read
+// [aiDeviceAuthClaimNamespace].chatgpt_account_id, throw if missing. The
+// token itself is never logged; errors name only the missing piece.
+func aiDeviceAccountIDFromJWT(accessToken string) (string, error) {
+	parts := strings.Split(accessToken, ".")
+	if len(parts) != 3 {
+		return "", xerrors.New("access token is not a JWT")
+	}
+	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", xerrors.Errorf("decode access token payload: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		return "", xerrors.Errorf("decode access token claims: %w", err)
+	}
+	namespace, ok := payload[aiDeviceAuthClaimNamespace].(map[string]any)
+	if !ok {
+		return "", xerrors.Errorf("access token JWT missing %q claim namespace", aiDeviceAuthClaimNamespace)
+	}
+	accountID, ok := namespace["chatgpt_account_id"].(string)
+	if !ok || strings.TrimSpace(accountID) == "" {
+		return "", xerrors.New("access token JWT missing chatgpt_account_id")
+	}
+	return accountID, nil
+}
+
+// aiDeviceExpiresInSeconds normalizes the provider expires_in field, which
+// may arrive as a number or a string, into whole seconds. Non-positive or
+// unparsable values report unknown (0): the caller persists NULL expiry
+// and attempts no refresh.
+func aiDeviceExpiresInSeconds(raw any) int {
+	switch v := raw.(type) {
+	case float64:
+		if v > 0 {
+			return int(v)
+		}
+	case float32:
+		if v > 0 {
+			return int(v)
+		}
+	case int:
+		if v > 0 {
+			return v
+		}
+	case int64:
+		if v > 0 {
+			return int(v)
+		}
+	case json.Number:
+		if parsed, err := v.Int64(); err == nil && parsed > 0 {
+			return int(parsed)
+		}
+	case string:
+		var parsed float64
+		if _, err := fmt.Sscanf(strings.TrimSpace(v), "%g", &parsed); err == nil && parsed > 0 {
+			return int(parsed)
+		}
+	}
+	return 0
 }
 
 type httpAIDeviceGrantExchanger struct {
@@ -183,7 +270,7 @@ type httpAIDeviceGrantExchanger struct {
 	httpClient *http.Client
 }
 
-func (e *httpAIDeviceGrantExchanger) RequestDeviceCode(ctx context.Context) (string, string, int, error) {
+func (e *httpAIDeviceGrantExchanger) RequestDeviceCode(ctx context.Context) (deviceAuthID, userCode string, intervalSeconds int, err error) {
 	body, _ := json.Marshal(map[string]string{"client_id": e.config.clientID})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.deviceUserCodeURL, strings.NewReader(string(body)))
 	if err != nil {
@@ -308,7 +395,7 @@ func aiDeviceErrorCode(resp *http.Response) (string, bool) {
 	return "", false
 }
 
-func (e *httpAIDeviceGrantExchanger) ExchangeAuthorizationCode(ctx context.Context, authorizationCode, verifier string) (string, error) {
+func (e *httpAIDeviceGrantExchanger) ExchangeAuthorizationCode(ctx context.Context, authorizationCode, verifier string) (AIDeviceTokenGrant, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
 		"client_id":     {e.config.clientID},
@@ -318,40 +405,70 @@ func (e *httpAIDeviceGrantExchanger) ExchangeAuthorizationCode(ctx context.Conte
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", err
+		return AIDeviceTokenGrant{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return AIDeviceTokenGrant{}, err
 	}
 	defer resp.Body.Close()
 	var payload struct {
-		AccessToken string `json:"access_token"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    any    `json:"expires_in"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return "", xerrors.Errorf("decode token response: %w", err)
+		return AIDeviceTokenGrant{}, xerrors.Errorf("decode token response: %w", err)
 	}
 	if !aiDeviceRespOK(resp.StatusCode) {
-		return "", xerrors.Errorf("token exchange failed with status %d", resp.StatusCode)
+		return AIDeviceTokenGrant{}, xerrors.Errorf("token exchange failed with status %d", resp.StatusCode)
 	}
 	if payload.AccessToken == "" {
-		return "", xerrors.New("token exchange response missing access token")
+		return AIDeviceTokenGrant{}, xerrors.New("token exchange response missing access token")
 	}
 	if err := validateChatProviderAPIKeySize(payload.AccessToken); err != nil {
-		return "", err
+		return AIDeviceTokenGrant{}, err
 	}
-	// Only the access token leaves this function. The refresh token, if
-	// the provider issued one, is deliberately dropped: Coder persists
-	// the access token as the BYOK user key and never refreshes it
-	// server-side.
-	return payload.AccessToken, nil
+	if payload.RefreshToken != "" {
+		if err := validateChatProviderAPIKeySize(payload.RefreshToken); err != nil {
+			return AIDeviceTokenGrant{}, err
+		}
+	}
+	// The full triple leaves this function for server-side persistence in
+	// complete(). Only the access token may reach the browser poll
+	// response, and only when the grant was not server-persisted. The
+	// refresh token never leaves the server.
+	return AIDeviceTokenGrant{
+		AccessToken:  payload.AccessToken,
+		RefreshToken: payload.RefreshToken,
+		ExpiresIn:    aiDeviceExpiresInSeconds(payload.ExpiresIn),
+	}, nil
+}
+
+// AIDeviceOAuthCredential is the server-persisted credential from one
+// approved grant. The refresh token never leaves the server: it is written
+// to the user key row through persistAuthorized, never carried in a poll
+// response. Values are plaintext key material; persist immediately, log
+// never.
+type AIDeviceOAuthCredential struct {
+	AccessToken string
+	// RefreshToken is empty for access-only provider responses. An empty
+	// refresh persists as NULL: static-secret behavior, no refresh.
+	RefreshToken string
+	// ExpiresAt is the access-token expiry from expires_in. Zero means
+	// unknown: persisted as NULL, no refresh attempted.
+	ExpiresAt time.Time
+	AccountID string
 }
 
 // aiDeviceGrant is one in-flight device-code authorization. AccessToken
 // is transient: set once on approval, read by the owning dashboard poll,
 // and cleared when the grant is deleted or expires. It is never logged.
+// oauth holds the full exchanged triple (also never logged) so a failed
+// server-side persist can retry the persist on the next poll without
+// re-exchanging the single-use authorization code.
 type aiDeviceGrant struct {
 	id           uuid.UUID
 	ownerID      uuid.UUID
@@ -364,6 +481,11 @@ type aiDeviceGrant struct {
 	intervalSecs int
 	status       codersdk.AIDeviceGrantStatus
 	accessToken  string
+	oauth        *AIDeviceOAuthCredential
+	// persisted reports the credential reached the user key row
+	// server-side. A persisted grant carries no key material in its poll
+	// response: the dashboard must not PUT after it.
+	persisted bool
 }
 
 // AIDeviceGrantManager tracks in-flight device-code grants for one API
@@ -373,6 +495,9 @@ type AIDeviceGrantManager struct {
 	clock   quartz.Clock
 	grants  map[uuid.UUID]*aiDeviceGrant
 	factory func(aiDeviceGrantConfig) AIDeviceGrantExchanger
+	// persistAuthorized, when non-nil, writes the approved credential to
+	// the user key row. See SetPersistAuthorized.
+	persistAuthorized func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error
 }
 
 // ClientFactory builds the provider talker for a grant. Overriding it is
@@ -403,6 +528,18 @@ func NewAIDeviceGrantManager(clock quartz.Clock) *AIDeviceGrantManager {
 		grants:  make(map[uuid.UUID]*aiDeviceGrant),
 		factory: defaultAIDeviceGrantFactory,
 	}
+}
+
+// SetPersistAuthorized wires server-side credential custody: on approval
+// the exchanged triple is written to the user key row so the refresh token
+// never leaves the server and never appears in a poll response. A nil hook
+// keeps the legacy shape (access token in the poll response for the
+// dashboard to PUT); production always sets it. A hook failure leaves the
+// grant pending so the next poll retries the persist without re-exchanging.
+func (m *AIDeviceGrantManager) SetPersistAuthorized(hook func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.persistAuthorized = hook
 }
 
 func (m *AIDeviceGrantManager) initiate(ctx context.Context, ownerID, providerID uuid.UUID, provider database.AIProvider) (*aiDeviceGrant, error) {
@@ -461,15 +598,45 @@ func (m *AIDeviceGrantManager) poll(ctx context.Context, grantID, callerID uuid.
 	}
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	current, ok := m.grants[grantID]
 	if !ok || current.ownerID != callerID {
+		m.mu.Unlock()
 		return nil, xerrors.New("grant not found")
 	}
 	if m.expireLocked(current) || current.status != codersdk.AIDeviceGrantStatusPending {
 		snapshot := *current
+		m.mu.Unlock()
 		return &snapshot, nil
 	}
+	// An earlier poll exchanged the code but failed to persist
+	// server-side; the triple is held in memory. Retry the persist
+	// without re-exchanging the single-use code and without depending on
+	// the provider re-reporting approval. Terminal provider states win
+	// over the held triple.
+	if current.oauth != nil && m.persistAuthorized != nil &&
+		(outcome.kind == aiDevicePollPending || outcome.kind == aiDevicePollFailed || outcome.kind == aiDevicePollSlowDown) {
+		persist := m.persistAuthorized
+		cred := *current.oauth
+		ownerID, providerID := current.ownerID, current.providerID
+		m.mu.Unlock()
+		if err := persist(ctx, ownerID, providerID, cred); err != nil {
+			return m.snapshotChecked(grantID, callerID)
+		}
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		current, ok = m.grants[grantID]
+		if !ok || current.ownerID != callerID {
+			return nil, xerrors.New("grant not found")
+		}
+		if current.status == codersdk.AIDeviceGrantStatusPending && current.oauth != nil {
+			current.persisted = true
+			current.accessToken = ""
+			current.status = codersdk.AIDeviceGrantStatusAuthorized
+		}
+		snapshot := *current
+		return &snapshot, nil
+	}
+	defer m.mu.Unlock()
 	switch outcome.kind {
 	case aiDevicePollPending:
 		// No state change; the dashboard re-polls at intervalSecs.
@@ -481,9 +648,12 @@ func (m *AIDeviceGrantManager) poll(ctx context.Context, grantID, callerID uuid.
 		}
 	case aiDevicePollDenied:
 		current.status = codersdk.AIDeviceGrantStatusDenied
+		current.accessToken = ""
+		current.oauth = nil
 	case aiDevicePollExpired:
 		current.status = codersdk.AIDeviceGrantStatusExpired
 		current.accessToken = ""
+		current.oauth = nil
 	case aiDevicePollFailed:
 		// Provider-side failures stay pending: poll again. Terminal
 		// mapping (denied/expired) arrives as its own kind above.
@@ -512,14 +682,20 @@ func (m *AIDeviceGrantManager) expireLocked(grant *aiDeviceGrant) bool {
 	if grant.status == codersdk.AIDeviceGrantStatusPending && !m.clock.Now().Before(grant.expiresAt) {
 		grant.status = codersdk.AIDeviceGrantStatusExpired
 		grant.accessToken = ""
+		grant.oauth = nil
 	}
 	return grant.status != codersdk.AIDeviceGrantStatusPending
 }
 
-// complete exchanges an approved device authorization for an access token
-// without holding the manager lock across the network round-trip. An
-// exchange failure leaves the grant pending so the next poll retries;
-// only a successful exchange authorizes the grant.
+// complete exchanges an approved device authorization for the full token
+// triple without holding the manager lock across the network round-trip.
+// An exchange or account-derivation failure leaves the grant pending so
+// the next poll retries; only a successful exchange authorizes the grant.
+// When persistAuthorized is set, the triple is written to the user key row
+// before the grant authorizes, so the refresh token never leaves the
+// server. A persist failure leaves the grant pending with the exchanged
+// triple held in memory: the next poll retries the persist without
+// re-exchanging the single-use authorization code.
 func (m *AIDeviceGrantManager) complete(ctx context.Context, grantID, callerID uuid.UUID, outcome AIDevicePollOutcome) (*aiDeviceGrant, error) {
 	m.mu.Lock()
 	grant, ok := m.grants[grantID]
@@ -533,22 +709,79 @@ func (m *AIDeviceGrantManager) complete(ctx context.Context, grantID, callerID u
 		return &snapshot, nil
 	}
 	client := m.factory(grant.config)
+	persist := m.persistAuthorized
+	needExchange := grant.oauth == nil
+	now := m.clock.Now()
 	m.mu.Unlock()
 
-	token, err := client.ExchangeAuthorizationCode(ctx, outcome.authorizationCode, outcome.verifier)
-	if err != nil {
-		return m.snapshotChecked(grantID, callerID)
+	var exchanged *AIDeviceOAuthCredential
+	if needExchange {
+		token, err := client.ExchangeAuthorizationCode(ctx, outcome.authorizationCode, outcome.verifier)
+		if err != nil {
+			return m.snapshotChecked(grantID, callerID)
+		}
+		accountID, err := aiDeviceAccountIDFromJWT(token.AccessToken)
+		if err != nil {
+			return m.snapshotChecked(grantID, callerID)
+		}
+		exchanged = &AIDeviceOAuthCredential{
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			AccountID:    accountID,
+		}
+		if token.ExpiresIn > 0 {
+			exchanged.ExpiresAt = now.Add(time.Duration(token.ExpiresIn) * time.Second)
+		}
+	}
+
+	m.mu.Lock()
+	current, ok := m.grants[grantID]
+	if !ok || current.ownerID != callerID {
+		m.mu.Unlock()
+		return nil, xerrors.New("grant not found")
+	}
+	if current.status != codersdk.AIDeviceGrantStatusPending {
+		snapshot := *current
+		m.mu.Unlock()
+		return &snapshot, nil
+	}
+	// First exchange wins: a concurrent poll that already stored the
+	// triple keeps it, and this poll reuses it.
+	if current.oauth == nil && exchanged != nil {
+		current.oauth = exchanged
+		if persist == nil {
+			current.accessToken = exchanged.AccessToken
+		}
+	}
+	if current.oauth == nil {
+		snapshot := *current
+		m.mu.Unlock()
+		return &snapshot, nil
+	}
+	cred := *current.oauth
+	ownerID, providerID := current.ownerID, current.providerID
+	m.mu.Unlock()
+
+	if persist != nil {
+		if err := persist(ctx, ownerID, providerID, cred); err != nil {
+			return m.snapshotChecked(grantID, callerID)
+		}
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	current, ok := m.grants[grantID]
+	current, ok = m.grants[grantID]
 	if !ok || current.ownerID != callerID {
 		return nil, xerrors.New("grant not found")
 	}
-	if current.status == codersdk.AIDeviceGrantStatusPending {
+	if current.status == codersdk.AIDeviceGrantStatusPending && current.oauth != nil {
+		if persist != nil {
+			current.persisted = true
+			// A persisted grant carries no key material in its poll
+			// response: the dashboard must not PUT after it.
+			current.accessToken = ""
+		}
 		current.status = codersdk.AIDeviceGrantStatusAuthorized
-		current.accessToken = token
 	}
 	snapshot := *current
 	return &snapshot, nil
@@ -575,6 +808,7 @@ func (m *AIDeviceGrantManager) cancel(grantID, callerID uuid.UUID) error {
 		grant.status = codersdk.AIDeviceGrantStatusCanceled
 	}
 	grant.accessToken = ""
+	grant.oauth = nil
 	return nil
 }
 
@@ -614,9 +848,48 @@ func aiDeviceGrantInitiateResponse(grant *aiDeviceGrant, now time.Time) codersdk
 		VerificationURIComplete: grant.config.verificationURI + "/" + grant.userCode,
 		ExpiresIn:               grantSecondsLeft(grant, now),
 		PollInterval:            grant.intervalSecs,
-		StoresAccessTokenOnly:   true,
-		RefreshSupported:        false,
+		StoresAccessTokenOnly:   false,
+		RefreshSupported:        true,
 		ReauthMessage:           aiDeviceReauthMessage,
+	}
+}
+
+// persistAIDeviceGrantCredential writes one approved device-grant credential
+// to the user's key row. It is the server-side custody path implementing
+// the captain's Q1 decision: the refresh token is written here and never
+// appears in a poll response. A fresh approval clears any stale refresh
+// failure bookkeeping. The Upsert overwrites OAuth state wholesale: a later
+// pasted/static replace carries no OAuth material and drops it by
+// definition.
+func persistAIDeviceGrantCredential(db database.Store, clock quartz.Clock) func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
+	return func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
+		now := clock.Now()
+		params := database.UpsertUserAIProviderKeyParams{
+			ID:                        uuid.New(),
+			UserID:                    ownerID,
+			AIProviderID:              providerID,
+			APIKey:                    cred.AccessToken,
+			ApiKeyKeyID:               sql.NullString{},
+			OAuthRefreshToken:         sql.NullString{},
+			OAuthRefreshTokenKeyID:    sql.NullString{},
+			OAuthExpiry:               sql.NullTime{},
+			AccountID:                 sql.NullString{},
+			OAuthExtra:                pqtype.NullRawMessage{},
+			OauthRefreshFailureReason: sql.NullString{},
+			CreatedAt:                 now,
+			UpdatedAt:                 now,
+		}
+		if strings.TrimSpace(cred.AccountID) != "" {
+			params.AccountID = sql.NullString{String: cred.AccountID, Valid: true}
+		}
+		if strings.TrimSpace(cred.RefreshToken) != "" {
+			params.OAuthRefreshToken = sql.NullString{String: cred.RefreshToken, Valid: true}
+		}
+		if !cred.ExpiresAt.IsZero() {
+			params.OAuthExpiry = sql.NullTime{Time: cred.ExpiresAt, Valid: true}
+		}
+		_, err := db.UpsertUserAIProviderKey(ctx, params)
+		return err
 	}
 }
 
@@ -631,8 +904,8 @@ func aiDeviceGrantPollResponse(grant *aiDeviceGrant, now time.Time) codersdk.AID
 		ExpiresIn:               grantSecondsLeft(grant, now),
 		PollInterval:            grant.intervalSecs,
 		APIKey:                  grant.accessToken,
-		StoresAccessTokenOnly:   true,
-		RefreshSupported:        false,
+		StoresAccessTokenOnly:   false,
+		RefreshSupported:        true,
 		ReauthMessage:           aiDeviceReauthMessage,
 	}
 }
@@ -721,6 +994,8 @@ func (api *API) postUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.AIDeviceGrantPollResponse
 // @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant} [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	targetUser, provider, ok := api.resolveAIDeviceGrantTarget(ctx, rw, r)

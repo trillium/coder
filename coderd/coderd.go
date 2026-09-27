@@ -730,6 +730,11 @@ func New(options *Options) *API {
 		AIDeviceGrants:              NewAIDeviceGrantManager(options.Clock),
 	}
 
+	// Server-side OAuth custody for device-code grants (captain Q1):
+	// approved credentials persist to the user key row here so refresh
+	// tokens never leave the server and never appear in poll responses.
+	api.AIDeviceGrants.SetPersistAuthorized(persistAIDeviceGrantCredential(api.Database, options.Clock))
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
