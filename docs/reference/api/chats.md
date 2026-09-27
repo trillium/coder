@@ -296,12 +296,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                                                          |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| Property      | Value(s)                                                                                                                                                                                                                                                                             |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                                          |
+| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                              |
+| `plan_mode`   | `plan`                                                                                                                                                                                                                                                                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3991,7 +3991,7 @@ Status Code **200**
 
 | Property | Value(s)                                                                                                                                                                                                                                                                                            |
 |----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
 | `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 | `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
 | `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
@@ -4818,8 +4818,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 [
   {
     "byok_enabled": true,
+    "device_flow_supported": true,
     "has_provider_api_key": true,
     "has_user_api_key": true,
+    "oauth_expiry": "string",
     "provider": {
       "deleted": true,
       "display_name": "string",
@@ -4828,7 +4830,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "type": "openai"
-    }
+    },
+    "reauth_required": true,
+    "refresh_supported": true
   }
 ]
 ```
@@ -4843,20 +4847,24 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys \
 
 Status Code **200**
 
-| Name                     | Type                                                               | Required | Restrictions | Description |
-|--------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`           | array                                                              | false    |              |             |
-| `» byok_enabled`         | boolean                                                            | false    |              |             |
-| `» has_provider_api_key` | boolean                                                            | false    |              |             |
-| `» has_user_api_key`     | boolean                                                            | false    |              |             |
-| `» provider`             | [codersdk.AIProviderSummary](schemas.md#codersdkaiprovidersummary) | false    |              |             |
-| `»» deleted`             | boolean                                                            | false    |              |             |
-| `»» display_name`        | string                                                             | false    |              |             |
-| `»» enabled`             | boolean                                                            | false    |              |             |
-| `»» icon`                | string                                                             | false    |              |             |
-| `»» id`                  | string(uuid)                                                       | false    |              |             |
-| `»» name`                | string                                                             | false    |              |             |
-| `»» type`                | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)       | false    |              |             |
+| Name                      | Type                                                               | Required | Restrictions | Description                                                                                                                                                                           |
+|---------------------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                              | false    |              |                                                                                                                                                                                       |
+| `» byok_enabled`          | boolean                                                            | false    |              |                                                                                                                                                                                       |
+| `» device_flow_supported` | boolean                                                            | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers).                     |
+| `» has_provider_api_key`  | boolean                                                            | false    |              |                                                                                                                                                                                       |
+| `» has_user_api_key`      | boolean                                                            | false    |              |                                                                                                                                                                                       |
+| `» oauth_expiry`          | string                                                             | false    |              | Oauth expiry is when the saved access token expires, when the key came from an OAuth sign-in. Absent for pasted static keys.                                                          |
+| `» provider`              | [codersdk.AIProviderSummary](schemas.md#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                       |
+| `»» deleted`              | boolean                                                            | false    |              |                                                                                                                                                                                       |
+| `»» display_name`         | string                                                             | false    |              |                                                                                                                                                                                       |
+| `»» enabled`              | boolean                                                            | false    |              |                                                                                                                                                                                       |
+| `»» icon`                 | string                                                             | false    |              |                                                                                                                                                                                       |
+| `»» id`                   | string(uuid)                                                       | false    |              |                                                                                                                                                                                       |
+| `»» name`                 | string                                                             | false    |              |                                                                                                                                                                                       |
+| `»» type`                 | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)       | false    |              |                                                                                                                                                                                       |
+| `» reauth_required`       | boolean                                                            | false    |              | Reauth required reports the saved OAuth credential died (terminal refresh failure): exactly one re-auth prompt renders, reusing the device-code initiate path. The saved key is kept. |
+| `» refresh_supported`     | boolean                                                            | false    |              | Refresh supported reports the server refreshes this OAuth sign-in automatically. It flips only when the refresher ships; a saved static key never refreshes.                          |
 
 #### Enumerated Values
 
@@ -4903,8 +4911,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 ```json
 {
   "byok_enabled": true,
+  "device_flow_supported": true,
   "has_provider_api_key": true,
   "has_user_api_key": true,
+  "oauth_expiry": "string",
   "provider": {
     "deleted": true,
     "display_name": "string",
@@ -4913,7 +4923,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "type": "openai"
-  }
+  },
+  "reauth_required": true,
+  "refresh_supported": true
 }
 ```
 
@@ -4943,6 +4955,131 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 |--------------|------|--------------|----------|--------------------------|
 | `user`       | path | string       | true     | User ID, username, or me |
 | `aiProvider` | path | string(uuid) | true     | AI provider ID           |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Initiate an AI provider device-code grant
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants`
+
+### Parameters
+
+| Name         | In   | Type         | Required | Description              |
+|--------------|------|--------------|----------|--------------------------|
+| `user`       | path | string       | true     | User ID, username, or me |
+| `aiProvider` | path | string(uuid) | true     | AI provider ID           |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "poll_interval": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "stores_access_token_only": true,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                                     |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIDeviceGrantInitiateResponse](schemas.md#codersdkaidevicegrantinitiateresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Poll an AI provider device-code grant
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant}`
+
+### Parameters
+
+| Name         | In   | Type         | Required | Description              |
+|--------------|------|--------------|----------|--------------------------|
+| `user`       | path | string       | true     | User ID, username, or me |
+| `aiProvider` | path | string(uuid) | true     | AI provider ID           |
+| `grant`      | path | string(uuid) | true     | Device grant ID          |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "api_key": "string",
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "poll_interval": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "status": "pending",
+  "stores_access_token_only": true,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIDeviceGrantPollResponse](schemas.md#codersdkaidevicegrantpollresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Cancel an AI provider device-code grant
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant}`
+
+### Parameters
+
+| Name         | In   | Type         | Required | Description              |
+|--------------|------|--------------|----------|--------------------------|
+| `user`       | path | string       | true     | User ID, username, or me |
+| `aiProvider` | path | string(uuid) | true     | AI provider ID           |
+| `grant`      | path | string(uuid) | true     | Device grant ID          |
 
 ### Responses
 

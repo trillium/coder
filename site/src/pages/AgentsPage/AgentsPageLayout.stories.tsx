@@ -336,6 +336,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 				has_user_api_key: false,
 				has_provider_api_key: true,
 				byok_enabled: true,
+				device_flow_supported: false,
+				refresh_supported: false,
+				reauth_required: false,
 			},
 		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);

@@ -1364,12 +1364,82 @@ type UserAIProviderKeyConfig struct {
 	HasUserAPIKey     bool              `json:"has_user_api_key"`
 	HasProviderAPIKey bool              `json:"has_provider_api_key"`
 	BYOKEnabled       bool              `json:"byok_enabled"`
+	// DeviceFlowSupported reports whether the provider offers the paved
+	// in-dashboard device-code sign-in (ChatGPT first, provider-generic
+	// shape for later providers).
+	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// OAuthExpiry is when the saved access token expires, when the key
+	// came from an OAuth sign-in. Absent for pasted static keys.
+	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
+	// RefreshSupported reports the server refreshes this OAuth sign-in
+	// automatically. It flips only when the refresher ships; a saved
+	// static key never refreshes.
+	RefreshSupported bool `json:"refresh_supported"`
+	// ReauthRequired reports the saved OAuth credential died (terminal
+	// refresh failure): exactly one re-auth prompt renders, reusing the
+	// device-code initiate path. The saved key is kept.
+	ReauthRequired bool `json:"reauth_required"`
 }
 
 // CreateUserAIProviderKeyRequest creates or replaces a user's API key
 // for an AI provider.
 type CreateUserAIProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
+}
+
+// AIDeviceGrantStatus is the lifecycle state of a user-scoped AI provider
+// device-code grant. Terminal states are authorized, expired, denied, and
+// canceled; only pending grants advance on poll.
+type AIDeviceGrantStatus string
+
+const (
+	AIDeviceGrantStatusPending    AIDeviceGrantStatus = "pending"
+	AIDeviceGrantStatusAuthorized AIDeviceGrantStatus = "authorized"
+	AIDeviceGrantStatusExpired    AIDeviceGrantStatus = "expired"
+	AIDeviceGrantStatusDenied     AIDeviceGrantStatus = "denied"
+	AIDeviceGrantStatusCanceled   AIDeviceGrantStatus = "canceled"
+)
+
+// AIDeviceGrantInitiateResponse starts a device-code grant. It carries only
+// display material (user code, verification URLs); key material never
+// appears here.
+type AIDeviceGrantInitiateResponse struct {
+	GrantID                 uuid.UUID `json:"grant_id" format:"uuid"`
+	ProviderID              uuid.UUID `json:"provider_id" format:"uuid"`
+	UserCode                string    `json:"user_code"`
+	VerificationURI         string    `json:"verification_uri"`
+	VerificationURIComplete string    `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int       `json:"expires_in"`
+	PollInterval            int       `json:"poll_interval"`
+	// StoresAccessTokenOnly and RefreshSupported document the refresh
+	// honesty: Coder persists the full OAuth credential from this sign-in
+	// server-side and refreshes it lazily per request. When refresh fails
+	// terminally, re-auth is a fresh device-code round.
+	StoresAccessTokenOnly bool   `json:"stores_access_token_only"`
+	RefreshSupported      bool   `json:"refresh_supported"`
+	ReauthMessage         string `json:"reauth_message"`
+}
+
+// AIDeviceGrantPollResponse reports grant status. APIKey is present only
+// on authorized polls for grants without server-side persistence, only
+// for the owning user, and is saved into the BYOK slot by the dashboard
+// through the existing user-keys endpoint. Server-persisted grants carry
+// no key material here: the credential already reached the user key row
+// and the dashboard must not PUT after them. The refresh token never
+// appears in this response in either case.
+type AIDeviceGrantPollResponse struct {
+	GrantID                 uuid.UUID           `json:"grant_id" format:"uuid"`
+	ProviderID              uuid.UUID           `json:"provider_id" format:"uuid"`
+	Status                  AIDeviceGrantStatus `json:"status"`
+	UserCode                string              `json:"user_code"`
+	VerificationURI         string              `json:"verification_uri"`
+	VerificationURIComplete string              `json:"verification_uri_complete,omitempty"`
+	ExpiresIn               int                 `json:"expires_in"`
+	PollInterval            int                 `json:"poll_interval"`
+	APIKey                  string              `json:"api_key,omitempty"`
+	StoresAccessTokenOnly   bool                `json:"stores_access_token_only"`
+	RefreshSupported        bool                `json:"refresh_supported"`
+	ReauthMessage           string              `json:"reauth_message"`
 }
 
 // UserChatProviderConfig is a summary of a provider that allows
@@ -1383,6 +1453,18 @@ type UserChatProviderConfig struct {
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
+	// DeviceFlowSupported mirrors UserAIProviderKeyConfig: whether the
+	// paved device-code sign-in is available for this provider.
+	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// OAuthExpiry mirrors UserAIProviderKeyConfig: access-token expiry for
+	// OAuth sign-ins, absent for static keys.
+	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
+	// RefreshSupported mirrors UserAIProviderKeyConfig: the server
+	// refreshes this OAuth sign-in automatically.
+	RefreshSupported bool `json:"refresh_supported"`
+	// ReauthRequired mirrors UserAIProviderKeyConfig: the saved OAuth
+	// credential died and exactly one re-auth prompt renders.
+	ReauthRequired bool `json:"reauth_required"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
@@ -1809,13 +1891,17 @@ const (
 	ChatErrorKindTimeout              ChatErrorKind = "timeout"
 	ChatErrorKindStreamSilenceTimeout ChatErrorKind = "stream_silence_timeout"
 	ChatErrorKindAuth                 ChatErrorKind = "auth"
-	ChatErrorKindConfig               ChatErrorKind = "config"
-	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
-	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
-	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
-	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
-	ChatErrorKindHookDenied           ChatErrorKind = "hook_denied"
+	// ChatErrorKindReauthRequired signals a dead saved OAuth credential:
+	// the user must sign in again through the device-code flow. It is
+	// terminal, never retried, and never falls back to another credential.
+	ChatErrorKindReauthRequired     ChatErrorKind = "reauth_required"
+	ChatErrorKindConfig             ChatErrorKind = "config"
+	ChatErrorKindUsageLimit         ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey         ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled   ChatErrorKind = "provider_disabled"
+	ChatErrorKindContentFilter      ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed ChatErrorKind = "hook_dispatch_failed"
+	ChatErrorKindHookDenied         ChatErrorKind = "hook_denied"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1827,6 +1913,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindTimeout,
 	ChatErrorKindStreamSilenceTimeout,
 	ChatErrorKindAuth,
+	ChatErrorKindReauthRequired,
 	ChatErrorKindConfig,
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,
@@ -2165,6 +2252,54 @@ func (c *Client) DeleteUserAIProviderKey(ctx context.Context, user string, provi
 
 func userAIProviderKeysPath(user string) string {
 	return fmt.Sprintf("/api/v2/users/%s/ai-provider-keys", url.PathEscape(user))
+}
+
+func userAIDeviceGrantsPath(user string, providerID uuid.UUID) string {
+	return fmt.Sprintf("%s/%s/device-grants", userAIProviderKeysPath(user), providerID)
+}
+
+// InitiateUserAIDeviceGrant starts a device-code grant for the caller's own
+// provider key slot. The response carries display material only.
+func (c *Client) InitiateUserAIDeviceGrant(ctx context.Context, user string, providerID uuid.UUID) (AIDeviceGrantInitiateResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, userAIDeviceGrantsPath(user, providerID), nil)
+	if err != nil {
+		return AIDeviceGrantInitiateResponse{}, xerrors.Errorf("initiate user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return AIDeviceGrantInitiateResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIDeviceGrantInitiateResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// GetUserAIDeviceGrant polls a device-code grant owned by the caller.
+// On authorized polls the response carries the access token once for the
+// dashboard to save through UpsertUserAIProviderKey.
+func (c *Client) GetUserAIDeviceGrant(ctx context.Context, user string, providerID, grantID uuid.UUID) (AIDeviceGrantPollResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/%s", userAIDeviceGrantsPath(user, providerID), grantID), nil)
+	if err != nil {
+		return AIDeviceGrantPollResponse{}, xerrors.Errorf("get user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIDeviceGrantPollResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIDeviceGrantPollResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// CancelUserAIDeviceGrant cancels a device-code grant owned by the caller.
+func (c *Client) CancelUserAIDeviceGrant(ctx context.Context, user string, providerID, grantID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIDeviceGrantsPath(user, providerID), grantID), nil)
+	if err != nil {
+		return xerrors.Errorf("cancel user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ChatModels returns the chat model configs the caller can read in one

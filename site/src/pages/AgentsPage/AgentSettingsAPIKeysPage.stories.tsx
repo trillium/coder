@@ -17,6 +17,10 @@ const createProvider = (
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
+	device_flow_supported: overrides.device_flow_supported ?? false,
+	oauth_expiry: overrides.oauth_expiry,
+	refresh_supported: overrides.refresh_supported ?? false,
+	reauth_required: overrides.reauth_required ?? false,
 });
 
 const createModel = (
@@ -77,6 +81,39 @@ export const WithSavedKey: Story = {
 	},
 };
 
+export const WithOAuthExpiry: Story = {
+	args: {
+		providers: [
+			createProvider({
+				provider_id: "prov-1",
+				provider: "openai",
+				display_name: "ChatGPT",
+				has_user_api_key: true,
+				device_flow_supported: true,
+				oauth_expiry: "2030-05-01T12:00:00.000Z",
+				refresh_supported: true,
+			}),
+		],
+		models: baseModels,
+	},
+};
+
+export const WithReauthRequired: Story = {
+	args: {
+		providers: [
+			createProvider({
+				provider_id: "prov-1",
+				provider: "openai",
+				display_name: "ChatGPT",
+				has_user_api_key: true,
+				device_flow_supported: true,
+				reauth_required: true,
+			}),
+		],
+		models: baseModels,
+	},
+};
+
 export const UserKeysDisabled: Story = {
 	args: {
 		providers: [
@@ -85,6 +122,9 @@ export const UserKeysDisabled: Story = {
 				provider: "openai",
 				display_name: "OpenAI",
 				byok_enabled: false,
+				device_flow_supported: false,
+				refresh_supported: false,
+				reauth_required: false,
 				has_central_api_key_fallback: true,
 			}),
 		],

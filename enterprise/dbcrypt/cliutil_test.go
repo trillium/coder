@@ -661,6 +661,45 @@ func TestRotateUserAIProviderKeys(t *testing.T) {
 		}
 	})
 
+	// OAuthRotation proves a dbcrypt rotation re-encrypts the OAuth refresh
+	// token under the new key instead of stranding it under the revoked
+	// one: without the pass-through, rotation would silently drop OAuth
+	// state and every OAuth sign-in would stop refreshing.
+	t.Run("OAuthRotation", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+
+		user := dbgen.User(t, f.rawDB, database.User{})
+		provider := dbgen.AIProvider(t, f.rawDB, database.AIProvider{})
+		now := time.Now()
+		seeded, err := f.cryptDBA.UpsertUserAIProviderKey(f.ctx, database.UpsertUserAIProviderKeyParams{
+			ID:                uuid.New(),
+			UserID:            user.ID,
+			AIProviderID:      provider.ID,
+			APIKey:            "user-key-oauth",
+			OAuthRefreshToken: sql.NullString{String: "refresh-oauth", Valid: true},
+			OAuthExpiry:       sql.NullTime{Time: now.Add(time.Hour), Valid: true},
+			AccountID:         sql.NullString{String: "acct-oauth", Valid: true},
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		})
+		require.NoError(t, err)
+		require.Equal(t, f.cipherA.HexDigest(), seeded.OAuthRefreshTokenKeyID.String, "sanity check: refresh must be encrypted under cipher A")
+
+		f.rotate(t)
+
+		got, err := f.rawDB.GetUserAIProviderKeyByProviderID(f.ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, f.cipherB.HexDigest(), got.ApiKeyKeyID.String)
+		require.Equal(t, f.cipherB.HexDigest(), got.OAuthRefreshTokenKeyID.String, "refresh must move to the new key")
+		require.Equal(t, "refresh-oauth", decryptRawString(t, f.cipherB, got.OAuthRefreshToken.String))
+		require.True(t, got.OAuthExpiry.Valid, "expiry survives rotation")
+		require.Equal(t, "acct-oauth", got.AccountID.String, "account survives rotation")
+	})
+
 	// DecryptErr simulates an operator omitting an old key from --old-keys.
 	// A user_ai_provider_keys row is encrypted under cipher C, registered
 	// in dbcrypt_keys but never passed to the rotation below, so Rotate
@@ -1252,6 +1291,43 @@ func TestDecryptUserAIProviderKeys(t *testing.T) {
 		}
 	})
 
+	// OAuthDecrypt proves Decrypt leaves the OAuth refresh token as
+	// plaintext with a cleared key id, alongside the access token.
+	t.Run("OAuthDecrypt", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+
+		user := dbgen.User(t, f.rawDB, database.User{})
+		provider := dbgen.AIProvider(t, f.rawDB, database.AIProvider{})
+		now := time.Now()
+		seeded, err := f.cryptDBA.UpsertUserAIProviderKey(f.ctx, database.UpsertUserAIProviderKeyParams{
+			ID:                uuid.New(),
+			UserID:            user.ID,
+			AIProviderID:      provider.ID,
+			APIKey:            "user-key-oauth",
+			OAuthRefreshToken: sql.NullString{String: "refresh-oauth", Valid: true},
+			OAuthExpiry:       sql.NullTime{Time: now.Add(time.Hour), Valid: true},
+			AccountID:         sql.NullString{String: "acct-oauth", Valid: true},
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		})
+		require.NoError(t, err)
+		require.True(t, seeded.OAuthRefreshTokenKeyID.Valid)
+
+		f.decrypt(t)
+
+		got, err := f.rawDB.GetUserAIProviderKeyByProviderID(f.ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.False(t, got.ApiKeyKeyID.Valid)
+		require.False(t, got.OAuthRefreshTokenKeyID.Valid)
+		require.Equal(t, "refresh-oauth", got.OAuthRefreshToken.String)
+		require.True(t, got.OAuthExpiry.Valid)
+		require.Equal(t, "acct-oauth", got.AccountID.String)
+	})
+
 	// DecryptErr simulates an operator omitting a key from --keys. See
 	// TestDecryptUserLinks/DecryptErr for the underlying mechanism.
 	//
@@ -1608,13 +1684,26 @@ func TestDeleteUserAIProviderKeys(t *testing.T) {
 	t.Parallel()
 	f := newDeleteFixture(t)
 
-	// Upsert is keyed by (user_id, ai_provider_id), so encKey and plainKey
-	// must belong to different users to land as two independent rows.
+	// Upsert is keyed by (user_id, ai_provider_id), so each row below
+	// belongs to a different user to land as independent rows.
 	encUser := dbgen.User(t, f.rawDB, database.User{})
 	plainUser := dbgen.User(t, f.rawDB, database.User{})
+	oauthUser := dbgen.User(t, f.rawDB, database.User{})
 	provider := dbgen.AIProvider(t, f.rawDB, database.AIProvider{})
 	encKey := upsertUserAIProviderKey(f.ctx, t, f.cryptDBA, encUser.ID, provider.ID, "user-key-value")
 	plainKey := upsertUserAIProviderKey(f.ctx, t, f.rawDB, plainUser.ID, provider.ID, "plain-user-key-value")
+	now := time.Now()
+	oauthKey, err := f.cryptDBA.UpsertUserAIProviderKey(f.ctx, database.UpsertUserAIProviderKeyParams{
+		ID:                uuid.New(),
+		UserID:            oauthUser.ID,
+		AIProviderID:      provider.ID,
+		APIKey:            "user-key-oauth",
+		OAuthRefreshToken: sql.NullString{String: "refresh-oauth", Valid: true},
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	})
+	require.NoError(t, err)
+	require.True(t, oauthKey.OAuthRefreshTokenKeyID.Valid)
 
 	f.delete(t)
 
@@ -1627,6 +1716,9 @@ func TestDeleteUserAIProviderKeys(t *testing.T) {
 
 	_, stillExists := byID[encKey.ID]
 	require.False(t, stillExists, "encrypted user_ai_provider_keys row should have been deleted")
+
+	_, oauthStillExists := byID[oauthKey.ID]
+	require.False(t, oauthStillExists, "OAuth-encrypted user_ai_provider_keys row should have been deleted")
 
 	gotPlain, ok := byID[plainKey.ID]
 	require.True(t, ok, "never-encrypted user_ai_provider_keys row should survive")

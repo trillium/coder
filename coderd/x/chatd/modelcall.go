@@ -188,7 +188,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 }
 
 func (r resolvedModelCall) newCall() fantasy.Call {
-	return fantasy.Call{
+	call := fantasy.Call{
 		ProviderOptions:  r.providerOptions,
 		MaxOutputTokens:  r.callConfig.MaxOutputTokens,
 		Temperature:      r.callConfig.Temperature,
@@ -197,6 +197,13 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 		PresencePenalty:  r.callConfig.PresencePenalty,
 		FrequencyPenalty: r.callConfig.FrequencyPenalty,
 	}
+	if !chatprovider.SupportsMaxOutputTokens(r.route.Provider.BaseUrl) {
+		// The ChatGPT subscription backend speaks the Responses
+		// API but rejects max_output_tokens with HTTP 400, so it
+		// must not be sent there. Every other backend keeps it.
+		call.MaxOutputTokens = nil
+	}
+	return call
 }
 
 // compactionSummaryCall follows the resolved call template, except summaries
@@ -220,7 +227,7 @@ func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 }
 
 func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, maxOutputTokens int64) fantasy.ObjectCall {
-	return fantasy.ObjectCall{
+	call := fantasy.ObjectCall{
 		SchemaName:        schemaName,
 		SchemaDescription: schemaDescription,
 		MaxOutputTokens:   ptr.Ref(maxOutputTokens),
@@ -231,4 +238,11 @@ func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, m
 		FrequencyPenalty:  r.callConfig.FrequencyPenalty,
 		ProviderOptions:   r.providerOptions,
 	}
+	if !chatprovider.SupportsMaxOutputTokens(r.route.Provider.BaseUrl) {
+		// Same omission as newCall: object calls share the
+		// Responses params builder, so the ChatGPT subscription
+		// backend would reject them for the same reason.
+		call.MaxOutputTokens = nil
+	}
+	return call
 }

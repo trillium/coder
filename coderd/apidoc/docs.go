@@ -12268,6 +12268,140 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Initiate an AI provider device-code grant",
+                "operationId": "initiate-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIDeviceGrantInitiateResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants/{grant}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Poll an AI provider device-code grant",
+                "operationId": "poll-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Device grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIDeviceGrantPollResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Cancel an AI provider device-code grant",
+                "operationId": "cancel-ai-provider-device-code-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Device grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
@@ -18302,6 +18436,104 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIDeviceGrantInitiateResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "poll_interval": {
+                    "type": "integer"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "stores_access_token_only": {
+                    "description": "StoresAccessTokenOnly and RefreshSupported document the refresh\nhonesty: Coder persists the full OAuth credential from this sign-in\nserver-side and refreshes it lazily per request. When refresh fails\nterminally, re-auth is a fresh device-code round.",
+                    "type": "boolean"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                },
+                "verification_uri_complete": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIDeviceGrantPollResponse": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "poll_interval": {
+                    "type": "integer"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.AIDeviceGrantStatus"
+                },
+                "stores_access_token_only": {
+                    "type": "boolean"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                },
+                "verification_uri_complete": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIDeviceGrantStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "authorized",
+                "expired",
+                "denied",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "AIDeviceGrantStatusPending",
+                "AIDeviceGrantStatusAuthorized",
+                "AIDeviceGrantStatusExpired",
+                "AIDeviceGrantStatusDenied",
+                "AIDeviceGrantStatusCanceled"
+            ]
+        },
         "codersdk.AIGatewayKey": {
             "type": "object",
             "properties": {
@@ -20294,6 +20526,7 @@ const docTemplate = `{
                 "timeout",
                 "stream_silence_timeout",
                 "auth",
+                "reauth_required",
                 "config",
                 "usage_limit",
                 "missing_key",
@@ -20309,6 +20542,7 @@ const docTemplate = `{
                 "ChatErrorKindTimeout",
                 "ChatErrorKindStreamSilenceTimeout",
                 "ChatErrorKindAuth",
+                "ChatErrorKindReauthRequired",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
@@ -31000,14 +31234,30 @@ const docTemplate = `{
                 "byok_enabled": {
                     "type": "boolean"
                 },
+                "device_flow_supported": {
+                    "description": "DeviceFlowSupported reports whether the provider offers the paved\nin-dashboard device-code sign-in (ChatGPT first, provider-generic\nshape for later providers).",
+                    "type": "boolean"
+                },
                 "has_provider_api_key": {
                     "type": "boolean"
                 },
                 "has_user_api_key": {
                     "type": "boolean"
                 },
+                "oauth_expiry": {
+                    "description": "OAuthExpiry is when the saved access token expires, when the key\ncame from an OAuth sign-in. Absent for pasted static keys.",
+                    "type": "string"
+                },
                 "provider": {
                     "$ref": "#/definitions/codersdk.AIProviderSummary"
+                },
+                "reauth_required": {
+                    "description": "ReauthRequired reports the saved OAuth credential died (terminal\nrefresh failure): exactly one re-auth prompt renders, reusing the\ndevice-code initiate path. The saved key is kept.",
+                    "type": "boolean"
+                },
+                "refresh_supported": {
+                    "description": "RefreshSupported reports the server refreshes this OAuth sign-in\nautomatically. It flips only when the refresher ships; a saved\nstatic key never refreshes.",
+                    "type": "boolean"
                 }
             }
         },

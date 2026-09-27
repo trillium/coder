@@ -727,7 +727,13 @@ func New(options *Options) *API {
 		dbRolluper:                  options.DatabaseRolluper,
 		ProfileCollector:            defaultProfileCollector{},
 		AISeatTracker:               aiseats.Noop{},
+		AIDeviceGrants:              NewAIDeviceGrantManager(options.Clock),
 	}
+
+	// Server-side OAuth custody for device-code grants (captain Q1):
+	// approved credentials persist to the user key row here so refresh
+	// tokens never leave the server and never appear in poll responses.
+	api.AIDeviceGrants.SetPersistAuthorized(persistAIDeviceGrantCredential(api.Database, options.Clock))
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -2268,6 +2274,9 @@ type API struct {
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
+	// AIDeviceGrants tracks in-flight user-scoped device-code grants for
+	// paved BYOK sign-in. Grants live in memory on this replica only.
+	AIDeviceGrants *AIDeviceGrantManager
 
 	// ProfileCollector abstracts the runtime/pprof and runtime/trace
 	// calls used by the /debug/profile endpoint. Tests override this
