@@ -79,21 +79,128 @@ resource "coder_agent" "main" {
     # this template plus this entry are what make OLLAMA_HOST reachable.
     # The Docker host block covers name resolution for most lookups; the
     # /etc/hosts entry is belt and braces for resolvers that bypass it.
+    # NOTE: sed -i cannot touch /etc/hosts inside a container (rename onto
+    # a bind mount fails), so filter through a temp file and rewrite the
+    # mounted file in place with cat instead.
     if [ -n "${var.ollama_ip_override}" ]; then
-      sed -i '/${var.ollama_hostname}/d' /etc/hosts || true
+      grep -v -F "${var.ollama_hostname}" /etc/hosts > /etc/hosts.gnhf-tmp || true
+      cat /etc/hosts.gnhf-tmp > /etc/hosts
+      rm -f /etc/hosts.gnhf-tmp
       echo "${var.ollama_ip_override} ${var.ollama_hostname}" >> /etc/hosts
     fi
 
     # Local-model environment for every login shell (agent env below covers
     # the Coder agent process itself; SSH sessions source profile.d).
-    cat > /etc/profile.d/ollama-local.sh <<PROFILE_EOF
-    export OLLAMA_HOST="${var.ollama_base_url}"
-    export OPENAI_BASE_URL="${var.ollama_base_url}/v1"
-    export OPENAI_API_KEY="ollama"
-    export ANTHROPIC_BASE_URL="${var.ollama_base_url}"
-    export ANTHROPIC_AUTH_TOKEN="ollama"
-    PROFILE_EOF
+    # Inner heredoc terminators sit at column 0 on purpose: POSIX sh only
+    # recognises an unindented terminator for << (non-dash) heredocs.
+    # Inner heredocs use quoted delimiters so the runtime shell writes
+    # them literally; Terraform still expands variable references inside
+    # at provision time.
+    cat > /etc/profile.d/ollama-local.sh <<'PROFILE_EOF'
+export OLLAMA_HOST="${var.ollama_base_url}"
+export OPENAI_BASE_URL="${var.ollama_base_url}/v1"
+export OPENAI_API_KEY="ollama"
+export ANTHROPIC_BASE_URL="${var.ollama_base_url}"
+export ANTHROPIC_AUTH_TOKEN="ollama"
+PROFILE_EOF
     chmod 644 /etc/profile.d/ollama-local.sh
+
+    # Base dev/runtime tooling. Guarded so workspace restarts stay fast:
+    # apt runs only when something is actually missing.
+    export DEBIAN_FRONTEND=noninteractive
+    apt_pkgs=""
+    command -v git >/dev/null 2>&1 || apt_pkgs="$apt_pkgs git"
+    command -v curl >/dev/null 2>&1 || apt_pkgs="$apt_pkgs curl ca-certificates"
+    command -v jq >/dev/null 2>&1 || apt_pkgs="$apt_pkgs jq"
+    command -v rg >/dev/null 2>&1 || apt_pkgs="$apt_pkgs ripgrep"
+    command -v fd >/dev/null 2>&1 || apt_pkgs="$apt_pkgs fd-find"
+    command -v ssh >/dev/null 2>&1 || apt_pkgs="$apt_pkgs openssh-client"
+    if [ -n "$apt_pkgs" ]; then
+      apt-get update
+      # shellcheck disable=SC2086
+      apt-get install -y $apt_pkgs
+    fi
+
+    # Node 22 LTS for the agent CLIs (all four install from npm or a
+    # Node-based installer). Refresh only when node is missing or older
+    # than 18, which every CLI here requires.
+    node_major=""
+    if command -v node >/dev/null 2>&1; then
+      node_major=$(node -p 'process.versions.node.split(".")[0]')
+    fi
+    if [ -z "$node_major" ] || [ "$node_major" -lt 18 ]; then
+      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      apt-get install -y nodejs
+    fi
+
+    # Agent CLIs, from each tool's documented install path. Guarded by
+    # command presence so they survive restarts without re-downloading.
+    export npm_config_update_notifier=false
+    command -v gnhf >/dev/null 2>&1 || npm install -g gnhf
+    command -v pi >/dev/null 2>&1 || npm install -g @earendil-works/pi-coding-agent
+    command -v claude >/dev/null 2>&1 || npm install -g @anthropic-ai/claude-code
+    if ! command -v opencode >/dev/null 2>&1; then
+      curl -fsSL https://opencode.ai/install | bash
+      if [ -f "$HOME/.opencode/bin/opencode" ]; then
+        ln -sf "$HOME/.opencode/bin/opencode" /usr/local/bin/opencode
+      fi
+    fi
+
+    # pi: expose the MacBook models as ollama-local/* so `pi --list-models`
+    # and `gnhf --agent pi --model ollama-local/...` work out of the box.
+    # Written once; gnhf-smoke-test fails if the rendered baseUrl ever
+    # drifts from OLLAMA_HOST (e.g. after the template URL param changes).
+    pi_models="$HOME/.pi/agent/models.json"
+    if [ ! -f "$pi_models" ]; then
+      mkdir -p "$(dirname "$pi_models")"
+      cat > "$pi_models" <<'PI_JSON_EOF'
+{
+  "providers": {
+    "ollama-local": {
+      "baseUrl": "${var.ollama_base_url}/v1",
+      "api": "openai-completions",
+      "apiKey": "ollama",
+      "models": [
+        { "id": "qwen3:32b" },
+        { "id": "qwen3-coder:30b" },
+        { "id": "qwen3:8b" },
+        { "id": "gemma3:1b" }
+      ]
+    }
+  }
+}
+PI_JSON_EOF
+    fi
+
+    # opencode: provider entry against OLLAMA_HOST/v1 with qwen3 entries
+    # and permissive agent-runner permissions. Written once, same drift
+    # rule as pi above (checked by gnhf-smoke-test).
+    opencode_json="$HOME/.config/opencode/opencode.json"
+    if [ ! -f "$opencode_json" ]; then
+      mkdir -p "$(dirname "$opencode_json")"
+      cat > "$opencode_json" <<'OPENCODE_JSON_EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "*": "allow"
+  },
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "${var.ollama_base_url}/v1"
+      },
+      "models": {
+        "qwen3:32b": { "name": "Qwen3 32B" },
+        "qwen3-coder:30b": { "name": "Qwen3 Coder 30B" },
+        "qwen3:8b": { "name": "Qwen3 8B" }
+      }
+    }
+  }
+}
+OPENCODE_JSON_EOF
+    fi
   EOT
 
   # These environment variables allow you to make Git commits right away after creating a
