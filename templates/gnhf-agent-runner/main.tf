@@ -201,6 +201,143 @@ PI_JSON_EOF
 }
 OPENCODE_JSON_EOF
     fi
+
+    # Template-owned helpers. Rewritten on every start so workspaces
+    # always carry the current version.
+    cat > /usr/local/bin/gnhf-smoke-test <<'SMOKE_EOF'
+#!/bin/sh
+# gnhf-smoke-test: verify the gnhf + MacBook Ollama workspace.
+# Exits 0 when every check passes, 1 otherwise, printing a PASS/FAIL
+# line per check plus diagnostics for failures.
+# No `set -e` here on purpose: every check must run so the summary
+# counts all failures, and the final test sets the exit status.
+# shellcheck disable=SC2086
+fail=0
+pass=0
+ok() { pass=$((pass + 1)); echo "PASS: $1"; }
+no() { fail=$((fail + 1)); echo "FAIL: $1"; if [ -n "$2" ]; then echo "      $2"; fi; }
+
+for cmd in gnhf pi opencode claude git curl jq rg fd node; do
+  if command -v $cmd >/dev/null 2>&1; then ok "command $cmd ($(command -v $cmd))";
+  else no "command $cmd present" "startup install step missing it; check agent startup logs"; fi
+done
+
+for var in OLLAMA_HOST OPENAI_BASE_URL OPENAI_API_KEY ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN; do
+  if [ -n "$(printenv "$var")" ]; then ok "$var set"; else no "$var set" "profile.d or agent env did not export it"; fi
+done
+
+ollama_host=$(echo "$OLLAMA_HOST" | sed -e 's|^https\?://||' -e 's|/.*$||')
+if command -v getent >/dev/null 2>&1; then
+  resolved=$(getent hosts "$ollama_host" | awk '{ print $1 }' | head -1)
+  if [ -n "$resolved" ]; then ok "OLLAMA_HOST resolves ($ollama_host -> $resolved)";
+  else no "OLLAMA_HOST resolves" "getent found no address for $ollama_host; check the ollama_ip_override pin"; fi
+else
+  echo "SKIP: hostname resolution check (no getent)"
+fi
+
+tags=$(curl -sS -m 10 "$OLLAMA_HOST/api/tags" 2>&1) || no "GET /api/tags reachable" "$tags"
+if [ -n "$tags" ]; then
+  if echo "$tags" | grep -q '"name"'; then
+    ok "GET /api/tags lists models ($(echo "$tags" | grep -o '"name":"[^"]*"' | tr '\n' ' '))"
+  else
+    no "GET /api/tags lists models" "$tags"
+  fi
+fi
+
+v1models=$(curl -sS -m 10 "$OLLAMA_HOST/v1/models" 2>&1) || no "GET /v1/models reachable" "$v1models"
+if [ -n "$v1models" ]; then
+  if echo "$v1models" | grep -q '"data"'; then ok "GET /v1/models responds";
+  else no "GET /v1/models responds" "$v1models"; fi
+fi
+
+pi_models_out=$(pi --list-models 2>&1) || no "pi --list-models runs" "$pi_models_out"
+if [ -n "$pi_models_out" ]; then
+  if echo "$pi_models_out" | grep -q 'ollama-local/'; then
+    ok "pi exposes ollama-local/* ($(echo "$pi_models_out" | grep -o 'ollama-local/[^ ,]*' | tr '\n' ' '))"
+  else
+    no "pi exposes ollama-local/*" "no ollama-local/ entry in: $pi_models_out"
+  fi
+fi
+
+if [ -f "$HOME/.pi/agent/models.json" ]; then
+  configured=$(grep -o '"baseUrl"[ ]*:[ ]*"[^"]*"' "$HOME/.pi/agent/models.json" | head -1)
+  case "$configured" in
+  *"$OLLAMA_HOST"*|*"$OLLAMA_HOST/"*) ok "pi models.json matches OLLAMA_HOST" ;;
+    *) no "pi models.json matches OLLAMA_HOST" "$configured vs OLLAMA_HOST=$OLLAMA_HOST; remove the stale file and restart the workspace" ;;
+  esac
+else
+  no "pi models.json exists" "$HOME/.pi/agent/models.json missing"
+fi
+
+if [ -f "$HOME/.config/opencode/opencode.json" ]; then
+  obase=$(grep -o '"baseURL"[ ]*:[ ]*"[^"]*"' "$HOME/.config/opencode/opencode.json" | head -1)
+  case "$obase" in
+  *"$OLLAMA_HOST"*) ok "opencode.json matches OLLAMA_HOST" ;;
+    *) no "opencode.json matches OLLAMA_HOST" "$obase vs OLLAMA_HOST=$OLLAMA_HOST; remove the stale file and restart" ;;
+  esac
+else
+  no "opencode.json exists" "$HOME/.config/opencode/opencode.json missing"
+fi
+
+for cli in "opencode --version" "claude --version"; do
+  out=$($cli 2>&1) && ok "$cli ($out)" || no "$cli launches" "$out"
+done
+
+echo "---"
+echo "gnhf-smoke-test: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]
+SMOKE_EOF
+    chmod 755 /usr/local/bin/gnhf-smoke-test
+
+    cat > /usr/local/bin/gnhf-run-local <<'RUNLOCAL_EOF'
+#!/bin/sh
+# gnhf-run-local: foreground gnhf run pinned to MacBook Ollama via pi.
+# Refuses dirty git trees, enforces an iteration cap, and execs gnhf
+# directly in the foreground (never wrapped in timeout/gtimeout, so the
+# interactive TUI keeps its terminal).
+#
+# Usage: gnhf-run-local [--agent NAME] [--model MODEL]
+#                        [--max-iterations N] "<objective>"
+set -eu
+AGENT="pi"
+MODEL="ollama-local/qwen3:32b"
+MAX_ITERATIONS="10"
+usage() {
+  echo "usage: gnhf-run-local [--agent NAME] [--model MODEL] [--max-iterations N] \"<objective>\"" >&2
+  echo "  defaults: --agent pi --model ollama-local/qwen3:32b --max-iterations 10" >&2
+}
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --agent) AGENT="$2"; shift 2 ;;
+  --model) MODEL="$2"; shift 2 ;;
+  --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
+  -h | --help) usage; exit 0 ;;
+  --) shift; break ;;
+  -*) echo "gnhf-run-local: unknown flag: $1" >&2; usage; exit 2 ;;
+  *) break ;;
+  esac
+done
+if [ $# -lt 1 ]; then usage; exit 2; fi
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "gnhf-run-local: not inside a git repository (run git init first, then commit a clean tree)" >&2
+  exit 1
+fi
+if [ -n "$(git status --porcelain)" ]; then
+  echo "gnhf-run-local: refusing to run on a dirty tree; commit or stash first:" >&2
+  git status --short >&2
+  exit 1
+fi
+case "$MAX_ITERATIONS" in
+'' | *[!0-9]*) echo "gnhf-run-local: --max-iterations must be a positive integer" >&2; exit 2 ;;
+esac
+if [ "$MAX_ITERATIONS" -lt 1 ]; then
+  echo "gnhf-run-local: --max-iterations must be a positive integer" >&2
+  exit 2
+fi
+command -v gnhf >/dev/null 2>&1 || { echo "gnhf-run-local: gnhf not installed" >&2; exit 1; }
+exec gnhf --agent "$AGENT" --model "$MODEL" --max-iterations "$MAX_ITERATIONS" "$@"
+RUNLOCAL_EOF
+    chmod 755 /usr/local/bin/gnhf-run-local
   EOT
 
   # These environment variables allow you to make Git commits right away after creating a
