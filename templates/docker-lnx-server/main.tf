@@ -127,6 +127,42 @@ resource "coder_agent" "main" {
   }
 }
 
+# Installs Claude Code with the native installer (idempotent, no root needed).
+# Authentication is NOT handled here: the token reaches the shell as
+# CLAUDE_CODE_OAUTH_TOKEN from a Coder user secret
+# (see homelab/claude-code-auth/RUNBOOK.md), so nothing secret enters Terraform
+# state, the image, or the template.
+resource "coder_script" "claude_code" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Install Claude Code"
+  icon               = "/icon/claude.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -eu
+
+    export PATH="$HOME/.local/bin:$PATH"
+    if ! command -v claude >/dev/null 2>&1; then
+      curl -fsSL https://claude.ai/install.sh | bash
+    fi
+
+    # Make `claude` resolvable in login and interactive shells.
+    for rc in ~/.profile ~/.bashrc; do
+      grep -qs '\.local/bin' "$rc" 2>/dev/null || \
+        printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$rc"
+    done
+
+    # Skip the first-run onboarding prompt so the env token is used directly.
+    if [ ! -f ~/.claude.json ]; then
+      printf '{"hasCompletedOnboarding":true}\n' > ~/.claude.json
+      chmod 600 ~/.claude.json
+    fi
+
+    claude --version
+  EOT
+}
+
 # See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
   count  = data.coder_workspace.me.start_count

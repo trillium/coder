@@ -14,6 +14,10 @@ It is the upstream `docker` starter template plus one host-specific fix:
   `connecting` forever. Coder publishes 7080 on `0.0.0.0`, so
   `host-gateway:7080` reaches coderd.
 
+- `coder_script.claude_code` installs Claude Code at workspace start. Auth
+  comes from the `claude-code-oauth-token` Coder user secret, not the
+  template; see `homelab/claude-code-auth/RUNBOOK.md`.
+
 ## Proof workspace
 
 `proof1` (template `docker-test`, owner `admin`) was created end to end
