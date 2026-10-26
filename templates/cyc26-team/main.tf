@@ -15,6 +15,18 @@ variable "coder_access_host" {
   type        = string
 }
 
+variable "pi_version" {
+  default     = "1.4.0"
+  description = "Pinned npm version of the Pi coding agent CLI (@earendil-works/pi-coding-agent)."
+  type        = string
+}
+
+variable "opencode_version" {
+  default     = "1.19.4"
+  description = "Pinned npm version of OpenCode (opencode-ai). Keep it on a 1.x release."
+  type        = string
+}
+
 variable "docker_socket" {
   default     = ""
   description = "(Optional) Docker socket URI"
@@ -102,15 +114,18 @@ ME_EOF
   }
 }
 
-# Toolchain: git, gh, python3 from apt (re-run each start, because the
-# container filesystem is rebuilt on every start); Node 22 LTS and pnpm in
-# the persistent home volume so restarts only re-link them.
+# Toolchain: git, gh, python3, tmux from apt (re-run each start, because the
+# container filesystem is rebuilt on every start); Node 22 LTS and pnpm in the
+# persistent home volume so restarts only re-link them. Every network step is
+# bounded (curl --max-time, `timeout`), and the script has a hard timeout, so a
+# stalled connection cannot hold the workspace in "starting".
 resource "coder_script" "toolchain" {
   agent_id           = coder_agent.main.id
   display_name       = "Install toolchain"
   icon               = "/icon/code.svg"
   run_on_start       = true
   start_blocks_login = true
+  timeout            = 900
   script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
@@ -118,11 +133,13 @@ resource "coder_script" "toolchain" {
     SUDO=""
     [ "$(id -u)" = 0 ] || SUDO="sudo"
     export DEBIAN_FRONTEND=noninteractive
+    # Bounded network access for every step below.
+    curl() { command curl --connect-timeout 15 --max-time 300 --retry 3 "$@"; }
 
     # System packages. apt runs only when something is missing; gh comes
     # from GitHub's apt repository, which Ubuntu does not carry.
     pkgs=""
-    for pair in git:git curl:curl jq:jq python3:python3 rg:ripgrep; do
+    for pair in git:git curl:curl jq:jq python3:python3 tmux:tmux rg:ripgrep; do
       command -v "$${pair%%:*}" >/dev/null 2>&1 || pkgs="$pkgs $${pair##*:}"
     done
     dpkg -s python3-venv >/dev/null 2>&1 || pkgs="$pkgs python3-venv"
@@ -138,9 +155,9 @@ resource "coder_script" "toolchain" {
       pkgs="$pkgs gh"
     fi
     if [ -n "$pkgs" ]; then
-      $SUDO apt-get update -qq
+      $SUDO timeout 300 apt-get update -qq
       # shellcheck disable=SC2086
-      $SUDO apt-get install -y -qq $pkgs
+      $SUDO timeout 600 apt-get install -y -qq $pkgs
     fi
 
     # Node 22 LTS into the home volume, verified against the published
@@ -167,8 +184,8 @@ resource "coder_script" "toolchain" {
     fi
     export PATH="$node_home/bin:$HOME/.local/bin:$PATH"
 
-    export npm_config_update_notifier=false
-    command -v pnpm >/dev/null 2>&1 || npm install -g pnpm
+    export npm_config_update_notifier=false npm_config_fetch_timeout=30000 npm_config_fetch_retries=5
+    command -v pnpm >/dev/null 2>&1 || timeout 300 npm install -g pnpm
 
     # Login shells: put the home-volume tools on PATH.
     for rc in ~/.profile ~/.bashrc; do
@@ -182,7 +199,7 @@ resource "coder_script" "toolchain" {
       [ -e "$node_home/bin/$bin" ] && $SUDO ln -sf "$node_home/bin/$bin" "/usr/local/bin/$bin"
     done
 
-    echo "git $(git --version | cut -d' ' -f3), gh $(gh --version | head -1 | cut -d' ' -f3), python $(python3 --version | cut -d' ' -f2), node $(node --version), pnpm $(pnpm --version)"
+    echo "git $(git --version | cut -d' ' -f3), gh $(gh --version | head -1 | cut -d' ' -f3), python $(python3 --version | cut -d' ' -f2), node $(node --version), pnpm $(pnpm --version), tmux $(tmux -V | cut -d' ' -f2)"
   EOT
 }
 
@@ -196,6 +213,7 @@ resource "coder_script" "claude_code" {
   icon               = "/icon/claude.svg"
   run_on_start       = true
   start_blocks_login = true
+  timeout            = 600
   script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
@@ -205,7 +223,7 @@ resource "coder_script" "claude_code" {
 
     export PATH="$HOME/.local/bin:$PATH"
     if ! command -v claude >/dev/null 2>&1; then
-      curl -fsSL https://claude.ai/install.sh | bash
+      curl -fsSL --connect-timeout 15 --max-time 120 --retry 3 https://claude.ai/install.sh | timeout 300 bash
     fi
     $SUDO ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude
 
@@ -216,6 +234,63 @@ resource "coder_script" "claude_code" {
     fi
 
     claude --version
+  EOT
+}
+
+# Pi and OpenCode, pinned to the template's versions. Install only: no
+# credentials or provider config is provisioned here. These are conveniences,
+# so they never block login, a failure here only logs a warning, and each
+# install is bounded and retried (a stalled registry connection once hung a
+# bare `npm install` for over ten minutes).
+resource "coder_script" "agent_clis" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Install Pi and OpenCode"
+  icon               = "/icon/code.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  timeout            = 900
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -uo pipefail
+
+    SUDO=""
+    [ "$(id -u)" = 0 ] || SUDO="sudo"
+
+    # Needs the Node and pnpm from "Install toolchain", whose last step links
+    # pnpm into /usr/local/bin; wait for that, bounded.
+    for _ in $(seq 1 150); do
+      [ -e /usr/local/bin/pnpm ] && break
+      sleep 2
+    done
+    export PATH="$HOME/.local/node/bin:$PATH"
+    export npm_config_update_notifier=false npm_config_fetch_timeout=30000 npm_config_fetch_retries=5
+
+    failed=0
+    for spec in "@earendil-works/pi-coding-agent@${var.pi_version}" "opencode-ai@${var.opencode_version}"; do
+      if npm ls -g --depth=0 "$spec" >/dev/null 2>&1; then
+        continue
+      fi
+      ok=0
+      for attempt in 1 2 3; do
+        if timeout --kill-after=10 180 npm install -g --no-audit --no-fund "$spec"; then
+          ok=1
+          break
+        fi
+        echo "attempt $attempt to install $spec failed" >&2
+      done
+      [ "$ok" = 1 ] || { echo "WARNING: could not install $spec" >&2; failed=1; }
+    done
+
+    # Non-login sessions (`coder ssh <ws> -- cmd`) need these on the default PATH.
+    for bin in pi opencode; do
+      [ -e "$HOME/.local/node/bin/$bin" ] && $SUDO ln -sf "$HOME/.local/node/bin/$bin" "/usr/local/bin/$bin"
+    done
+
+    for bin in pi opencode; do
+      printf '%s ' "$bin"
+      "$bin" --version 2>&1 | head -1 || true
+    done
+    exit "$failed"
   EOT
 }
 

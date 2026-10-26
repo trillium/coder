@@ -10,14 +10,17 @@ license). Template source: `templates/cyc26-team/`. Token mechanism:
 
 - Template `cyc26-team` is pushed to the server.
 - Workspace `admin/cyc26-team` exists and is running. It has git, gh, python3,
-  Node 22, pnpm, Claude Code, and code-server. It has no auto-stop schedule.
-- The `claude-code-oauth-token` secret does not exist yet, so `claude` reports
-  not logged in. No teammate accounts exist yet.
+  tmux, Node 22, pnpm, Claude Code, Pi, OpenCode 1.x, and code-server. It has
+  no auto-stop schedule.
+- The `claude-code-oauth-token` secret was stored for `admin` on 2026-10-26, so
+  `claude` is signed in inside the workspace. Pi and OpenCode have no
+  credentials. No teammate accounts exist yet.
 
 ## Cohort rule: no AI assistants in the first two weeks
 
-Claude Code is installed but unauthenticated. Do not run the token step until
-the team may use AI assistants. If the token was stored early, take it back with
+Claude Code is installed. Do not store the token until the team may use AI
+assistants. The token is already stored (2026-10-26), so if the team has not
+reached week 3, take it back with
 `coder secret delete claude-code-oauth-token` and
 `coder restart admin/cyc26-team --yes`.
 
@@ -46,8 +49,13 @@ one-year, non-rotating token.
 
 ```sh
 coder ssh admin/cyc26-team -- claude auth status   # loggedIn: true once the secret exists
-coder ssh admin/cyc26-team -- 'node --version; pnpm --version; gh --version | head -1; claude --version'
+coder ssh admin/cyc26-team -- 'node --version; pnpm --version; gh --version | head -1; claude --version; pi --version; opencode --version; tmux -V'
+coder ssh admin/cyc26-team -- 'test -n "$CLAUDE_CODE_OAUTH_TOKEN" && echo set || echo unset'   # never print the value
 ```
+
+Always put a bound on waiting: `timeout 300 coder ssh admin/cyc26-team --wait yes -- true`.
+`--wait yes` blocks until every startup script has finished. If it times out,
+the script logs are on the workspace page ("Startup Scripts").
 
 ## Teammate access
 

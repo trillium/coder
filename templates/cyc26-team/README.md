@@ -9,11 +9,20 @@ teammates. Derived from `templates/docker-lnx-server`, which is untouched.
 - **Persistence:** one volume at `/home/coder` (repos, `~/.local`, Claude Code
   state). The container itself is rebuilt on every start; `/usr` changes are
   not kept, so the start scripts re-run each time.
-- **Tools:** git, gh, python3 (with venv and pip), ripgrep, jq from apt; Node 22
-  LTS (checksum-verified tarball) and pnpm in `~/.local`; Claude Code via the
-  native installer; code-server on the workspace page. Node, pnpm, and claude
-  are linked into `/usr/local/bin` so `coder ssh <ws> -- <cmd>` finds them.
+- **Tools:** git, gh, python3 (with venv and pip), ripgrep, jq, tmux from apt;
+  Node 22 LTS (checksum-verified tarball) and pnpm in `~/.local`; Claude Code
+  via the native installer; the Pi coding agent CLI and OpenCode, each pinned
+  to an npm version (`pi_version`, `opencode_version`; OpenCode stays on 1.x);
+  code-server on the workspace page. Node, pnpm, claude, pi, and opencode are
+  linked into `/usr/local/bin` so `coder ssh <ws> -- <cmd>` finds them. The
+  base image already has gcc/make, ssh, unzip, vim, wget, and htop. tmux is
+  there so a shared workspace keeps long-running sessions across SSH drops.
   The stack of the cohort app is deliberately not chosen here.
+- **Pi and OpenCode credentials:** none provisioned. Install only.
+- **Startup is bounded:** every network step has a timeout and each script a
+  hard `timeout`. Pi and OpenCode install in their own non-blocking script
+  that retries and only warns on failure, so a stalled registry connection
+  cannot keep the workspace from becoming ready.
 - **Claude Code auth:** `CLAUDE_CODE_OAUTH_TOKEN` comes from the workspace
   owner's `claude-code-oauth-token` Coder user secret. Nothing in this template,
   the image, Terraform state, or git holds it, and without the secret `claude`
@@ -57,6 +66,8 @@ Check with `git var GIT_AUTHOR_IDENT` before committing.
 |---|---|---|
 | `coder_access_host` | `lnx.hippo-tilapia.ts.net` | Access-URL host mapped to the Docker host gateway so the agent reaches coderd. |
 | `docker_socket` | `""` | Optional Docker socket URI. |
+| `pi_version` | `1.4.0` | npm version of `@earendil-works/pi-coding-agent`. |
+| `opencode_version` | `1.19.4` | npm version of `opencode-ai`. Keep it on 1.x. |
 
 ## Push
 
