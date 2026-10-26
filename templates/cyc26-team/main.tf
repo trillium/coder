@@ -27,6 +27,12 @@ variable "opencode_version" {
   type        = string
 }
 
+variable "inference_proxy_url" {
+  default     = "http://host.docker.internal:8787"
+  description = "Base URL of the cyc26 inference proxy (homelab/cyc26/inference-proxy) as seen from the workspace. The proxy holds the real Anthropic, ChatGPT and OpenCode credentials; the workspace only ever holds a per-teammate proxy pass."
+  type        = string
+}
+
 variable "docker_socket" {
   default     = ""
   description = "(Optional) Docker socket URI"
@@ -73,6 +79,18 @@ for v in GIT_AUTHOR_NAME GIT_COMMITTER_NAME; do printf "export %s='%s'\n" "$v" "
 for v in GIT_AUTHOR_EMAIL GIT_COMMITTER_EMAIL; do printf "export %s='%s'\n" "$v" "$2"; done
 ME_EOF
     sudo chmod 755 /usr/local/bin/cyc26-me
+
+    # Print the caller's inference proxy pass. Harness configs call this, so a
+    # pass is never written into a config file. Order: $CYC26_PASS from the
+    # session (`CODER_SSH_ENV=CYC26_PASS=... coder ssh ...`), then ~/.cyc26/pass
+    # for sessions that cannot set it (code-server, web terminal).
+    sudo tee /usr/local/bin/cyc26-pass >/dev/null <<'PASS_EOF'
+#!/bin/sh
+if [ -n "$CYC26_PASS" ]; then printf %s "$CYC26_PASS"
+elif [ -r "$HOME/.cyc26/pass" ]; then cat "$HOME/.cyc26/pass"
+else echo "cyc26-pass: set CYC26_PASS or put your pass in ~/.cyc26/pass" >&2; exit 1; fi
+PASS_EOF
+    sudo chmod 755 /usr/local/bin/cyc26-pass
   EOT
 
   # The owner's identity reaches the startup script as plain variables, not
@@ -80,10 +98,11 @@ ME_EOF
   # per-session identity each teammate sets (README, "Per-teammate git
   # identity").
   #
-  # Deliberately absent: CLAUDE_CODE_OAUTH_TOKEN. It reaches the agent from
-  # the workspace owner's `claude-code-oauth-token` Coder user secret
-  # (homelab/claude-code-auth/RUNBOOK.md), so it never enters this template,
-  # Terraform state, the image, or git.
+  # Deliberately absent: every real credential (Anthropic setup token, ChatGPT
+  # login, OpenCode key) and every proxy pass. The credentials live only in the
+  # inference proxy on the Docker host; a teammate's pass arrives in their own
+  # session (cyc26-pass), so none of it enters this template, Terraform state,
+  # the image, the agent environment, or git. See homelab/cyc26/RUNBOOK.md.
   env = {
     CYC26_OWNER_GIT_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     CYC26_OWNER_GIT_EMAIL = "${data.coder_workspace_owner.me.email}"
@@ -112,6 +131,55 @@ ME_EOF
     interval     = 60
     timeout      = 1
   }
+}
+
+# Points Claude Code, Pi and OpenCode at the inference proxy. Config files are
+# merged with jq, so anything a teammate added is kept; the pass itself is never
+# written (the harnesses call cyc26-pass). Non-blocking: it waits for jq from the
+# toolchain script, and a failure here only leaves the harnesses unconfigured.
+resource "coder_script" "inference_proxy" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Configure inference proxy"
+  icon               = "/icon/code.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  timeout            = 400
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    for _ in $(seq 1 60); do command -v jq >/dev/null && break; sleep 5; done
+    command -v jq >/dev/null || { echo "jq never appeared; harnesses not pointed at the proxy" >&2; exit 1; }
+
+    PROXY='${var.inference_proxy_url}'
+
+    # merge FILE JQ_FILTER: apply the filter to FILE (created if missing), atomically.
+    merge() {
+      local file="$1" filter="$2" tmp
+      mkdir -p "$(dirname "$file")"
+      [ -s "$file" ] || echo '{}' > "$file"
+      tmp="$(mktemp "$file.XXXXXX")"
+      jq --arg p "$PROXY" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"
+    }
+
+    # Claude Code: send API calls to the proxy, with the pass from cyc26-pass.
+    merge ~/.claude/settings.json '.apiKeyHelper = "/usr/local/bin/cyc26-pass" | .env = ((.env // {}) + {ANTHROPIC_BASE_URL: ($p + "/anthropic")})'
+
+    # Pi: its built-in openai (ChatGPT) and opencode providers, base URL and key swapped.
+    merge ~/.pi/agent/models.json '.providers = ((.providers // {}) + {
+      openai:        {baseUrl: ($p + "/openai/v1"),      apiKey: "!/usr/local/bin/cyc26-pass"},
+      opencode:      {baseUrl: ($p + "/opencode/v1"),    apiKey: "!/usr/local/bin/cyc26-pass"},
+      "opencode-go": {baseUrl: ($p + "/opencode/go/v1"), apiKey: "!/usr/local/bin/cyc26-pass"}
+    })'
+
+    # OpenCode: Zen and Go, key from the environment (the opencode wrapper exports it).
+    merge ~/.config/opencode/opencode.json '.provider = ((.provider // {}) + {
+      opencode:      {options: {baseURL: ($p + "/opencode/v1"),    apiKey: "{env:CYC26_PASS}"}},
+      "opencode-go": {options: {baseURL: ($p + "/opencode/go/v1"), apiKey: "{env:CYC26_PASS}"}}
+    })'
+
+    echo "Claude Code, Pi and OpenCode point at $PROXY"
+  EOT
 }
 
 # Toolchain: git, gh, python3, tmux from apt (re-run each start, because the
@@ -282,9 +350,19 @@ resource "coder_script" "agent_clis" {
     done
 
     # Non-login sessions (`coder ssh <ws> -- cmd`) need these on the default PATH.
-    for bin in pi opencode; do
-      [ -e "$HOME/.local/node/bin/$bin" ] && $SUDO ln -sf "$HOME/.local/node/bin/$bin" "/usr/local/bin/$bin"
-    done
+    [ -e "$HOME/.local/node/bin/pi" ] && $SUDO ln -sf "$HOME/.local/node/bin/pi" /usr/local/bin/pi
+
+    # OpenCode reads its proxy key from the environment, so a wrapper exports the
+    # caller's pass (see cyc26-pass) instead of a config file holding it.
+    if [ -e "$HOME/.local/node/bin/opencode" ]; then
+      $SUDO tee /usr/local/bin/opencode >/dev/null <<'OC_EOF'
+#!/bin/sh
+CYC26_PASS="$(cyc26-pass 2>/dev/null || true)"
+export CYC26_PASS
+exec "$HOME/.local/node/bin/opencode" "$@"
+OC_EOF
+      $SUDO chmod 755 /usr/local/bin/opencode
+    fi
 
     for bin in pi opencode; do
       printf '%s ' "$bin"

@@ -3,8 +3,8 @@
 Operator runbook for the shared Coder workspace used by the cyc26 cohort team
 (project-mcik, six-week project, about five teammates). Coder is
 `http://lnx.hippo-tilapia.ts.net:7080`, tailnet-only, community edition (no
-license). Template source: `templates/cyc26-team/`. Token mechanism:
-`homelab/claude-code-auth/RUNBOOK.md`.
+license). Template source: `templates/cyc26-team/`. Credential proxy:
+`homelab/cyc26/inference-proxy/`.
 
 ## Current state
 
@@ -12,45 +12,98 @@ license). Template source: `templates/cyc26-team/`. Token mechanism:
 - Workspace `admin/cyc26-team` exists and is running. It has git, gh, python3,
   tmux, Node 22, pnpm, Claude Code, Pi, OpenCode 1.x, and code-server. It has
   no auto-stop schedule.
-- The `claude-code-oauth-token` secret was stored for `admin` on 2026-10-26, so
-  `claude` is signed in inside the workspace. Pi and OpenCode have no
-  credentials. No teammate accounts exist yet.
+- The captain's credentials (Claude setup token, ChatGPT login, OpenCode key)
+  are held by the inference proxy on lnx, not by the workspace. The workspace
+  has only the proxy URL and a per-teammate pass. Design, routes and limits:
+  `homelab/cyc26/inference-proxy/README.md`. No teammate accounts exist yet.
+
+## Credentials: the inference proxy
+
+Everyone connected to the workspace is the same Unix user, so anything in the
+environment or home directory is visible to all of them. So the workspace never
+holds a real credential. A container on lnx (`cyc26-proxy`, bound to the Docker
+bridge address only) holds them and the harnesses call it with a pass:
+
+```text
+Claude Code / Pi / OpenCode  --pass-->  cyc26-proxy (lnx)  --real credential-->  Anthropic / OpenAI / OpenCode
+```
+
+The template points each harness at the proxy (`coder_script.inference_proxy`)
+and installs `cyc26-pass`, which prints the caller's pass. Nothing real is in
+the template, Terraform state, image, agent environment, code-server, process
+arguments or git. The old `claude-code-oauth-token` and `opencode-go-api-key`
+Coder user secrets and the `openai` entry of `~/.pi/agent/auth.json` are not
+used and should not exist (they would put a real credential back in every
+session).
+
+### Issue a pass (captain, on lnx)
+
+```sh
+ssh trillium@100.81.88.113
+docker exec cyc26-proxy node passctl.mjs add ada --cap 2000   # prints the pass once; cap optional
+```
+
+Send the pass to the teammate over a private channel. The teammate keeps it in
+their own shell profile, not in a command line or the repo:
+
+```sh
+# teammate's machine: ~/.zshrc or ~/.bashrc
+export CODER_SSH_ENV="CYC26_PASS=<pass>"   # coder ssh forwards it into the session
+```
+
+For sessions that cannot take a session variable (code-server, web terminal),
+put it in `~/.cyc26/pass` in the workspace (`mkdir -p ~/.cyc26 && chmod 700
+~/.cyc26`, then write the file with mode 600). Everyone in the workspace can
+read that file, so prefer the session variable.
+
+### Revoke, offboard, audit
+
+```sh
+docker exec cyc26-proxy node passctl.mjs revoke ada     # stops on the next request
+docker exec cyc26-proxy node passctl.mjs list
+docker exec cyc26-proxy node passctl.mjs usage [ada] [--day 2026-10-26]
+```
+
+Add `docker exec cyc26-proxy node passctl.mjs revoke <name>` to offboarding. To
+stop all AI use at once (for example the no-AI first weeks), revoke every pass
+or `docker stop cyc26-proxy`; `docker start cyc26-proxy` restores it.
+
+### Rotate a real credential
+
+```sh
+claude setup-token                                            # browser; copy the token
+homelab/cyc26/inference-proxy/set-credential.sh anthropic     # hidden prompt
+homelab/cyc26/inference-proxy/set-credential.sh opencode      # hidden prompt
+homelab/cyc26/inference-proxy/set-credential.sh openai <file> # Pi auth.json from a fresh login
+```
+
+No workspace restart is needed; the proxy reads the file on the next request.
+Revoking at the source (Claude account settings, OpenCode console, ChatGPT
+sessions) plus `set-credential.sh` with the new value closes the loop. The
+Claude setup token lasts one year (rotate in about 11 months). The ChatGPT
+login refreshes itself inside the proxy. Details and the ChatGPT caveat:
+`homelab/cyc26/inference-proxy/README.md`.
+
+### Redeploy the proxy
+
+`homelab/cyc26/inference-proxy/deploy.sh` rebuilds and restarts the container;
+credentials, passes and usage on `/srv/cyc26-proxy/data` are kept. The
+container restarts with Docker (`unless-stopped`).
 
 ## Cohort rule: no AI assistants in the first two weeks
 
-Claude Code is installed. Do not store the token until the team may use AI
-assistants. The token is already stored (2026-10-26), so if the team has not
-reached week 3, take it back with
-`coder secret delete claude-code-oauth-token` and
-`coder restart admin/cyc26-team --yes`.
-
-## Captain: deliver the Claude token (the one human step)
-
-Run on a machine with a browser (the MacBook), signed in to Coder as `admin`
-(the workspace owner; the secret only reaches workspaces its user owns):
-
-```sh
-coder login http://lnx.hippo-tilapia.ts.net:7080   # if signed out; use the admin account
-coder whoami                                        # must say admin
-claude setup-token                                  # approve in the browser, copy the token
-homelab/claude-code-auth/coder-claude-token-push.sh --verify admin/cyc26-team
-```
-
-Paste the token at the script's hidden prompt. (`--from-clipboard` reads it
-from the macOS clipboard instead; piping `claude setup-token` straight into the
-script is untested because the command is interactive.) Never use the Keychain
-"Claude Code-credentials" entry or `~/.claude*` files; they hold a rotating
-refresh token that must have one consumer. The setup-token is a separate,
-one-year, non-rotating token.
-
-`--verify` restarts the workspace and runs `claude -p hi` in it.
+The harnesses are installed but do nothing without a pass. Do not issue a pass
+until the team may use AI assistants. If one is out and the team has not
+reached week 3, revoke it (see above).
 
 ## Verify
 
 ```sh
-coder ssh admin/cyc26-team -- claude auth status   # loggedIn: true once the secret exists
 coder ssh admin/cyc26-team -- 'node --version; pnpm --version; gh --version | head -1; claude --version; pi --version; opencode --version; tmux -V'
-coder ssh admin/cyc26-team -- 'test -n "$CLAUDE_CODE_OAUTH_TOKEN" && echo set || echo unset'   # never print the value
+# harness checks need a pass in the session
+CODER_SSH_ENV="CYC26_PASS=<pass>" coder ssh admin/cyc26-team -- 'claude -p "say pong" </dev/null'
+# no real credential in the session: the count is 0 and auth.json is absent
+coder ssh admin/cyc26-team -- 'env | grep -c "^CLAUDE_CODE_OAUTH_TOKEN=\|^OPENCODE_API_KEY=\|^ANTHROPIC_API_KEY="; ls ~/.pi/agent/auth.json 2>&1'
 ```
 
 Always put a bound on waiting: `timeout 300 coder ssh admin/cyc26-team --wait yes -- true`.
@@ -67,7 +120,8 @@ with the `use` role (SSH, apps, start, stop; no delete or share). Per-person
 users keep who-did-what visible in Coder and let you remove one person
 without touching the others. A single shared team login would not.
 
-Teammates see the owner's token (`printenv`) while connected; revoke on
+Teammates share one Unix user, so they can see each other's passes but not the
+real credentials (see "Credentials: the inference proxy"). Revoke a pass on
 offboarding or when the project ends.
 
 ### Onboard a teammate (captain, as admin)
@@ -111,7 +165,8 @@ coder login http://lnx.hippo-tilapia.ts.net:7080
 coder ssh admin/cyc26-team
 ```
 
-Version mismatch warnings are expected (server is a dev build). The workspace
+Version mismatch warnings are expected (server is a dev build). Put the pass the
+captain gave you in `CODER_SSH_ENV` first (see "Issue a pass"). The workspace
 page also offers code-server and a web terminal. Set your own commit identity
 per session so commits carry your name and not the owner's: see
 `templates/cyc26-team/README.md`, "Per-teammate git identity".
@@ -122,27 +177,6 @@ per session so commits carry your name and not the owner's: see
 coder sharing remove admin/cyc26-team --user <handle>
 coder users suspend <handle>
 ```
-
-## Rotate the Claude token
-
-Before the one-year expiry (calendar about 11 months after minting):
-
-```sh
-claude setup-token
-homelab/claude-code-auth/coder-claude-token-push.sh --verify admin/cyc26-team
-```
-
-The script updates the existing secret; `--verify` restarts the workspace.
-
-## Revoke
-
-```sh
-coder secret delete claude-code-oauth-token
-coder restart admin/cyc26-team --yes
-```
-
-Then revoke the token in the Claude account settings. The restart matters: a
-running agent keeps the value it loaded at start.
 
 ## Update the template
 

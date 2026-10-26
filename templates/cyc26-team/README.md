@@ -18,30 +18,39 @@ teammates. Derived from `templates/docker-lnx-server`, which is untouched.
   base image already has gcc/make, ssh, unzip, vim, wget, and htop. tmux is
   there so a shared workspace keeps long-running sessions across SSH drops.
   The stack of the cohort app is deliberately not chosen here.
-- **Pi and OpenCode credentials:** none provisioned. Install only.
+- **Credentials:** none in the workspace. Claude Code, Pi and OpenCode send
+  their API calls to the inference proxy on lnx
+  (`homelab/cyc26/inference-proxy/`), which holds the real credentials; the
+  workspace has only the proxy URL and each teammate's pass.
 - **Startup is bounded:** every network step has a timeout and each script a
   hard `timeout`. Pi and OpenCode install in their own non-blocking script
   that retries and only warns on failure, so a stalled registry connection
   cannot keep the workspace from becoming ready.
-- **Claude Code auth:** `CLAUDE_CODE_OAUTH_TOKEN` comes from the workspace
-  owner's `claude-code-oauth-token` Coder user secret. Nothing in this template,
-  the image, Terraform state, or git holds it, and without the secret `claude`
-  reports not logged in. Mechanism: `homelab/claude-code-auth/RUNBOOK.md`.
+- **Harness configuration:** `coder_script.inference_proxy` merges, with `jq`,
+  the proxy settings into `~/.claude/settings.json` (`ANTHROPIC_BASE_URL`,
+  `apiKeyHelper`), `~/.pi/agent/models.json` (`openai`, `opencode`,
+  `opencode-go` base URLs, key from `cyc26-pass`) and
+  `~/.config/opencode/opencode.json`. It keeps anything else in those files.
   Operator steps: `homelab/cyc26/RUNBOOK.md`.
 
-## Why a user secret and not a host env file
+## Credential isolation
 
-The question was whether a secret owned by the workspace owner reaches other
-Coder users who connect to the same workspace. It does. The server builds
-the agent manifest from the secrets of `workspace.OwnerID`
-(`coderd/agentapi/manifest.go`), and the agent applies them to every session
-it serves (`agent/agent.go`), whoever connected. There is no per-connecting-user
-step, and `TestAgent_Session_SecretInjection` exercises that shared path.
-That keeps the single-token property with no extra moving parts, so no
-bind-mounted env file or team user is needed. The consequence is that
-anyone with access to the workspace can read the token (`printenv`); that is
-inherent in sharing a workspace "with my keys", and revocation (below) is the
-control.
+All teammates run as the same Unix user in the same home, so anything the
+workspace holds is readable by every teammate. A Coder user secret of the
+workspace owner does not help: it reaches every session
+(`coderd/agentapi/manifest.go` loads the secrets of `workspace.OwnerID` and
+`agent/agent.go` applies them to whoever connects). Real credentials therefore
+live only in the proxy container on lnx.
+
+- **Pass:** `cyc26-pass` (installed in `/usr/local/bin`) prints the caller's
+  pass from `$CYC26_PASS` (set per session with `CODER_SSH_ENV`, not in a
+  command line) or `~/.cyc26/pass`. Claude Code (`apiKeyHelper`) and Pi
+  (`!/usr/local/bin/cyc26-pass`) call it; the `opencode` wrapper in
+  `/usr/local/bin` exports it for OpenCode. No config file holds a pass.
+- **Not in the template:** no credential or pass in the template, Terraform
+  state, image, agent environment, code-server, process arguments or git.
+- **Residual:** teammates can read each other's passes (same Unix user) but not
+  the real credentials; a pass is revocable per person.
 
 ## Per-teammate git identity
 
@@ -65,6 +74,7 @@ Check with `git var GIT_AUTHOR_IDENT` before committing.
 | Name | Default | Notes |
 |---|---|---|
 | `coder_access_host` | `lnx.hippo-tilapia.ts.net` | Access-URL host mapped to the Docker host gateway so the agent reaches coderd. |
+| `inference_proxy_url` | `http://host.docker.internal:8787` | Inference proxy as seen from the workspace (`host.docker.internal` is the Docker host gateway). |
 | `docker_socket` | `""` | Optional Docker socket URI. |
 | `pi_version` | `1.4.0` | npm version of `@earendil-works/pi-coding-agent`. |
 | `opencode_version` | `1.19.4` | npm version of `opencode-ai`. Keep it on 1.x. |
