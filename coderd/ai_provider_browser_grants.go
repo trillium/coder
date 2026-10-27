@@ -553,7 +553,7 @@ func aiBrowserGrantExchangeResponse(grant *aiBrowserGrant, now time.Time) coders
 }
 
 // @Summary Initiate an AI provider browser PKCE grant
-// @ID initiate-ai-provider-browser-grant
+// @ID initiate-an-ai-provider-browser-pkce-grant
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param user path string true "User ID, username, or me"
@@ -602,7 +602,7 @@ func (api *API) postUserAIBrowserGrant(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Exchange an AI provider browser PKCE grant code
-// @ID exchange-ai-provider-browser-grant
+// @ID exchange-an-ai-provider-browser-pkce-grant-code
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param user path string true "User ID, username, or me"
@@ -673,7 +673,7 @@ func (api *API) postUserAIBrowserGrantExchange(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Cancel an AI provider browser PKCE grant
-// @ID cancel-ai-provider-browser-grant
+// @ID cancel-an-ai-provider-browser-pkce-grant
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param user path string true "User ID, username, or me"

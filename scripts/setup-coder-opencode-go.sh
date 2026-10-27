@@ -71,7 +71,7 @@ api_json() {
 }
 
 provider_name_encoded=$(urlencode "$CODER_PROVIDER_NAME")
-provider_id=$(api_get "$(api_url /api/v2/ai/providers)" | \
+provider_id=$(api_get "$(api_url /api/v2/ai/providers)" |
 	jq -er --arg name "$CODER_PROVIDER_NAME" \
 		'[.[] | select(.name == $name) | .id] | first // empty' || true)
 
