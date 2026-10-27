@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -27,7 +26,7 @@ import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceParametersPageView } from "./WorkspaceParametersPageView";
 
-const WorkspaceParametersPage: FC = () => {
+const WorkspaceParametersPage: React.FC = () => {
 	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
@@ -242,12 +241,13 @@ const WorkspaceParametersPage: FC = () => {
 		}
 	};
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;
@@ -284,9 +284,7 @@ const WorkspaceParametersPage: FC = () => {
 								<br />
 								<Link
 									size="sm"
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/admin/templates/extending-templates/parameters")}
 								>
 									View docs
 								</Link>
@@ -329,9 +327,7 @@ const WorkspaceParametersPage: FC = () => {
 					message="This workspace has no parameters"
 					cta={
 						<Link
-							href={docs(
-								"/admin/templates/extending-templates/dynamic-parameters",
-							)}
+							href={docs("/admin/templates/extending-templates/parameters")}
 						>
 							Learn more about parameters
 						</Link>

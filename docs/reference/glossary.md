@@ -9,7 +9,8 @@ Each entry gives a short definition and, where it helps, links to the page that 
 > Several Coder terms share the word "agent" but mean different things:
 >
 > - [Coder Agents](#coder-agents) is the AI product for delegating development work to coding agents.
-> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces. It is not Coder Agents.
+> - [Agent Relay](#agent-relay) connects a cloud-hosted AI agent provider's hosted sessions to self-hosted workspaces.
+>   It is not Coder Agents.
 > - A [workspace agent](#workspace-agent) is the process that runs inside a workspace to provide SSH, port forwarding, the web terminal, and other services.
 > - [`coder_agent`](#coder_agent) is the Terraform resource in a template that declares a workspace agent.
 
@@ -31,7 +32,7 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
 The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
-In [early access](../install/releases/feature-stages.md#early-access-features).
+In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
 ### AI Gateway
@@ -55,7 +56,7 @@ Refer to [AI Governance](../ai-coder/ai-governance.md).
 ### Air-gapped deployment
 
 A Coder installation that has no outbound internet access.
-Refer to [Air-gapped deployments](../install/airgap.md).
+Refer to [Air-gapped deployments](../install/prepare/airgap.md).
 
 ### Audit logging
 
@@ -123,14 +124,27 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
+
+### Coder Validated Architecture
+
+Coder's reference designs for sizing and deploying a control plane, abbreviated CVA.
+Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
+A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
+Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
+
+### Coder Workspaces
+
+The self-hosted platform capability for running cloud development environments, defined with Terraform, on infrastructure you control.
+Not to be confused with a [workspace](#workspace), the individual on-demand development environment a developer creates from a template.
+Refer to [About Coder](../README.md#coder-workspaces).
 
 ### `coder server`
 
 The CLI command that starts [`coderd`](#coderd).
 Use this name only for the command a reader runs, not as a name for the [control plane](#control-plane) itself.
-Refer to the [`coder server` reference](./cli/server.md).
+Refer to the [`coder server` reference](./cli/server/index.md).
 
 ### `coder_agent`
 
@@ -157,14 +171,19 @@ Refer to the [`coder_script` resource](https://registry.terraform.io/providers/c
 The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).
 Use `coderd` for the process itself, such as in metric names, log output, configuration flags, and troubleshooting steps.
 Introduce it on first use in a page as "`coderd`, the process that runs the control plane".
-Refer to [Architecture](../admin/infrastructure/architecture.md).
+Refer to [Architecture](../install/plan/architecture.md).
 
 ### codersdk
 
 The Go SDK that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
+<!-- "Coding" is an adjective in this glossary term, not a task verb. -->
+<!-- vale Coder.GerundHeading = NO -->
+
 ### Coding agent
+
+<!-- vale Coder.GerundHeading = YES -->
 
 An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
@@ -195,6 +214,10 @@ Do not call it "the Coder server", and do not describe it generically as "a serv
 Roles an administrator defines inside an organization from a chosen set of permissions.
 This is a Premium feature.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
+
+### CVA
+
+Refer to [Coder Validated Architecture](#coder-validated-architecture).
 
 ## D
 
@@ -238,8 +261,7 @@ Refer to [Dotfiles](../user-guides/workspace-dotfiles.md).
 
 ### Dynamic parameters
 
-Template inputs that can change per build, with conditional visibility and validation.
-Refer to [Dynamic parameters](../admin/templates/extending-templates/dynamic-parameters.md).
+Refer to [Parameters](#parameters).
 
 ## E
 
@@ -256,12 +278,12 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 ### External authentication
 
 In-workspace OAuth to Git providers, artifact registries, and similar services, configured with `CODER_EXTERNAL_AUTH_*` variables.
-Refer to [External authentication](../admin/external-auth/index.md).
+Refer to [External authentication](../admin/external-auth.md).
 
 ### External provisioner
 
 A `provisionerd` that runs outside `coderd`, tagged so specific templates route to it, for example to reach an isolated network or to scale build throughput.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### External workspace
 
@@ -274,7 +296,7 @@ Refer to [External workspaces](../admin/templates/managing-templates/external-wo
 ### Feature stages
 
 The Early Access, Beta, and General Availability labels that describe how production-ready a feature is.
-Refer to [Feature stages](../install/releases/feature-stages.md).
+Refer to [Feature stages](./feature-stages.md).
 
 ## G
 
@@ -320,7 +342,7 @@ Coder templates are infrastructure as code, written in Terraform.
 
 A signed token applied through the dashboard or with `coder licenses add`.
 Coder validates the key locally, so it works in air-gapped deployments.
-Refer to [Licensing](../admin/licensing/index.md).
+Refer to [Licensing](../install/prepare/licensing.md).
 
 ## M
 
@@ -369,6 +391,12 @@ Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## P
 
+### Parameters
+
+Template inputs that a user sets when they create or update a workspace, with conditional visibility, identity-aware values, and validation.
+Previously, the conditional and identity-aware capabilities were called dynamic parameters.
+Refer to [Parameters](../admin/templates/extending-templates/parameters/index.md).
+
 ### Peripheral resource
 
 A supporting resource, such as a disk or network object, that a computational resource depends on.
@@ -396,7 +424,7 @@ Refer to [Prebuilt workspaces](../admin/templates/extending-templates/prebuilt-w
 
 ### Premium
 
-The paid enterprise tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
+The paid license tier, which unlocks features such as multi-organization support, high availability, workspace proxies, audit logs, quotas, custom roles, SCIM, and IdP sync.
 Visit [Pricing](https://coder.com/pricing).
 
 ### Prometheus metrics
@@ -407,18 +435,18 @@ Refer to [Prometheus](../admin/integrations/prometheus.md).
 ### Provisioner
 
 A `provisionerd` instance that executes template builds.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### Provisioner tags
 
 Key-value tags on templates and provisioner daemons that route a build to a matching provisioner.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### `provisionerd`
 
 The daemon that runs Terraform to create, update, and destroy workspace resources.
 It runs bundled with `coderd` by default and can also run externally.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ## Q
 
@@ -441,7 +469,7 @@ The [Coder Registry](https://registry.coder.com/), where Coder publishes reusabl
 ### Release channels
 
 Coder's supported release lines: mainline, stable, and Extended Support Release.
-Refer to [Releases](../install/releases/index.md).
+Refer to [Releases](./releases.md).
 
 ### Resource
 
@@ -518,7 +546,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Claude Desktop](../user-guides/workspace-access/claude-desktop.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
 
 ### Swagger
 
@@ -568,6 +596,7 @@ Refer to [Web terminal](../user-guides/workspace-access/web-terminal.md).
 ### Workspace
 
 A developer's on-demand development environment, such as a virtual machine, container, or Kubernetes pod, provisioned from a template.
+Not to be confused with [Coder Workspaces](#coder-workspaces), the platform capability.
 Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ### Workspace agent
@@ -600,7 +629,7 @@ Refer to [Workspace proxies](../admin/networking/workspace-proxies.md).
 
 ## Learn more
 
-- [Architecture](../admin/infrastructure/architecture.md)
+- [Architecture](../install/plan/architecture.md)
 - [Coder Agents](../ai-coder/agents/index.md)
 - [Templates](../admin/templates/index.md)
 - [API reference](./api/index.md)

@@ -1,6 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
+import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
 import { appendTextBlock } from "./blockUtils";
-import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
+import {
+	ensureToolBlock,
+	getToolResultStatus,
+	markTextBeforeProviderTool,
+	parseToolResultIsError,
+} from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
@@ -21,24 +28,28 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			// Skip empty and whitespace-only deltas so they don't
-			// create a non-null StreamState with empty blocks, which
-			// would prematurely end the "starting" phase.
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(
+				nextState.blocks,
+				"response",
+				part.text,
+				part.narration,
+			);
+			// Keeps a leading whitespace-only delta from creating a non-null
+			// state with no blocks, which would end the "starting" phase early.
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
-			return {
-				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
-			};
+			return { ...nextState, blocks };
 		}
 		case "reasoning": {
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(nextState.blocks, "thinking", part.text);
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
+				startedAt: nextState.startedAt ?? part.created_at,
+				blocks,
 			};
 		}
 		case "tool-call": {
@@ -46,7 +57,11 @@ export const applyMessagePartToStreamState = (
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
 			if (part.provider_executed) {
-				return prev;
+				const blocks = markTextBeforeProviderTool(nextState.blocks);
+				const startedAt = nextState.startedAt ?? part.created_at;
+				return blocks === nextState.blocks && startedAt === nextState.startedAt
+					? prev
+					: { ...nextState, startedAt, blocks };
 			}
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === part.tool_name,
@@ -72,6 +87,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -90,9 +106,13 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-result": {
-			// Skip synthetic results for provider-executed tools.
+			// Provider-executed results render no card, but the search they end
+			// is a step. Recording it may create an empty state, which still
+			// shows the Thinking indicator.
 			if (part.provider_executed) {
-				return prev;
+				return nextState.providerToolRan
+					? nextState
+					: { ...nextState, providerToolRan: true };
 			}
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === part.tool_name,
@@ -108,43 +128,59 @@ export const applyMessagePartToStreamState = (
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
+			const isFinalResult = part.result !== undefined || Boolean(part.is_error);
+			const hasDelta = Boolean(part.result_delta || part.reasoning_delta);
 			if (part.result_reset) {
 				const toolResults = { ...nextState.toolResults };
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
 			}
-			if (
-				part.result_delta === "" &&
-				part.result === undefined &&
-				!part.is_error
-			) {
+			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
 
-			const nextResult = mergeStreamPayload(
-				existing?.result,
-				existing?.resultRaw,
-				part.result,
-				part.result_delta,
-			);
-			const nextToolName = part.tool_name || existing?.name || "Tool";
-			const isFinalResult = part.result !== undefined || part.is_error;
-			const isStreaming = isFinalResult
-				? false
-				: existing?.isStreaming || Boolean(part.result_delta);
+			const nextToolName =
+				part.tool_name ||
+				existing?.name ||
+				nextState.toolCalls[toolCallID]?.name ||
+				"Tool";
+			const nextResult =
+				nextToolName === ACPToolNames.WaitAgent &&
+				!isFinalResult &&
+				typeof part.result_delta === "string"
+					? mergeACPTranscriptDelta(
+							existing?.result,
+							existing?.resultRaw,
+							part.result_delta,
+						)
+					: mergeStreamPayload(
+							existing?.result,
+							existing?.resultRaw,
+							part.result,
+							part.result_delta,
+						);
+			// Reasoning is transient, so the final result drops it.
+			const nextReasoning = isFinalResult
+				? undefined
+				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
+					undefined;
+			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,
@@ -153,6 +189,7 @@ export const applyMessagePartToStreamState = (
 						name: nextToolName,
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
+						reasoning: nextReasoning,
 						isError: nextIsError,
 						isMedia: part.is_media || existing?.isMedia,
 						isStreaming: isStreaming || undefined,
@@ -216,6 +253,12 @@ export const applyMessagePartToStreamState = (
 		// Hook notices may arrive in durable message events, but not in
 		// streaming part deltas.
 		case "hook-notice":
+		// workspace-file-reference parts only appear in persisted
+		// user messages, never via SSE streaming.
+		case "workspace-file-reference":
+		// skill-invocation parts only appear in persisted user
+		// messages, never via SSE streaming.
+		case "skill-invocation":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
@@ -227,13 +270,7 @@ export const applyMessagePartToStreamState = (
 const getStreamToolStatus = (
 	result: StreamState["toolResults"][string] | undefined,
 ): MergedTool["status"] => {
-	if (!result) {
-		return "running";
-	}
-	if (result.isStreaming) {
-		return "running";
-	}
-	return result.isError ? "error" : "completed";
+	return result ? getToolResultStatus(result) : "running";
 };
 
 export const buildStreamTools = (
@@ -255,6 +292,7 @@ export const buildStreamTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			reasoning: result?.reasoning,
 			isError: result?.isError ?? false,
 			isMedia: result?.isMedia,
 			status: getStreamToolStatus(result),
@@ -272,6 +310,7 @@ export const buildStreamTools = (
 					id: result.id,
 					name: result.name,
 					result: result.result,
+					reasoning: result.reasoning,
 					isError: result.isError,
 					isMedia: result.isMedia,
 					status: getStreamToolStatus(result),
@@ -282,4 +321,52 @@ export const buildStreamTools = (
 	}
 
 	return merged;
+};
+
+/**
+ * Removes live tool output whose tool call is durable. The durable call's
+ * card renders that output instead (see `MergeToolsOptions.liveToolResults`).
+ * Returns null when nothing remains, preventing an empty live row.
+ *
+ * Takes the store's message map rather than parsed messages so that
+ * per-chunk stream updates never invalidate the transcript parse.
+ */
+export const excludeDurableCallResults = (
+	streamState: StreamState,
+	messagesByID: ReadonlyMap<number, TypesGen.ChatMessage>,
+): StreamState | null => {
+	if (!streamState.blocks.some((block) => block.type === "tool")) {
+		return streamState;
+	}
+	const durableCallIDs = new Set<string>();
+	for (const message of messagesByID.values()) {
+		for (const part of message.content ?? []) {
+			if (
+				part.type === "tool-call" &&
+				part.tool_call_id &&
+				!part.provider_executed
+			) {
+				durableCallIDs.add(part.tool_call_id);
+			}
+		}
+	}
+	const blocks = streamState.blocks.filter(
+		(block) => block.type !== "tool" || !durableCallIDs.has(block.id),
+	);
+	if (blocks.length === streamState.blocks.length) {
+		return streamState;
+	}
+	if (blocks.length === 0) {
+		return null;
+	}
+	const withoutDurableCalls = <T>(entries: Record<string, T>) =>
+		Object.fromEntries(
+			Object.entries(entries).filter(([id]) => !durableCallIDs.has(id)),
+		);
+	return {
+		...streamState,
+		blocks,
+		toolCalls: withoutDurableCalls(streamState.toolCalls),
+		toolResults: withoutDurableCalls(streamState.toolResults),
+	};
 };
