@@ -3041,14 +3041,14 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	},
 });
 
-export const TERMINAL_DEVICE_GRANT_STATUSES: readonly TypesGen.AIDeviceGrantStatus[] =
+const TERMINAL_DEVICE_GRANT_STATUSES: readonly TypesGen.AIDeviceGrantStatus[] =
 	["authorized", "expired", "denied", "canceled"];
 
-export const isTerminalDeviceGrantStatus = (
+const isTerminalDeviceGrantStatus = (
 	status: TypesGen.AIDeviceGrantStatus,
 ): boolean => TERMINAL_DEVICE_GRANT_STATUSES.includes(status);
 
-export const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
+const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
 	["ai", "device-grants", providerId, grantId] as const;
 
 /**

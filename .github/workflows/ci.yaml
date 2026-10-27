@@ -716,8 +716,10 @@ jobs:
           # default 25 minute Go timeout fires. 15 minutes keeps at least a
           # 5 minute margin for the dump and artifact uploads even after a
           # 10 minute setup. A healthy run of these packages takes about 4
-          # minutes.
-          test-timeout: "15m"
+          # minutes. Forks run on 3-core shared macOS runners, where the
+          # cli package alone takes over 15 minutes, so they get the same
+          # 45 minute limit as the Linux lane.
+          test-timeout: ${{ github.repository_owner == 'coder' && '15m' || '45m' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
