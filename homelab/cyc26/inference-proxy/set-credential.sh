@@ -15,20 +15,23 @@ set -euo pipefail
 provider="${1:-}"
 case "$provider" in
 anthropic | opencode)
-  target="${2:-trillium@100.81.88.113}"
-  read -rsp "$provider credential (hidden): " value
-  echo >&2
-  [ -n "$value" ] || { echo "empty value" >&2; exit 1; }
-  ;;
+	target="${2:-trillium@100.81.88.113}"
+	read -rsp "$provider credential (hidden): " value
+	echo >&2
+	[ -n "$value" ] || {
+		echo "empty value" >&2
+		exit 1
+	}
+	;;
 openai)
-  file="${2:?usage: set-credential.sh openai <pi-auth.json> [ssh-target]}"
-  target="${3:-trillium@100.81.88.113}"
-  value="$(cat "$file")"
-  ;;
+	file="${2:?usage: set-credential.sh openai <pi-auth.json> [ssh-target]}"
+	target="${3:-trillium@100.81.88.113}"
+	value="$(cat "$file")"
+	;;
 *)
-  echo "usage: set-credential.sh anthropic|opencode|openai ..." >&2
-  exit 2
-  ;;
+	echo "usage: set-credential.sh anthropic|opencode|openai ..." >&2
+	exit 2
+	;;
 esac
 
 # shellcheck disable=SC2016
