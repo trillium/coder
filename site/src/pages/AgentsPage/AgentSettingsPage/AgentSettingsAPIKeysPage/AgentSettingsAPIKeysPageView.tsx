@@ -548,28 +548,32 @@ const BrowserSignIn: React.FC<{ provider: UserChatProviderConfig }> = ({
 	};
 
 	const handlePasteFromClipboard = async () => {
+		// React Compiler cannot compile conditionals inside try/catch, so
+		// only the clipboard read itself sits in the try block.
+		if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+			setPasteNote(
+				"Clipboard read is not available in this browser. Copy the failed page's address and paste it manually.",
+			);
+			return;
+		}
+		let text: string;
 		try {
-			if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
-				setPasteNote(
-					"Clipboard read is not available in this browser. Copy the failed page's address and paste it manually.",
-				);
-				return;
-			}
-			const text = await navigator.clipboard.readText();
-			if (!text || text.trim().length === 0) {
-				setPasteNote(
-					"The clipboard was empty. Copy the failed page's address, then paste it manually.",
-				);
-				return;
-			}
-			setPasteNote(null);
-			setInputError(null);
-			setCallbackInput(text);
+			text = await navigator.clipboard.readText();
 		} catch {
 			setPasteNote(
 				"Could not read the clipboard. Copy the failed page's address and paste it manually.",
 			);
+			return;
 		}
+		if (!text || text.trim().length === 0) {
+			setPasteNote(
+				"The clipboard was empty. Copy the failed page's address, then paste it manually.",
+			);
+			return;
+		}
+		setPasteNote(null);
+		setInputError(null);
+		setCallbackInput(text);
 	};
 
 	const handleCancel = async () => {
