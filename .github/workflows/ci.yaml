@@ -487,13 +487,17 @@ jobs:
 
       - name: make gen
         timeout-minutes: ${{ github.repository_owner == 'coder' && 8 || 18 }}
+        env:
+          # Unbounded make jobs starve a 4-core fork runner until it drops
+          # off. An empty value keeps the unbounded upstream behavior.
+          MAKE_JOBS: ${{ github.repository_owner == 'coder' && '' || '2' }}
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
           # Notifications require DB, we could start a DB instance here but
           # let's just restore for now.
           git checkout -- coderd/notifications/testdata/rendered-templates
-          make -j --output-sync -B gen
+          make -j"$MAKE_JOBS" --output-sync -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -690,10 +694,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our Linux runners have 8 cores. Forks have 4, and a longer Go
-          # timeout that still leaves the 5 minute margin in the job timeout.
-          test-parallelism-packages: ${{ github.repository_owner == 'coder' && '8' || '4' }}
-          test-parallelism-tests: ${{ github.repository_owner == 'coder' && '8' || '4' }}
+          # Our Linux runners have 8 cores. Forks have 4 and lose the runner
+          # at higher parallelism, so they run fewer tests at once with a
+          # longer Go timeout that still leaves the 5 minute margin in the
+          # job timeout.
+          test-parallelism-packages: ${{ github.repository_owner == 'coder' && '8' || '2' }}
+          test-parallelism-tests: ${{ github.repository_owner == 'coder' && '8' || '2' }}
           test-timeout: ${{ github.repository_owner != 'coder' && '45m' || '' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
