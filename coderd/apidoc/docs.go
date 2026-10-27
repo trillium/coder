@@ -13772,7 +13772,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Initiate an AI provider browser PKCE grant",
-                "operationId": "initiate-ai-provider-browser-grant",
+                "operationId": "initiate-an-ai-provider-browser-pkce-grant",
                 "parameters": [
                     {
                         "type": "string",
@@ -13811,7 +13811,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Cancel an AI provider browser PKCE grant",
-                "operationId": "cancel-ai-provider-browser-grant",
+                "operationId": "cancel-an-ai-provider-browser-pkce-grant",
                 "parameters": [
                     {
                         "type": "string",
@@ -13861,7 +13861,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Exchange an AI provider browser PKCE grant code",
-                "operationId": "exchange-ai-provider-browser-grant",
+                "operationId": "exchange-an-ai-provider-browser-pkce-grant-code",
                 "parameters": [
                     {
                         "type": "string",
@@ -13920,7 +13920,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Initiate an AI provider device-code grant",
-                "operationId": "initiate-ai-provider-device-code-grant",
+                "operationId": "initiate-an-ai-provider-device-code-grant",
                 "parameters": [
                     {
                         "type": "string",
@@ -13962,7 +13962,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Poll an AI provider device-code grant",
-                "operationId": "poll-ai-provider-device-code-grant",
+                "operationId": "poll-an-ai-provider-device-code-grant",
                 "parameters": [
                     {
                         "type": "string",
@@ -14007,7 +14007,7 @@ const docTemplate = `{
                     "Chats"
                 ],
                 "summary": "Cancel an AI provider device-code grant",
-                "operationId": "cancel-ai-provider-device-code-grant",
+                "operationId": "cancel-an-ai-provider-device-code-grant",
                 "parameters": [
                     {
                         "type": "string",
