@@ -26,8 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+    # Needs the coder org's membership app and secrets, which forks lack.
     if: >-
       ${{
+        github.repository_owner == 'coder' &&
         github.event_name == 'pull_request_target' &&
         github.event.action == 'opened'
       }}
@@ -97,6 +99,8 @@ jobs:
 
   cla:
     runs-on: ubuntu-latest
+    # Signatures live in the coder/cla repository, which forks cannot write.
+    if: github.repository_owner == 'coder'
     permissions:
       pull-requests: write
     steps:
