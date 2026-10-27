@@ -1,5 +1,4 @@
 import { BanIcon } from "lucide-react";
-import type { ReactNode } from "react";
 import type {
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeSessionNetworkDomain,
@@ -10,6 +9,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
+import { CostBadge } from "../CostBadge";
 import {
 	NetworkMonitoringDisabled,
 	NetworkNoActivity,
@@ -28,6 +28,10 @@ type SessionSummaryTableProps = {
 	providers: readonly string[];
 	inputTokens: number;
 	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+	costMicros: number;
+	hasUnpricedUsage: boolean;
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
@@ -52,6 +56,10 @@ export const SessionSummaryTable = ({
 	client,
 	inputTokens,
 	outputTokens,
+	cacheReadTokens,
+	cacheWriteTokens,
+	costMicros,
+	hasUnpricedUsage,
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
@@ -63,7 +71,7 @@ export const SessionSummaryTable = ({
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
 
-	let networkCallsValue: ReactNode;
+	let networkCallsValue: React.ReactNode;
 	if (networkCalls === undefined) {
 		networkCallsValue = <NetworkMonitoringDisabled />;
 	} else if (networkCalls.total === 0) {
@@ -170,15 +178,25 @@ export const SessionSummaryTable = ({
 
 			<Separator />
 
-			<div className="flex items-center justify-between">
-				<dt className="shrink-0 font-normal whitespace-nowrap">
-					In / out tokens
-				</dt>
+			<div className="flex items-start justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">Tokens</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary">
 					<TokenBadges
 						inputTokens={inputTokens}
 						outputTokens={outputTokens}
+						cacheReadTokens={cacheReadTokens}
+						cacheWriteTokens={cacheWriteTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+				</dd>
+			</div>
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">Cost</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<CostBadge
+						costMicros={costMicros}
+						hasUnpricedUsage={hasUnpricedUsage}
 					/>
 				</dd>
 			</div>

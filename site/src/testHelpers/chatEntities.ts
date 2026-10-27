@@ -2,6 +2,8 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatCost,
+	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -19,6 +21,8 @@ export const MockChat: Chat = {
 	owner_name: MockUserOwner.name,
 	last_model_config_id: "model-config-1",
 	title: "Agent",
+	title_source: "generated",
+	title_updated_at: MOCK_TIMESTAMP,
 	status: "waiting",
 	last_turn_summary: null,
 	summary: null,
@@ -33,6 +37,16 @@ export const MockChat: Chat = {
 	client_type: "ui",
 	children: [],
 };
+
+export const mockChatCost = (
+	chatId: string,
+	totalCostMicros = 0,
+): ChatCost => ({
+	chat_id: chatId,
+	total_cost_micros: totalCostMicros,
+	request_count: 3,
+	unpriced_request_count: 0,
+});
 
 // Pinned workspace-context resources the prompt is built from.
 const MockChatContextResources: ChatContextResource[] = [
@@ -89,6 +103,40 @@ export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
+};
+
+export const MockChatContextACPHarnesses: ChatContext = {
+	dirty: false,
+	resources: [
+		{
+			source: "claude-code",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 120,
+			status: "ok",
+		},
+		{
+			source: "codex",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 96,
+			status: "ok",
+		},
+	],
+};
+
+export const MockChatContextACPHarnessIssue: ChatContext = {
+	dirty: false,
+	resources: [
+		...(MockChatContextACPHarnesses.resources ?? []),
+		{
+			source: "broken",
+			kind: "acp_harness",
+			size_bytes: 0,
+			status: "invalid",
+			error: "cannot start harness",
+		},
+	],
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {
@@ -160,4 +208,21 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
+};
+
+// Spread for variants, such as a merged PR or a branch without a PR
+// yet.
+export const MockChatDiffStatus: ChatDiffStatus = {
+	chat_id: MockChat.id,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: "feat/example",
+	url: "https://github.com/coder/coder/pull/123",
+	pr_number: 123,
+	pull_request_state: "open",
+	pull_request_title: "fix: resolve race condition",
+	pull_request_draft: false,
+	changes_requested: false,
+	additions: 1,
+	deletions: 0,
+	changed_files: 1,
 };

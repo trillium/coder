@@ -38,6 +38,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
+      docs-gen: ${{ steps.filter.outputs.docs-gen }}
       go: ${{ steps.filter.outputs.go }}
       site: ${{ steps.filter.outputs.site }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -49,7 +50,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -72,6 +73,19 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            # Docs paths that make gen reads or rewrites. The gen job skips
+            # docs-only PRs that touch none of them. lint/docs-gen-filter
+            # fails when a file make gen writes is missing here; it does not
+            # check inputs.
+            docs-gen:
+              - "docs/manifest.json"
+              - "docs/manifest/**"
+              - "docs/reference/api/**"
+              - "docs/reference/api-key-scopes.md"
+              - "docs/reference/cli/**"
+              - "docs/admin/integrations/prometheus.md"
+              - "docs/admin/security/audit-logs.md"
+              - "docs/admin/setup/configuration-reference.md"
             db:
               - "**.sql"
               - "coderd/database/**"
@@ -141,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -311,7 +325,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -319,8 +333,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
-          # branch tip) available so lint/emdash can diff against HEAD^
-          # without fetching the base branch at runtime.
+          # branch tip) available so lint/emdash and lint/go/new-code can
+          # diff against HEAD^ without fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
 
@@ -368,11 +382,17 @@ jobs:
         run: helm version --short
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
         run: make --output-sync=line -j"$(nproc)" lint
+        env:
+          # lint/go/new-code only checks lines changed since this revision.
+          # Pull requests check out the merge commit, whose first parent is
+          # the base branch tip (kept by fetch-depth: 2). Other events compare
+          # HEAD with itself, so the pass reports nothing.
+          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD' }}
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -401,7 +421,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -426,12 +446,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
-    timeout-minutes: 20
+    needs: changes
+    # Forks use smaller shared runners, so allow more time than the upstream
+    # runners need.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 20 || 30 }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: ${{ !cancelled() }}
+    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -444,7 +467,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm protoc protoc-gen-go"
+          install-args: "go node pnpm helm protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -453,7 +476,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
@@ -463,14 +486,18 @@ jobs:
         run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
-        timeout-minutes: 8
+        timeout-minutes: ${{ github.repository_owner == 'coder' && 8 || 18 }}
+        env:
+          # Unbounded make jobs starve a 4-core fork runner until it drops
+          # off. An empty value keeps the unbounded upstream behavior.
+          MAKE_JOBS: ${{ github.repository_owner == 'coder' && '' || '2' }}
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
           # Notifications require DB, we could start a DB instance here but
           # let's just restore for now.
           git checkout -- coderd/notifications/testdata/rendered-templates
-          make -j --output-sync -B gen
+          make -j"$MAKE_JOBS" --output-sync -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -481,7 +508,7 @@ jobs:
 
       - name: Upload PostgreSQL logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gen-postgres-logs
           path: postgres.log
@@ -493,7 +520,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -518,7 +545,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod tidy
 
       - name: make fmt
         timeout-minutes: 7
@@ -535,19 +562,22 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test` to ensure we receive a trace of running goroutines.
-    # Setting this to the timeout +5m should work quite well even if
-    # some of the preceding steps are slow.
-    timeout-minutes: 30
+    # Leave at least 5 minutes after the Go timeout fires, counting the
+    # slowest setup steps, for the dump and the artifact uploads. The
+    # macOS lane shortens its Go timeout below because its setup is slow.
+    # Forks run on 4-core shared runners and get a longer limit.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 30 || 60 }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-2022
+        # Forks skip Windows because the shared Windows runner runs out of
+        # disk while building the test binaries, and macOS because the
+        # shared macOS runner cannot run the keyring tests (TestUseKeyring
+        # times out). Linux still covers the same packages.
+        os: ${{ fromJSON(github.repository_owner == 'coder' && '["ubuntu-latest","macos-latest","windows-2022"]' || '["ubuntu-latest"]') }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -587,7 +617,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go terraform"
+          install-args: "go helm terraform"
 
       - name: Install Go mise tools
         shell: bash
@@ -666,9 +696,13 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our Linux runners have 8 cores.
-          test-parallelism-packages: "8"
-          test-parallelism-tests: "8"
+          # Our Linux runners have 8 cores. Forks have 4 and lose the runner
+          # at higher parallelism, so they run fewer tests at once with a
+          # longer Go timeout that still leaves the 5 minute margin in the
+          # job timeout.
+          test-parallelism-packages: ${{ github.repository_owner == 'coder' && '8' || '2' }}
+          test-parallelism-tests: ${{ github.repository_owner == 'coder' && '8' || '2' }}
+          test-timeout: ${{ github.repository_owner != 'coder' && '45m' || '' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -685,6 +719,13 @@ jobs:
           # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          # Setup and compile take 3 to 10 minutes on macOS, which leaves
+          # too little of the 30 minute job for a goroutine dump when the
+          # default 25 minute Go timeout fires. 15 minutes keeps at least a
+          # 5 minute margin for the dump and artifact uploads even after a
+          # 10 minute setup. A healthy run of these packages takes about 4
+          # minutes.
+          test-timeout: "15m"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -720,7 +761,7 @@ jobs:
           artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
@@ -750,7 +791,9 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # Skipped on forks: it repeats the Ubuntu test-go-pg lane on another
+    # Postgres version, and a 4-core shared runner cannot finish it in time.
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && github.repository_owner == 'coder'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
@@ -758,7 +801,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -774,13 +817,30 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
         id: download-cache
         uses: ./.github/actions/test-cache/download
         with:
           key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Normalize file modification timestamps so that go test can use the
+        # cache from the previous CI run. See https://github.com/golang/go/issues/58571
+        # for more details. Without this, packages that read files (testdata,
+        # golden files, etc.) never hit the test cache in this job.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
+        run: |
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
         shell: bash
@@ -825,7 +885,8 @@ jobs:
   test-go-race-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # Skipped on forks: race detection needs the 16-core runner.
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && github.repository_owner == 'coder'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-race` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
@@ -833,7 +894,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -849,13 +910,30 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
         id: download-cache
         uses: ./.github/actions/test-cache/download
         with:
           key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Normalize file modification timestamps so that go test can use the
+        # cache from the previous CI run. See https://github.com/golang/go/issues/58571
+        # for more details. Without this, packages that read files (testdata,
+        # golden files, etc.) never hit the test cache in this job.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
+        run: |
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
         shell: bash
@@ -914,7 +992,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -934,7 +1012,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nginx
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Run Tests
         run: make test-tailnet-integration
@@ -946,7 +1024,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -964,7 +1042,14 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - run: pnpm test:ci --max-workers "$(nproc)"
+      # Forks run on 4-core shared runners where timing-sensitive tests hit
+      # their 5s limit, so retry them and allow each more time.
+      - run: |
+          slow=()
+          if [[ "$GITHUB_REPOSITORY_OWNER" != "coder" ]]; then
+            slow=(--retry=2 --testTimeout=30000)
+          fi
+          pnpm test:ci --max-workers "$(nproc)" "${slow[@]}"
         working-directory: site
 
   test-e2e:
@@ -984,7 +1069,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1012,7 +1097,7 @@ jobs:
         working-directory: site
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
@@ -1061,7 +1146,7 @@ jobs:
 
       - name: Upload Playwright failure artifacts
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-artifacts-${{ matrix.variant.name }}-${{ github.sha }}
           path: |
@@ -1078,7 +1163,7 @@ jobs:
 
       - name: Upload debug log
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coderd-debug-logs-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/e2e/test-results/debug.log
@@ -1086,7 +1171,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -1094,6 +1179,11 @@ jobs:
 
   storybook:
     name: Storybook
+    needs: changes
+    # Pull requests only snapshot Storybook when the frontend or CI changes.
+    # Every push to main and release branches still snapshots, which keeps
+    # the Pixel baseline current.
+    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
@@ -1139,7 +1229,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1164,7 +1254,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Format
         run: |
@@ -1207,7 +1297,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1242,11 +1332,13 @@ jobs:
     # The build doesn't get signed, and is not suitable for usage, unlike the
     # `build` job that runs on main.
     needs: changes
-    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
+    # Skipped on forks: building every platform exhausts the disk of a shared
+    # runner.
+    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1273,7 +1365,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
           make gen/mark-fresh
           make -j build
 
@@ -1299,7 +1391,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1383,7 +1475,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
@@ -1576,7 +1668,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
-          keep-younger-than: 7 # days
+          keep-younger-than: 30 # days
           keep-tags: latest
           keep-tags-regexes: ^pr
           prune-tags-regexes: |
@@ -1586,7 +1678,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-amd64.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-amd64.tar.gz
           path: ./build/*_linux_amd64.tar.gz
@@ -1594,7 +1686,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-amd64.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-amd64.deb
           path: ./build/*_linux_amd64.deb
@@ -1602,7 +1694,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-arm64.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-arm64.tar.gz
           path: ./build/*_linux_arm64.tar.gz
@@ -1610,7 +1702,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-arm64.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-arm64.deb
           path: ./build/*_linux_arm64.deb
@@ -1618,7 +1710,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-armv7.tar.gz)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-armv7.tar.gz
           path: ./build/*_linux_armv7.tar.gz
@@ -1626,7 +1718,7 @@ jobs:
 
       - name: Upload build artifact (coder-linux-armv7.deb)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-linux-armv7.deb
           path: ./build/*_linux_armv7.deb
@@ -1634,7 +1726,7 @@ jobs:
 
       - name: Upload build artifact (coder-windows-amd64.zip)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coder-windows-amd64.zip
           path: ./build/*_windows_amd64.zip
@@ -1666,7 +1758,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -1684,7 +1776,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Setup and run sqlc vet
         run: |

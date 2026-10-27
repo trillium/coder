@@ -44,13 +44,13 @@ trap cleanup_on_failure EXIT
 #     Location header.
 echo "Saving GitHub OAuth cookies to $JAR" >&2
 LOC="$(curl -sS -D - -o /dev/null \
-  --cookie-jar "$JAR" --max-redirs 0 \
-  "$ACCESS_URL/api/v2/users/oauth2/github/callback" |
-  awk -F': ' 'tolower($1) == "location" { sub(/\r$/,"",$2); print $2 }')"
+	--cookie-jar "$JAR" --max-redirs 0 \
+	"$ACCESS_URL/api/v2/users/oauth2/github/callback" |
+	awk -F': ' 'tolower($1) == "location" { sub(/\r$/,"",$2); print $2 }')"
 STATE="${LOC##*state=}"
 [ -n "$STATE" ] || {
-  echo "could not parse oauth state from $LOC" >&2
-  exit 1
+	echo "could not parse oauth state from $LOC" >&2
+	exit 1
 }
 
 # 1b. Ask the server for a GitHub device code. The server
