@@ -23,6 +23,7 @@ const (
 	reqPathInput             = "input"
 	reqPathParallelToolCalls = "parallel_tool_calls"
 	reqPathStream            = "stream"
+	reqPathToolChoice        = "tool_choice"
 	reqPathTools             = "tools"
 )
 
@@ -191,6 +192,32 @@ func (p RequestPayload) injectTools(injected []responses.ToolUnionParam) (Reques
 
 func (p RequestPayload) disableParallelToolCalls() (RequestPayload, error) {
 	return p.set(reqPathParallelToolCalls, false)
+}
+
+// constrainToolChoice rewrites any present tool_choice value other than
+// "auto" to "auto", reporting whether the payload changed. Upstreams
+// serving the Responses route reject every other value (none, required,
+// named function choices) with an invalid_request_error: only auto is
+// supported. The gateway used to forward the client value verbatim, which
+// broke non-streaming requests carrying none/required/named as well as
+// structured side calls such as title generation (required or named choice
+// for the schema tool) and compaction summaries (none). Auto keeps tool
+// use available while satisfying the upstream constraint. An absent or null
+// tool_choice already defaults to auto upstream and is preserved to keep
+// pass-through fidelity.
+func (p RequestPayload) constrainToolChoice() (RequestPayload, bool, error) {
+	toolChoice := gjson.GetBytes(p, reqPathToolChoice)
+	if !toolChoice.Exists() || toolChoice.Type == gjson.Null {
+		return p, false, nil
+	}
+	if toolChoice.Type == gjson.String && toolChoice.String() == string(responses.ToolChoiceOptionsAuto) {
+		return p, false, nil
+	}
+	updated, err := p.set(reqPathToolChoice, string(responses.ToolChoiceOptionsAuto))
+	if err != nil {
+		return p, false, xerrors.Errorf("set tool_choice: %w", err)
+	}
+	return updated, true, nil
 }
 
 func (p RequestPayload) appendInputItems(items []responses.ResponseInputItemUnionParam) (RequestPayload, error) {

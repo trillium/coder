@@ -818,6 +818,100 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 	}
 }
 
+// TestResponsesToolChoiceConstrainedToAuto is a regression test for the
+// live failure where non-streaming /v1/responses requests carrying
+// tool_choice none/required/named were forwarded verbatim and rejected
+// upstream (only auto is supported), which also broke title generation.
+// The gateway must constrain tool_choice to auto on the Responses route
+// while leaving absent (default auto) and explicit auto untouched.
+func TestResponsesToolChoiceConstrainedToAuto(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		toolChoice     any  // nil = field omitted from the client request.
+		withTools      bool // include a tools array for the named-choice case.
+		expectUpstream any  // nil = field must be absent upstream.
+	}{
+		{
+			name:           "absent stays absent",
+			toolChoice:     nil,
+			expectUpstream: nil,
+		},
+		{
+			name:           "auto passes through",
+			toolChoice:     "auto",
+			expectUpstream: "auto",
+		},
+		{
+			name:           "none becomes auto",
+			toolChoice:     "none",
+			expectUpstream: "auto",
+		},
+		{
+			name:           "required becomes auto",
+			toolChoice:     "required",
+			expectUpstream: "auto",
+		},
+		{
+			name:           "named function choice becomes auto",
+			toolChoice:     map[string]any{"type": "function", "name": "propose_title"},
+			withTools:      true,
+			expectUpstream: "auto",
+		},
+	}
+
+	for _, tc := range cases {
+		for i, streaming := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/streaming=%v", tc.name, streaming), func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple}[i])
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+				reqBody := fix.Request()
+				var err error
+				if tc.toolChoice == nil {
+					reqBody, err = sjson.DeleteBytes(reqBody, "tool_choice")
+					require.NoError(t, err)
+				} else {
+					reqBody, err = sjson.SetBytes(reqBody, "tool_choice", tc.toolChoice)
+					require.NoError(t, err)
+				}
+				if tc.withTools {
+					reqBody, err = sjson.SetBytes(reqBody, "tools", []any{
+						map[string]any{"type": "function", "name": "propose_title"},
+					})
+					require.NoError(t, err)
+				}
+
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIResponses, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				_, err = io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+
+				var upstreamReq map[string]any
+				require.NoError(t, json.Unmarshal(received[0].Body, &upstreamReq))
+				got, ok := upstreamReq["tool_choice"]
+				require.Equal(t, tc.expectUpstream != nil, ok,
+					"tool_choice presence mismatch, upstream body: %s", received[0].Body)
+				if tc.expectUpstream != nil {
+					assert.Equal(t, tc.expectUpstream, got)
+				}
+			})
+		}
+	}
+}
+
 func TestClientAndConnectionError(t *testing.T) {
 	t.Parallel()
 

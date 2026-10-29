@@ -181,6 +181,22 @@ func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.
 	return nil
 }
 
+// constrainToolChoice rewrites any client tool_choice other than "auto" to
+// "auto" before the first upstream attempt, since upstreams serving the
+// Responses route reject every other value. Best-effort: a rewrite failure
+// forwards the request unchanged.
+func (i *responsesInterceptionBase) constrainToolChoice(ctx context.Context) {
+	constrained, changed, err := i.reqPayload.constrainToolChoice()
+	if err != nil {
+		i.logger.Warn(ctx, "failed to constrain tool_choice, forwarding request unchanged", slog.Error(err))
+		return
+	}
+	if changed {
+		i.logger.Debug(ctx, "constrained responses tool_choice to auto")
+	}
+	i.reqPayload = constrained
+}
+
 // writeUpstreamError marshals and writes a given error.
 func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
 	if oaiErr == nil {

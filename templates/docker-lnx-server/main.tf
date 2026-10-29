@@ -14,7 +14,7 @@ locals {
 }
 
 variable "coder_access_host" {
-  default     = "lnx-server.hippo-tilapia.ts.net"
+  default     = "lnx.hippo-tilapia.ts.net"
   description = "Hostname of CODER_ACCESS_URL as seen by workspaces. It is mapped to the Docker host gateway so workspace agents can reach coderd on this standalone host."
   type        = string
 }
