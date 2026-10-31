@@ -5,6 +5,7 @@ import {
 	cancelUserDeviceGrant,
 	initiateUserDeviceGrant,
 	invalidateChatProviderDependentQueries,
+	isFinalDeviceGrantPollError,
 	upsertUserChatProviderKey,
 	userAIDeviceGrant,
 } from "#/api/queries/chats";
@@ -16,6 +17,12 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import {
+	isFailedGrantStatus,
+	SignInSection,
+	SignInStatusLine,
+	terminalStatusMessage,
+} from "./SignInSection";
 import { SignInStartPanel } from "./SignInStartPanel";
 
 type DeviceCodeSignInProps = {
@@ -35,6 +42,7 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 		null,
 	);
 	const [handledGrantId, setHandledGrantId] = useState<string | null>(null);
+	const [hasEnded, setHasEnded] = useState(false);
 
 	const initiateMutation = useMutation(initiateUserDeviceGrant(queryClient));
 	const cancelMutation = useMutation(cancelUserDeviceGrant());
@@ -72,6 +80,7 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 		const onSaved = () => {
 			toast.success("Signed in. Personal key saved.");
 			setGrant(null);
+			setHasEnded(true);
 		};
 		const apiKey = pollQuery.data?.api_key;
 		if (!apiKey) {
@@ -117,15 +126,18 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 	};
 
 	const saveFailed = status === "authorized" && isSaveError;
-	const isTerminal =
-		saveFailed ||
-		status === "expired" ||
-		status === "denied" ||
-		status === "canceled";
+	const pollGone =
+		pollQuery.isError && isFinalDeviceGrantPollError(pollQuery.error);
+	const isTerminal = saveFailed || pollGone || isFailedGrantStatus(status);
+
+	const endFlow = () => {
+		setGrant(null);
+		setHasEnded(true);
+	};
 
 	const handleReset = () => {
 		if (!grant || isTerminal) {
-			setGrant(null);
+			endFlow();
 			return;
 		}
 		cancelMutation.mutate(
@@ -136,7 +148,7 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 						description: getErrorDetail(error),
 					});
 				},
-				onSettled: () => setGrant(null),
+				onSettled: endFlow,
 			},
 		);
 	};
@@ -153,54 +165,46 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 						: `Sign-in completes here, with no copy-paste step. Approve the code at ${providerName} and the provider credential is saved as your personal key.`
 				}
 				isPending={initiateMutation.isPending}
+				autoFocus={hasEnded}
 				onStart={handleStart}
 			/>
 		);
 	}
 
 	let statusLine: React.ReactNode;
-	if (pollQuery.isError) {
-		statusLine =
-			"Could not reach the sign-in check. Keep this open and approve the code; the check retries automatically.";
+	if (pollGone) {
+		statusLine = `${getErrorMessage(pollQuery.error, "This sign-in is no longer available.")} Start over to try again.`;
+	} else if (pollQuery.isError) {
+		statusLine = `${getErrorMessage(pollQuery.error, "Could not reach the sign-in check.")} Keep this open and approve the code; the check retries automatically.`;
 	} else if (saveFailed) {
 		statusLine =
 			"Approved, but saving the key failed. Start over to try again.";
+	} else if (isFailedGrantStatus(status)) {
+		statusLine = terminalStatusMessage(
+			status,
+			pollQuery.data?.reauth_message,
+			"This code expired. Start a fresh sign-in for a new code.",
+		);
+	} else if (status === "authorized") {
+		statusLine = (
+			<>
+				<Spinner loading size="sm" />
+				Approved. Saving your personal key.
+			</>
+		);
 	} else {
-		switch (status) {
-			case "authorized":
-				statusLine = (
-					<>
-						<Spinner loading size="sm" />
-						Approved. Saving your personal key.
-					</>
-				);
-				break;
-			case "expired":
-				statusLine =
-					pollQuery.data?.reauth_message ||
-					"This code expired. Start a fresh sign-in for a new code.";
-				break;
-			case "denied":
-				statusLine =
-					"Sign-in was denied at the provider. Start over to try again.";
-				break;
-			case "canceled":
-				statusLine = "Sign-in was canceled. Start over to try again.";
-				break;
-			default:
-				statusLine = (
-					<>
-						<Spinner loading size="sm" />
-						Waiting for approval. This check repeats every{" "}
-						{pollQuery.data?.poll_interval ?? grant.poll_interval} seconds until
-						the code expires.
-					</>
-				);
-		}
+		statusLine = (
+			<>
+				<Spinner loading size="sm" />
+				Waiting for approval. This check repeats every{" "}
+				{pollQuery.data?.poll_interval ?? grant.poll_interval} seconds until the
+				code expires.
+			</>
+		);
 	}
 
 	return (
-		<div className="mt-6 flex flex-col gap-3 border-t border-solid border-border pt-6">
+		<SignInSection>
 			<p className="m-0 text-sm text-content-secondary">
 				Open{" "}
 				<Link
@@ -216,24 +220,21 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 			<p className="m-0 font-mono text-2xl font-semibold tracking-widest text-content-primary">
 				{grant.user_code}
 			</p>
-			<p
-				role="status"
-				className="m-0 flex items-center gap-2 text-sm text-content-secondary"
-			>
-				{statusLine}
-			</p>
+			<SignInStatusLine>{statusLine}</SignInStatusLine>
 			<div className="flex items-center gap-2">
 				<Button
 					type="button"
 					variant="outline"
 					size="sm"
 					onClick={handleReset}
-					disabled={!isTerminal && cancelMutation.isPending}
+					disabled={
+						!isTerminal && (cancelMutation.isPending || status === "authorized")
+					}
 				>
 					<Spinner loading={!isTerminal && cancelMutation.isPending} />
 					{isTerminal ? "Start over" : "Cancel sign-in"}
 				</Button>
 			</div>
-		</div>
+		</SignInSection>
 	);
 };

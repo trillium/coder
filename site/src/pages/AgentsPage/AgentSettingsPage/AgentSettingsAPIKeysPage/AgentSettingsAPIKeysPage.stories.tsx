@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
-import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
+import type {
+	AIBrowserGrantInitiateResponse,
+	AIDeviceGrantInitiateResponse,
+	AIDeviceGrantPollResponse,
+	ChatModel,
+	UserChatProviderConfig,
+} from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
 
@@ -127,6 +133,173 @@ export const WithBrowserSignIn: Story = {
 			}),
 		],
 		models: baseModels,
+	},
+};
+
+const chatGPTProvider = createProvider({
+	provider_id: "prov-1",
+	provider: "openai",
+	display_name: "ChatGPT",
+	device_flow_supported: true,
+	browser_flow_supported: true,
+	refresh_supported: true,
+});
+
+const deviceGrant: AIDeviceGrantInitiateResponse = {
+	grant_id: "grant-1",
+	provider_id: "prov-1",
+	user_code: "ABCD-1234",
+	verification_uri: "https://auth.openai.com/codex/device",
+	verification_uri_complete: "https://auth.openai.com/codex/device",
+	expires_in: 900,
+	poll_interval: 5,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "",
+};
+
+const pendingDevicePoll: AIDeviceGrantPollResponse = {
+	...deviceGrant,
+	status: "pending",
+};
+
+const browserGrant: AIBrowserGrantInitiateResponse = {
+	grant_id: "bgrant-1",
+	provider_id: "prov-1",
+	authorize_url: "https://auth.openai.com/oauth/authorize?state=story",
+	expires_in: 900,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "",
+};
+
+const clickDeviceSignIn = async (canvasElement: HTMLElement) => {
+	spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+		deviceGrant,
+	);
+	await userEvent.click(
+		await within(canvasElement).findByRole("button", {
+			name: "Sign in with ChatGPT",
+		}),
+	);
+};
+
+const clickBrowserSignIn = async (canvasElement: HTMLElement) => {
+	spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+		browserGrant,
+	);
+	spyOn(window, "open").mockReturnValue(null);
+	await userEvent.click(
+		await within(canvasElement).findByRole("button", {
+			name: "Sign in with ChatGPT in your browser",
+		}),
+	);
+};
+
+const submitCallback = async (canvasElement: HTMLElement, input: string) => {
+	const canvas = within(canvasElement);
+	const field = await canvas.findByLabelText("Authorization callback");
+	if (input) {
+		await userEvent.type(field, input);
+	}
+	await userEvent.click(
+		canvas.getByRole("button", { name: "Complete sign-in" }),
+	);
+};
+
+export const DeviceCodeSignInPending: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			pendingDevicePoll,
+		);
+		await clickDeviceSignIn(canvasElement);
+	},
+};
+
+export const DeviceCodeSignInPollError: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "getUserAIDeviceGrant").mockRejectedValue(
+			new Error("Network Error"),
+		);
+		await clickDeviceSignIn(canvasElement);
+	},
+};
+
+export const DeviceCodeSignInExpired: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue({
+			...pendingDevicePoll,
+			status: "expired",
+		});
+		await clickDeviceSignIn(canvasElement);
+	},
+};
+
+export const DeviceCodeSignInSaveFailed: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue({
+			...pendingDevicePoll,
+			status: "authorized",
+			api_key: "story-access-token",
+		});
+		spyOn(API.experimental, "upsertUserAIProviderKey").mockRejectedValue(
+			new Error("save failed"),
+		);
+		await clickDeviceSignIn(canvasElement);
+	},
+};
+
+export const BrowserSignInAwaitingCallback: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		await clickBrowserSignIn(canvasElement);
+	},
+};
+
+export const BrowserSignInInvalidCallback: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		await clickBrowserSignIn(canvasElement);
+		await submitCallback(canvasElement, "not a callback!!!");
+	},
+};
+
+export const BrowserSignInExchanging: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockReturnValue(
+			new Promise(() => {}),
+		);
+		await clickBrowserSignIn(canvasElement);
+		await submitCallback(canvasElement, "story-code");
+	},
+};
+
+export const BrowserSignInExpired: Story = {
+	args: { providers: [chatGPTProvider] },
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue({
+			grant_id: "bgrant-1",
+			provider_id: "prov-1",
+			status: "expired",
+			expires_in: 0,
+			stores_access_token_only: false,
+			refresh_supported: true,
+			reauth_message: "",
+		});
+		await clickBrowserSignIn(canvasElement);
+		await submitCallback(canvasElement, "story-code");
+	},
+};
+
+export const WithRefetchError: Story = {
+	args: {
+		providers: [chatGPTProvider],
+		error: new Error("Failed to refresh providers."),
 	},
 };
 

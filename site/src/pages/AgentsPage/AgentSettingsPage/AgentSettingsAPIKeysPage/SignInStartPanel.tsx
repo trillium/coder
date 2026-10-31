@@ -1,6 +1,7 @@
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { SignInSection } from "./SignInSection";
 
 type SignInStartPanelProps = {
 	label: string;
@@ -8,6 +9,8 @@ type SignInStartPanelProps = {
 	badgeVariant: "default" | "green";
 	description: string;
 	isPending: boolean;
+	/** Focuses the start button, used when a user-ended flow returns here. */
+	autoFocus: boolean;
 	onStart: () => void;
 };
 
@@ -18,10 +21,11 @@ export const SignInStartPanel: React.FC<SignInStartPanelProps> = ({
 	badgeVariant,
 	description,
 	isPending,
+	autoFocus,
 	onStart,
 }) => {
 	return (
-		<div className="mt-6 flex flex-col gap-2 border-t border-solid border-border pt-6">
+		<SignInSection className="gap-2">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 				<Button
 					type="button"
@@ -29,6 +33,7 @@ export const SignInStartPanel: React.FC<SignInStartPanelProps> = ({
 					size="sm"
 					onClick={onStart}
 					disabled={isPending}
+					autoFocus={autoFocus}
 				>
 					<Spinner loading={isPending} />
 					{label}
@@ -38,6 +43,6 @@ export const SignInStartPanel: React.FC<SignInStartPanelProps> = ({
 				</Badge>
 			</div>
 			<p className="m-0 text-sm text-content-secondary">{description}</p>
-		</div>
+		</SignInSection>
 	);
 };

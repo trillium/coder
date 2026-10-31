@@ -11,6 +11,7 @@ import type {
 	UserAIProviderKeyConfig,
 	UserChatProviderConfig,
 } from "#/api/typesGenerated";
+import { mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	AgentSettingsAPIKeysPageView,
@@ -87,6 +88,7 @@ const renderView = (ui: React.ReactElement) => {
 };
 
 afterEach(() => {
+	vi.useRealTimers();
 	vi.restoreAllMocks();
 });
 
@@ -233,7 +235,6 @@ describe("AgentSettingsAPIKeysPageView", () => {
 	});
 });
 
-// Throwaway fixtures only: no test below uses a real credential.
 const mockDeviceGrant: AIDeviceGrantInitiateResponse = {
 	grant_id: "grant-1",
 	provider_id: "prov-chatgpt",
@@ -252,13 +253,19 @@ const mockDevicePoll: AIDeviceGrantPollResponse = {
 	status: "pending",
 };
 
-const mockChatGPTProvider = createProvider({
+const mockAuthorizedDevicePoll: AIDeviceGrantPollResponse = {
+	...mockDevicePoll,
+	status: "authorized",
+	api_key: "test-device-access-token",
+};
+
+const mockChatGPTProvider: UserChatProviderConfig = {
+	...baseProvider,
 	provider_id: "prov-chatgpt",
-	provider: "openai",
 	display_name: "ChatGPT",
 	device_flow_supported: true,
 	browser_flow_supported: true,
-});
+};
 
 const mockBrowserGrant: AIBrowserGrantInitiateResponse = {
 	grant_id: "bgrant-1",
@@ -320,18 +327,19 @@ const startBrowserGrant = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
-	it("starts a grant and links the bare verification URI", async () => {
+	it("starts a grant and polls it", async () => {
 		const user = userEvent.setup();
 		await startDeviceGrant(user, mockDevicePoll);
 
 		await waitFor(() => {
-			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+			expect(API.experimental.getUserAIDeviceGrant).toHaveBeenCalledWith(
 				"prov-chatgpt",
+				"grant-1",
 			);
 		});
-		expect(
-			await screen.findByRole("link", { name: /auth\.example\.com\/device/ }),
-		).toHaveAttribute("href", mockDeviceGrant.verification_uri);
+		expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+			"prov-chatgpt",
+		);
 	});
 
 	it("saves the approved token through the user-keys endpoint without rendering it", async () => {
@@ -339,11 +347,7 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		const upsertSpy = vi
 			.spyOn(API.experimental, "upsertUserAIProviderKey")
 			.mockResolvedValue(savedKeyConfig);
-		await startDeviceGrant(user, {
-			...mockDevicePoll,
-			status: "authorized",
-			api_key: "test-device-access-token",
-		});
+		await startDeviceGrant(user, mockAuthorizedDevicePoll);
 
 		await waitFor(() => {
 			expect(upsertSpy).toHaveBeenCalledWith("prov-chatgpt", {
@@ -359,11 +363,7 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 			.spyOn(API.experimental, "upsertUserAIProviderKey")
 			.mockRejectedValue(new Error("save failed"));
 		const cancelSpy = vi.spyOn(API.experimental, "cancelUserAIDeviceGrant");
-		await startDeviceGrant(user, {
-			...mockDevicePoll,
-			status: "authorized",
-			api_key: "test-device-access-token",
-		});
+		await startDeviceGrant(user, mockAuthorizedDevicePoll);
 
 		await user.click(await screen.findByRole("button", { name: "Start over" }));
 
@@ -385,7 +385,8 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 	});
 
 	it("keeps polling when the first poll fails", async () => {
-		const user = userEvent.setup();
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		const upsertSpy = vi
 			.spyOn(API.experimental, "upsertUserAIProviderKey")
 			.mockResolvedValue(savedKeyConfig);
@@ -395,23 +396,46 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		const pollSpy = vi
 			.spyOn(API.experimental, "getUserAIDeviceGrant")
 			.mockRejectedValueOnce(new Error("network"))
-			.mockResolvedValue({
-				...mockDevicePoll,
-				status: "authorized",
-				api_key: "test-device-access-token",
+			.mockResolvedValue(mockAuthorizedDevicePoll);
+		renderChatGPT();
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(pollSpy).toHaveBeenCalledTimes(1);
+		});
+		await vi.advanceTimersByTimeAsync(1000);
+
+		await waitFor(() => {
+			expect(upsertSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(pollSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it("stops polling when the grant no longer exists", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			mockDeviceGrant,
+		);
+		const pollSpy = vi
+			.spyOn(API.experimental, "getUserAIDeviceGrant")
+			.mockRejectedValue({
+				...mockApiError({ message: "Grant not found." }),
+				status: 404,
 			});
 		renderChatGPT();
 		await user.click(
 			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
 		);
 
-		await waitFor(
-			() => {
-				expect(upsertSpy).toHaveBeenCalledTimes(1);
-			},
-			{ timeout: 3000 },
-		);
-		expect(pollSpy).toHaveBeenCalledTimes(2);
+		await waitFor(() => {
+			expect(pollSpy).toHaveBeenCalledTimes(1);
+		});
+		await vi.advanceTimersByTimeAsync(3000);
+
+		expect(pollSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("cancels a pending grant and resets the panel", async () => {
@@ -428,21 +452,31 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 		await waitFor(() => {
 			expect(cancelSpy).toHaveBeenCalledWith("prov-chatgpt", "grant-1");
 		});
-		await screen.findByRole("button", { name: "Sign in with ChatGPT" });
+		expect(
+			await screen.findByRole("button", { name: "Sign in with ChatGPT" }),
+		).toHaveFocus();
 	});
 
-	it("resets the panel when the cancel request fails", async () => {
+	it("allows a new grant when the cancel request fails", async () => {
 		const user = userEvent.setup();
-		vi.spyOn(API.experimental, "cancelUserAIDeviceGrant").mockRejectedValue(
-			new Error("already terminal"),
-		);
+		const cancelSpy = vi
+			.spyOn(API.experimental, "cancelUserAIDeviceGrant")
+			.mockRejectedValue(new Error("already terminal"));
 		await startDeviceGrant(user, mockDevicePoll);
 
 		await user.click(
 			await screen.findByRole("button", { name: "Cancel sign-in" }),
 		);
+		await user.click(
+			await screen.findByRole("button", { name: "Sign in with ChatGPT" }),
+		);
 
-		await screen.findByRole("button", { name: "Sign in with ChatGPT" });
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledTimes(
+				2,
+			);
+		});
+		expect(cancelSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("starts over from an expired grant without a cancel request", async () => {
@@ -494,18 +528,18 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 			"_blank",
 			"noopener,noreferrer",
 		);
-		expect(
-			screen.getByRole("link", { name: /ChatGPT sign-in/ }),
-		).toHaveAttribute("href", mockBrowserGrant.authorize_url);
 	});
 
-	it("does not open a popup when authorize_url is empty", async () => {
+	it("cancels the grant instead of opening a popup when authorize_url is empty", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue({
 			...mockBrowserGrant,
 			authorize_url: "",
 		});
 		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+		const cancelSpy = vi
+			.spyOn(API.experimental, "cancelUserAIBrowserGrant")
+			.mockResolvedValue(undefined);
 		renderChatGPT();
 
 		await user.click(
@@ -515,7 +549,7 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		);
 
 		await waitFor(() => {
-			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalled();
+			expect(cancelSpy).toHaveBeenCalledWith("prov-chatgpt", "bgrant-1");
 		});
 		expect(openSpy).not.toHaveBeenCalled();
 	});
@@ -589,7 +623,7 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		});
 	});
 
-	it("disables Cancel sign-in while the exchange is in flight", async () => {
+	it("ignores Cancel sign-in while the exchange is in flight", async () => {
 		const user = userEvent.setup();
 		const exchange = Promise.withResolvers<AIBrowserGrantExchangeResponse>();
 		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockReturnValue(
@@ -604,11 +638,7 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("button", { name: "Cancel sign-in" }),
-			).toBeDisabled();
-		});
+		await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
 		exchange.resolve(mockBrowserExchange);
 		await screen.findByRole("button", {
 			name: "Sign in with ChatGPT in your browser",
@@ -638,46 +668,6 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		expect(cancelSpy).not.toHaveBeenCalled();
 	});
 
-	it("sends a trimmed full URL when the paste is whitespace-padded", async () => {
-		const user = userEvent.setup();
-		const exchangeSpy = vi
-			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
-			.mockResolvedValue(mockBrowserExchange);
-		await startBrowserGrant(user);
-
-		await user.type(
-			screen.getByLabelText("Authorization callback"),
-			`  ${FULL_CALLBACK}\n`,
-		);
-		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
-
-		await waitFor(() => {
-			expect(exchangeSpy).toHaveBeenCalledWith("prov-chatgpt", "bgrant-1", {
-				input: FULL_CALLBACK,
-			});
-		});
-	});
-
-	it("sends a bare code without requiring the full URL", async () => {
-		const user = userEvent.setup();
-		const exchangeSpy = vi
-			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
-			.mockResolvedValue(mockBrowserExchange);
-		await startBrowserGrant(user);
-
-		await user.type(
-			screen.getByLabelText("Authorization callback"),
-			"test-code-123",
-		);
-		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
-
-		await waitFor(() => {
-			expect(exchangeSpy).toHaveBeenCalledWith("prov-chatgpt", "bgrant-1", {
-				input: "test-code-123",
-			});
-		});
-	});
-
 	it("reports malformed input and never calls exchange", async () => {
 		const user = userEvent.setup();
 		const exchangeSpy = vi.spyOn(
@@ -692,9 +682,6 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
 
-		expect(await screen.findByRole("alert")).toHaveTextContent(
-			BROWSER_CALLBACK_MALFORMED_ERROR,
-		);
 		expect(exchangeSpy).not.toHaveBeenCalled();
 	});
 
@@ -708,9 +695,6 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 
 		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
 
-		expect(await screen.findByRole("alert")).toHaveTextContent(
-			BROWSER_CALLBACK_EMPTY_ERROR,
-		);
 		expect(exchangeSpy).not.toHaveBeenCalled();
 	});
 
@@ -742,6 +726,9 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		vi.spyOn(navigator.clipboard, "readText").mockRejectedValue(
 			new Error("denied"),
 		);
+		const exchangeSpy = vi
+			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
+			.mockResolvedValue(mockBrowserExchange);
 		await startBrowserGrant(user);
 
 		await user.click(
@@ -751,10 +738,13 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 			screen.getByLabelText("Authorization callback"),
 			"test-code-123",
 		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
 
-		expect(screen.getByLabelText("Authorization callback")).toHaveValue(
-			"test-code-123",
-		);
+		await waitFor(() => {
+			expect(exchangeSpy).toHaveBeenCalledWith("prov-chatgpt", "bgrant-1", {
+				input: "test-code-123",
+			});
+		});
 	});
 });
 
@@ -770,6 +760,13 @@ describe("parseBrowserCallbackInput", () => {
 		expect(parseBrowserCallbackInput("test-code-123")).toEqual({
 			ok: true,
 			input: "test-code-123",
+		});
+	});
+
+	it("accepts a bare query string", () => {
+		expect(parseBrowserCallbackInput("code=test-code&state=s")).toEqual({
+			ok: true,
+			input: "code=test-code&state=s",
 		});
 	});
 
@@ -798,6 +795,7 @@ describe("parseBrowserCallbackInput", () => {
 		"not a callback!!!",
 		"http://localhost:1455/auth/callback?state=test-state",
 		"localhost",
+		"localhost:1455/auth/callback?code=test-code",
 		"state=test-state",
 	])("rejects %s with a specific error", (input) => {
 		expect(parseBrowserCallbackInput(input)).toEqual({

@@ -12,7 +12,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
-import { isWorkspaceNotFound } from "#/api/errors";
+import { getErrorStatus, isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -3190,6 +3190,17 @@ export const isTerminalDeviceGrantStatus = (
 	status: TypesGen.AIDeviceGrantStatus,
 ): boolean => TERMINAL_DEVICE_GRANT_STATUSES.includes(status);
 
+/**
+ * Reports whether a failed grant poll will keep failing: a client error
+ * other than rate limiting, such as a grant that no longer exists.
+ */
+export const isFinalDeviceGrantPollError = (error: unknown): boolean => {
+	const status = getErrorStatus(error);
+	return (
+		status !== undefined && status >= 400 && status < 500 && status !== 429
+	);
+};
+
 export const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
 	["ai", "device-grants", providerId, grantId] as const;
 
@@ -3210,7 +3221,10 @@ export const userAIDeviceGrant = (
 			// Keep polling until a terminal status, including after a failed
 			// poll that left no data.
 			const status = state.data?.status;
-			if (status && isTerminalDeviceGrantStatus(status)) {
+			if (
+				(status && isTerminalDeviceGrantStatus(status)) ||
+				isFinalDeviceGrantPollError(state.error)
+			) {
 				return false;
 			}
 			// The server may raise the interval after slow_down; adopt it.

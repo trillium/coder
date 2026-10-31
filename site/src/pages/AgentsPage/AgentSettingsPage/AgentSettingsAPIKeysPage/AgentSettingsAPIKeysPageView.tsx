@@ -57,7 +57,6 @@ const getProviderStatus = (
 		};
 	}
 
-	// The saved key is kept, never swapped for another credential, until re-auth.
 	if (provider.reauth_required) {
 		return {
 			label: "Sign-in expired",
@@ -319,15 +318,17 @@ export const AgentSettingsAPIKeysPageView: React.FC<
 				label="Secrets (API keys)"
 				description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
 			/>
-			{error ? (
-				<ErrorAlert error={error} />
-			) : isLoading ? (
+			{/* A failed refetch keeps the list mounted so in-progress sign-ins survive. */}
+			{Boolean(error) && <ErrorAlert error={error} />}
+			{isLoading ? (
 				<Loader />
 			) : providers.length === 0 ? (
-				<EmptyState
-					message="No providers allow personal API keys."
-					description="Ask your administrator to enable personal API keys for at least one provider."
-				/>
+				!error && (
+					<EmptyState
+						message="No providers allow personal API keys."
+						description="Ask your administrator to enable personal API keys for at least one provider."
+					/>
+				)
 			) : (
 				<div className="flex flex-col gap-4">
 					{providers.map((provider) => (

@@ -1,4 +1,6 @@
-import { useId, useState } from "react";
+import { cn } from "cn";
+import { useFormik } from "formik";
+import { useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -12,35 +14,45 @@ import type {
 	UserChatProviderConfig,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { getFormHelpers } from "#/utils/formUtils";
 import { parseBrowserCallbackInput } from "./parseBrowserCallbackInput";
+import {
+	isFailedGrantStatus,
+	SignInSection,
+	SignInStatusLine,
+	terminalStatusMessage,
+} from "./SignInSection";
 import { SignInStartPanel } from "./SignInStartPanel";
 
 type BrowserSignInProps = {
 	provider: UserChatProviderConfig;
 };
 
+type CallbackFormValues = {
+	callback: string;
+};
+
 /**
- * Browser PKCE sign-in for one BYOK provider. The server builds the
- * authorize URL; the user approves there, then pastes the localhost callback
- * back here. The server checks the state and persists the credential, so the
- * exchange returns no key material.
+ * Browser PKCE sign-in for one BYOK provider. The user pastes the localhost
+ * callback here; the exchange persists the credential server side and returns
+ * no key material.
  */
 export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 	const queryClient = useQueryClient();
-	const inputId = useId();
+	const instructionsId = useId();
+	const resetButtonRef = useRef<HTMLButtonElement>(null);
 	const [grant, setGrant] = useState<AIBrowserGrantInitiateResponse | null>(
 		null,
 	);
-	const [callbackInput, setCallbackInput] = useState("");
 	const [exchangeResult, setExchangeResult] =
 		useState<AIBrowserGrantExchangeResponse | null>(null);
-	const [inputError, setInputError] = useState<string | null>(null);
 	const [pasteNote, setPasteNote] = useState<string | null>(null);
+	const [hasEnded, setHasEnded] = useState(false);
 
 	const initiateMutation = useMutation(initiateUserBrowserGrant(queryClient));
 	const exchangeMutation = useMutation(exchangeUserBrowserGrant(queryClient));
@@ -48,15 +60,62 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 
 	const providerName = provider.display_name || provider.provider;
 	const status = exchangeResult?.status;
-	const isTerminal =
-		status === "expired" || status === "denied" || status === "canceled";
+	const isTerminal = isFailedGrantStatus(status);
+
+	const form = useFormik<CallbackFormValues>({
+		initialValues: { callback: "" },
+		validateOnChange: false,
+		validateOnBlur: false,
+		validate: (values) => {
+			const parsed = parseBrowserCallbackInput(values.callback);
+			return parsed.ok ? {} : { callback: parsed.error };
+		},
+		onSubmit: (values, helpers) => {
+			const parsed = parseBrowserCallbackInput(values.callback);
+			if (!grant || !parsed.ok) {
+				return;
+			}
+			exchangeMutation.mutate(
+				{
+					providerConfigId: provider.provider_id,
+					grantId: grant.grant_id,
+					req: { input: parsed.input },
+				},
+				{
+					onSuccess: (result) => {
+						if (result.status === "authorized") {
+							toast.success("Signed in. Personal key saved.");
+							// handleStart clears the rest of the panel state.
+							helpers.resetForm();
+							setGrant(null);
+							setHasEnded(true);
+							return;
+						}
+						setExchangeResult(result);
+						resetButtonRef.current?.focus();
+					},
+					onError: (error) => {
+						toast.error(
+							getErrorMessage(error, "Error completing browser sign-in."),
+							{ description: getErrorDetail(error) },
+						);
+					},
+				},
+			);
+		},
+	});
+	const getFieldHelpers = getFormHelpers(form);
 
 	const resetPanel = () => {
 		setGrant(null);
-		setCallbackInput("");
 		setExchangeResult(null);
-		setInputError(null);
 		setPasteNote(null);
+		form.resetForm();
+	};
+
+	const endFlow = () => {
+		resetPanel();
+		setHasEnded(true);
 	};
 
 	const handleStart = () => {
@@ -68,6 +127,10 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 						toast.error(
 							"Browser sign-in failed: no authorize URL received from the server.",
 						);
+						cancelMutation.mutate({
+							providerConfigId: provider.provider_id,
+							grantId: next.grant_id,
+						});
 						return;
 					}
 					resetPanel();
@@ -77,42 +140,6 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 				onError: (error) => {
 					toast.error(
 						getErrorMessage(error, "Error starting browser sign-in."),
-						{ description: getErrorDetail(error) },
-					);
-				},
-			},
-		);
-	};
-
-	const handleSubmit = (event: React.FormEvent) => {
-		event.preventDefault();
-		if (!grant || exchangeMutation.isPending) {
-			return;
-		}
-		const parsed = parseBrowserCallbackInput(callbackInput);
-		if (!parsed.ok) {
-			setInputError(parsed.error);
-			return;
-		}
-		setInputError(null);
-		exchangeMutation.mutate(
-			{
-				providerConfigId: provider.provider_id,
-				grantId: grant.grant_id,
-				req: { input: parsed.input },
-			},
-			{
-				onSuccess: (result) => {
-					if (result.status === "authorized") {
-						toast.success("Signed in. Personal key saved.");
-						resetPanel();
-						return;
-					}
-					setExchangeResult(result);
-				},
-				onError: (error) => {
-					toast.error(
-						getErrorMessage(error, "Error completing browser sign-in."),
 						{ description: getErrorDetail(error) },
 					);
 				},
@@ -143,13 +170,13 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 			return;
 		}
 		setPasteNote(null);
-		setInputError(null);
-		setCallbackInput(text);
+		form.setFieldError("callback", undefined);
+		void form.setFieldValue("callback", text, false);
 	};
 
 	const handleReset = () => {
 		if (!grant || isTerminal) {
-			resetPanel();
+			endFlow();
 			return;
 		}
 		cancelMutation.mutate(
@@ -160,7 +187,7 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 						description: getErrorDetail(error),
 					});
 				},
-				onSettled: resetPanel,
+				onSettled: endFlow,
 			},
 		);
 	};
@@ -173,32 +200,29 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 				badgeVariant="default"
 				description="Opens the provider page in your browser. Approving leads to a page that fails to load (localhost:1455, connection refused). That failure is expected. Copy the full address-bar URL of that failed page and paste it back here."
 				isPending={initiateMutation.isPending}
+				autoFocus={hasEnded}
 				onStart={handleStart}
 			/>
 		);
 	}
 
-	let statusLine: React.ReactNode;
-	if (status === "expired") {
-		statusLine =
-			exchangeResult?.reauth_message ||
-			"This sign-in expired. Start over for a fresh one.";
-	} else if (status === "denied") {
-		statusLine = "Sign-in was denied at the provider. Start over to try again.";
-	} else if (status === "canceled") {
-		statusLine = "Sign-in was canceled. Start over to try again.";
-	} else {
-		statusLine = (
-			<>
-				<Spinner loading={exchangeMutation.isPending} size="sm" />
-				Waiting for the callback paste. The sign-in stays open until it expires.
-			</>
-		);
-	}
+	const statusLine: React.ReactNode = isFailedGrantStatus(status) ? (
+		terminalStatusMessage(
+			status,
+			exchangeResult?.reauth_message,
+			"This sign-in expired. Start over for a fresh one.",
+		)
+	) : (
+		<>
+			<Spinner loading={exchangeMutation.isPending} size="sm" />
+			Waiting for the callback paste. The sign-in stays open until it expires.
+		</>
+	);
+	const callbackField = getFieldHelpers("callback");
 
 	return (
-		<div className="mt-6 flex flex-col gap-3 border-t border-solid border-border pt-6">
-			<p className="m-0 text-sm text-content-secondary">
+		<SignInSection>
+			<p id={instructionsId} className="m-0 text-sm text-content-secondary">
 				Open{" "}
 				<Link href={grant.authorize_url} target="_blank" rel="noreferrer">
 					{providerName} sign-in
@@ -208,35 +232,38 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 				Copy the full address-bar URL of that failed page and paste it below.
 				Pasting just the code also works.
 			</p>
-			<form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+			<form className="flex flex-col gap-3" onSubmit={form.handleSubmit}>
 				<div className="flex flex-col gap-2">
-					<Label htmlFor={inputId}>Authorization callback</Label>
-					<Input
-						id={inputId}
-						type="text"
-						value={callbackInput}
-						onChange={(event) => {
-							setCallbackInput(event.target.value);
-							setInputError(null);
-						}}
-						placeholder="http://localhost:1455/auth/callback?code=..."
-						disabled={exchangeMutation.isPending}
-						className="h-8 font-mono"
-						spellCheck={false}
-						autoComplete="off"
-						autoFocus
-						aria-invalid={inputError !== null}
-						aria-describedby={inputError ? `${inputId}-error` : undefined}
+					<FormField
+						field={callbackField}
+						label="Authorization callback"
+						control={(controlProps) => (
+							<Input
+								{...controlProps}
+								aria-describedby={cn(
+									instructionsId,
+									controlProps["aria-describedby"],
+								)}
+								name={callbackField.name}
+								value={callbackField.value}
+								onChange={(event) => {
+									callbackField.onChange(event);
+									form.setFieldError("callback", undefined);
+								}}
+								onBlur={callbackField.onBlur}
+								type="text"
+								placeholder="http://localhost:1455/auth/callback?code=..."
+								disabled={exchangeMutation.isPending}
+								className={cn(
+									"h-8 font-mono",
+									callbackField.error && "border-border-destructive",
+								)}
+								spellCheck={false}
+								autoComplete="off"
+								autoFocus
+							/>
+						)}
 					/>
-					{inputError && (
-						<p
-							id={`${inputId}-error`}
-							role="alert"
-							className="m-0 text-sm text-content-destructive"
-						>
-							{inputError}
-						</p>
-					)}
 					{pasteNote && (
 						<p role="status" className="m-0 text-sm text-content-secondary">
 							{pasteNote}
@@ -266,6 +293,7 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 						</>
 					)}
 					<Button
+						ref={resetButtonRef}
 						type="button"
 						variant="outline"
 						size="sm"
@@ -280,12 +308,7 @@ export const BrowserSignIn: React.FC<BrowserSignInProps> = ({ provider }) => {
 					</Button>
 				</div>
 			</form>
-			<p
-				role="status"
-				className="m-0 flex items-center gap-2 text-sm text-content-secondary"
-			>
-				{statusLine}
-			</p>
-		</div>
+			<SignInStatusLine>{statusLine}</SignInStatusLine>
+		</SignInSection>
 	);
 };

@@ -7,8 +7,10 @@ const BROWSER_BARE_CODE_PATTERN = /^[A-Za-z0-9._~+=-]+$/;
 
 /**
  * Validates a pasted browser sign-in callback: the full localhost callback
- * URL, a bare code, or `code#state`. The server repeats the same parse; this
- * one only rejects empty or malformed input before the exchange request.
+ * URL, a bare query string, `code#state`, or a bare code. It checks in the
+ * server's order so input that passes here yields a non-empty code there.
+ * The server does the authoritative parse; this only rejects empty or
+ * malformed input before the exchange request.
  */
 export const parseBrowserCallbackInput = (
 	raw: string,
@@ -17,28 +19,32 @@ export const parseBrowserCallbackInput = (
 	if (!trimmed) {
 		return { ok: false, error: BROWSER_CALLBACK_EMPTY_ERROR };
 	}
-	if (trimmed.includes("code=")) {
-		const codeParam = trimmed.match(/(?:[?&#]|^)code=([^&#\s]*)/);
-		if (codeParam && codeParam[1].length > 0) {
-			return { ok: true, input: trimmed };
+	const valid = { ok: true, input: trimmed } as const;
+	const malformed = {
+		ok: false,
+		error: BROWSER_CALLBACK_MALFORMED_ERROR,
+	} as const;
+	if (URL.canParse(trimmed)) {
+		const url = new URL(trimmed);
+		if (url.host) {
+			return url.searchParams.get("code") ? valid : malformed;
 		}
-		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
 	}
-	// The server splits `code#state` on the first "#".
 	if (trimmed.includes("#")) {
-		const before = trimmed.slice(0, trimmed.indexOf("#"));
-		if (before.length >= 4 && BROWSER_BARE_CODE_PATTERN.test(before)) {
-			return { ok: true, input: trimmed };
-		}
-		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+		const code = trimmed.slice(0, trimmed.indexOf("#"));
+		return code.length >= 4 && BROWSER_BARE_CODE_PATTERN.test(code)
+			? valid
+			: malformed;
+	}
+	if (trimmed.includes("code=")) {
+		return new URLSearchParams(trimmed).get("code") ? valid : malformed;
 	}
 	// The bare-code pattern allows "=", so reject query-shaped input and a
-	// "localhost..." paste that lost its code parameter before matching it.
+	// "localhost..." paste that lost its scheme before matching it.
 	if (trimmed.includes("=") || trimmed.startsWith("localhost")) {
-		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+		return malformed;
 	}
-	if (trimmed.length >= 4 && BROWSER_BARE_CODE_PATTERN.test(trimmed)) {
-		return { ok: true, input: trimmed };
-	}
-	return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+	return trimmed.length >= 4 && BROWSER_BARE_CODE_PATTERN.test(trimmed)
+		? valid
+		: malformed;
 };
