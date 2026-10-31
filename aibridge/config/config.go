@@ -196,10 +196,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// UpstreamHeaders carries admin-configured custom headers sent on
-	// every upstream request for this provider. Nil or empty leaves
-	// default behavior unchanged.
-	UpstreamHeaders map[string]string
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

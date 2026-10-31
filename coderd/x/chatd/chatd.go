@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -342,18 +341,6 @@ func (p *Server) newAdvisorRuntime(
 			)
 			return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 		}
-	}
-
-	if !chatprovider.SupportsMaxOutputTokens(advisor.route.Provider.BaseUrl) {
-		// The advisor runtime always sends its output cap, and the
-		// ChatGPT subscription backend rejects max_output_tokens
-		// with HTTP 400. Skip the advisor rather than fail the turn.
-		logger.Warn(
-			ctx,
-			"continuing without advisor: provider does not support max output tokens",
-			slog.F("provider", advisor.resolvedProvider),
-		)
-		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{

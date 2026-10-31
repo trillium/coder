@@ -47,7 +47,8 @@ func TransportFor(provider, modelID string, override *bool) Transport {
 		}
 		return TransportChatCompletions
 	case fantasyopenaicompat.Name:
-		useResponses = override != nil && *override
+		// chatd never builds an openai-compat client with Responses enabled.
+		return TransportChatCompletions
 	default:
 		return TransportNotApplicable
 	}

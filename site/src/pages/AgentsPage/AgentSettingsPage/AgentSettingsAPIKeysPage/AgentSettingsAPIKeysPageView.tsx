@@ -3,32 +3,16 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	cancelUserBrowserGrant,
-	cancelUserDeviceGrant,
-	chatModelsKey,
 	deleteUserChatProviderKey,
-	exchangeUserBrowserGrant,
-	initiateUserBrowserGrant,
-	initiateUserDeviceGrant,
 	upsertUserChatProviderKey,
-	userAIDeviceGrant,
-	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
-import type {
-	AIBrowserGrantExchangeResponse,
-	AIBrowserGrantInitiateResponse,
-	AIDeviceGrantInitiateResponse,
-	ChatModel,
-	UserChatProviderConfig,
-} from "#/api/typesGenerated";
+import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { FormField } from "#/components/FormField/FormField";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
@@ -53,11 +37,7 @@ const providerKeyExpiryNote = (
 	if (Number.isNaN(expires.getTime())) {
 		return undefined;
 	}
-	const when = expires.toLocaleString();
-	if (provider.refresh_supported) {
-		return `Access token expires ${when}. Coder refreshes it automatically.`;
-	}
-	return `Access token expires ${when}. Sign in again for a fresh code.`;
+	return `Access token expires ${expires.toLocaleString()}.`;
 };
 
 const getProviderStatus = (
@@ -71,15 +51,13 @@ const getProviderStatus = (
 		};
 	}
 
-	// Terminal refresh failure renders exactly one re-auth prompt per
-	// provider (see the DeviceCodeSignIn banner below). The saved key is
-	// kept: the user is blocked on this provider until re-auth, never
-	// silently moved to another credential.
+	// A terminal OAuth failure keeps the saved key and asks for a new
+	// sign-in. The sign-in panels are not on this page in this build.
 	if (provider.reauth_required) {
 		return {
 			label: "Sign-in expired",
 			variant: "warning",
-			note: "Your saved sign-in expired. Sign in again below. Your saved key is kept until the new sign-in lands.",
+			note: "Your saved sign-in expired. Your saved key is kept until a new sign-in replaces it.",
 		};
 	}
 
@@ -276,14 +254,6 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 					</div>
 				</div>
 			</form>
-
-			{provider.device_flow_supported && provider.byok_enabled && (
-				<DeviceCodeSignIn provider={provider} />
-			)}
-
-			{provider.browser_flow_supported && provider.byok_enabled && (
-				<BrowserSignIn provider={provider} />
-			)}
 
 			<div className="mt-6 flex flex-col gap-2">
 				<p className="m-0 text-sm font-medium text-content-primary">

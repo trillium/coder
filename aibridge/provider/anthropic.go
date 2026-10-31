@@ -27,8 +27,6 @@ import (
 
 var _ Provider = &Anthropic{}
 
-var _ UpstreamHeadersProvider = &Anthropic{}
-
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
 	cfg            config.Anthropic
