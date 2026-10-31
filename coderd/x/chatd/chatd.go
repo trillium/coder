@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -211,6 +212,21 @@ type Server struct {
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
 	chatLimits             Limits
+
+	// aiProviderOAuthRefreshGroup collapses concurrent refreshes for one
+	// (provider, user) into a single exchange, mirroring the externalauth
+	// singleflight discipline. It is an interface so tests can inject a
+	// join-notifying fake; production sets a *singleflight.Group, and
+	// zero-value Server literals fall back to defaultOAuthRefreshGroup.
+	aiProviderOAuthRefreshGroup oauthRefreshFlightGroup
+	defaultOAuthRefreshGroup    singleflight.Group
+	// oauthRefreshHTTPClient talks to the subscription provider token
+	// endpoint. Tests override it; production uses a 15s-timeout client.
+	oauthRefreshHTTPClient *http.Client
+	// oauthRefreshTestConfig overrides the provider token endpoint. Test
+	// seam only: production always resolves the endpoint from the
+	// provider row.
+	oauthRefreshTestConfig *aiProviderOAuthConfig
 }
 
 // stripAdvisorGuidanceBlock removes any system message whose text content
@@ -1366,14 +1382,15 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
 			)
 		},
-		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
-		experiments:              cfg.Experiments,
-		inFlightChatStaleAfter:   inFlightChatStaleAfter,
-		streamSilenceTimeout:     streamSilenceTimeout,
-		usageTracker:             cfg.UsageTracker,
-		clock:                    clk,
-		recordingSem:             make(chan struct{}, limits.MaxConcurrentRecordingUploads),
-		chatLimits:               limits,
+		aibridgeTransportFactory:    cfg.AIBridgeTransportFactory,
+		experiments:                 cfg.Experiments,
+		aiProviderOAuthRefreshGroup: &singleflight.Group{},
+		inFlightChatStaleAfter:      inFlightChatStaleAfter,
+		streamSilenceTimeout:        streamSilenceTimeout,
+		usageTracker:                cfg.UsageTracker,
+		clock:                       clk,
+		recordingSem:                make(chan struct{}, limits.MaxConcurrentRecordingUploads),
+		chatLimits:                  limits,
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
