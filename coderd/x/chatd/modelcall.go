@@ -249,6 +249,12 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 		FrequencyPenalty: r.callConfig.FrequencyPenalty,
 		ToolChoice:       toolChoice,
 	}
+	if !chatprovider.SupportsMaxOutputTokens(r.route.Provider.BaseUrl) {
+		// The ChatGPT subscription backend speaks the Responses
+		// API but rejects max_output_tokens with HTTP 400, so it
+		// must not be sent there. Every other backend keeps it.
+		call.MaxOutputTokens = nil
+	}
 	return call
 }
 
@@ -277,6 +283,12 @@ func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, m
 		PresencePenalty:   r.callConfig.PresencePenalty,
 		FrequencyPenalty:  r.callConfig.FrequencyPenalty,
 		ProviderOptions:   r.providerOptions,
+	}
+	if !chatprovider.SupportsMaxOutputTokens(r.route.Provider.BaseUrl) {
+		// Same omission as newCall: object calls share the
+		// Responses params builder, so the ChatGPT subscription
+		// backend would reject them for the same reason.
+		call.MaxOutputTokens = nil
 	}
 	return call
 }
