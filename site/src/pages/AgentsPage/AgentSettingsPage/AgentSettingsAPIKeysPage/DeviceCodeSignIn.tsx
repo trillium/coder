@@ -172,10 +172,15 @@ export const DeviceCodeSignIn: React.FC<DeviceCodeSignInProps> = ({
 	}
 
 	let statusLine: React.ReactNode;
-	if (pollGone) {
-		statusLine = `${getErrorMessage(pollQuery.error, "This sign-in is no longer available.")} Start over to try again.`;
-	} else if (pollQuery.isError) {
-		statusLine = `${getErrorMessage(pollQuery.error, "Could not reach the sign-in check.")} Keep this open and approve the code; the check retries automatically.`;
+	if (pollQuery.isError) {
+		// Server messages may or may not end in a period.
+		const reason = getErrorMessage(
+			pollQuery.error,
+			"Could not reach the sign-in check",
+		).replace(/[.!?]?$/, ".");
+		statusLine = pollGone
+			? `${reason} Start over to try again.`
+			: `${reason} Keep this open and approve the code; the check retries automatically.`;
 	} else if (saveFailed) {
 		statusLine =
 			"Approved, but saving the key failed. Start over to try again.";
