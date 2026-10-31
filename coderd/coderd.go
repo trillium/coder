@@ -732,6 +732,12 @@ func New(options *Options) *API {
 		AIBrowserGrants:             NewAIBrowserGrantManager(options.Clock),
 	}
 
+	// Server-side OAuth custody for device-code and browser grants:
+	// approved credentials persist to the user key row here so refresh
+	// tokens never leave the server and never appear in poll responses.
+	api.AIDeviceGrants.SetPersistAuthorized(persistAIDeviceGrantCredential(api.Database, options.Clock))
+	api.AIBrowserGrants.SetPersistAuthorized(persistAIDeviceGrantCredential(api.Database, options.Clock))
+
 	api.ExperimentEvaluator, err = experimentrules.New(
 		options.Logger.Named("experiments"),
 		experimentrules.NewDBStore(options.Database),
