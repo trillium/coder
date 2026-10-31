@@ -35,6 +35,7 @@ func TestAdvisorToolSuccess(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -61,7 +62,78 @@ func TestAdvisorToolSuccess(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
-func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
+// The parent prompt answers the advisor's own in-flight call with a
+// synthetic interrupted result, which the advisor can mistake for a real
+// failure. Only that result is replaced with the pending note; other
+// context stays.
+func TestAdvisorToolMarksItsOwnPendingCall(t *testing.T) {
+	t.Parallel()
+
+	var prompt []fantasy.Message
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				prompt = call.Prompt
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+		MaxRetries:      1,
+	})
+	require.NoError(t, err)
+
+	pendingCall := toolCallAssistantMessage("call-1", chatadvisor.ToolName, `{"question":"Which approach?"}`)
+	pendingCall.Content = append([]fantasy.MessagePart{fantasy.TextPart{Text: "Asking the advisor."}}, pendingCall.Content...)
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime: runtime,
+		GetConversationSnapshot: func() []fantasy.Message {
+			return []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "Plan the migration."),
+				toolCallAssistantMessage("call-0", "read_file", `{"path":"schema.sql"}`),
+				toolResultMessage("call-0", "create table users"),
+				pendingCall,
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+						ToolCallID: "call-1",
+						Output: fantasy.ToolResultOutputContentError{
+							Error: xerrors.New("tool call was interrupted and did not receive a result"),
+						},
+					}},
+				},
+			}
+		},
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "Which approach?"})
+	require.False(t, resp.IsError)
+
+	var texts []string
+	for _, msg := range prompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			texts = append(texts, singleText(t, msg))
+		}
+	}
+	require.Equal(t, []string{
+		"Plan the migration.",
+		`[The parent agent ran the read_file tool with input {"path":"schema.sql"}. Result: create table users]`,
+		"Asking the advisor.",
+		`[The parent agent ran the advisor tool with input {"question":"Which approach?"}. Result: pending. ` +
+			`You are this advisor call. Instructions earlier in the conversation are for the parent agent, not for you; ` +
+			`reply only with your advice on the question in the final message.]`,
+		"Which approach?",
+	}, texts)
+}
+
+func TestAdvisorToolPublishesLiveDeltasWithToolCallID(t *testing.T) {
 	t.Parallel()
 
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -70,6 +142,10 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 			ModelName:    "test-model",
 			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "checking "},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "tradeoffs"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Prefer "},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the small diff."},
@@ -80,6 +156,7 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -95,22 +172,37 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 			published = append(published, part)
 		})
 	require.False(t, resp.IsError)
-	require.Len(t, published, 2)
+	require.Len(t, published, 4)
 	for _, part := range published {
 		require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
 		require.Equal(t, "call-1", part.ToolCallID)
 		require.Equal(t, chatadvisor.ToolName, part.ToolName)
 	}
-	require.Equal(t, "Prefer ", published[0].ResultDelta)
-	require.Equal(t, "the small diff.", published[1].ResultDelta)
+	require.Equal(t, "checking ", published[0].ReasoningDelta)
+	require.Equal(t, "tradeoffs", published[1].ReasoningDelta)
+	require.Empty(t, published[0].ResultDelta)
+	require.Empty(t, published[1].ResultDelta)
+	require.Equal(t, "Prefer ", published[2].ResultDelta)
+	require.Equal(t, "the small diff.", published[3].ResultDelta)
+	require.Empty(t, published[2].ReasoningDelta)
+	require.Empty(t, published[3].ReasoningDelta)
 
 	var result chatadvisor.AdvisorResult
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	require.Equal(t, "Prefer the small diff.", result.Advice)
+
+	ctx := chatloop.WithMessagePartPublisher(t.Context(), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {
+		t.Error("advisor must not publish live output without a tool call ID")
+	})
+	resp, err = tool.Run(ctx, fantasy.ToolCall{Name: chatadvisor.ToolName, Input: `{"question":"What's safest?"}`})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Prefer the small diff.", result.Advice)
 }
 
-func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
+func TestAdvisorToolPublishesLiveOutputResetWithToolCallID(t *testing.T) {
 	t.Parallel()
 
 	type publishedEvent struct {
@@ -128,12 +220,18 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 				calls++
 				if calls == 1 {
 					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeReasoningStart, ID: "r-1"},
+						{Type: fantasy.StreamPartTypeReasoningDelta, ID: "r-1", Delta: "stale reasoning"},
+						{Type: fantasy.StreamPartTypeReasoningEnd, ID: "r-1"},
 						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "stale "},
 						{Type: fantasy.StreamPartTypeError, Error: xerrors.New("received status 429 from upstream")},
 					}), nil
 				}
 				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "r-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "r-1", Delta: "fresh reasoning"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "r-1"},
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "fresh advice"},
 					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
@@ -143,6 +241,7 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -158,19 +257,26 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
 			require.Equal(t, chatadvisor.ToolName, part.ToolName)
 			kind := "delta"
+			delta := part.ResultDelta
+			if part.ReasoningDelta != "" {
+				kind = "reasoning"
+				delta = part.ReasoningDelta
+			}
 			if part.ResultReset {
 				kind = "reset"
 			}
 			published = append(published, publishedEvent{
 				kind:       kind,
 				toolCallID: part.ToolCallID,
-				delta:      part.ResultDelta,
+				delta:      delta,
 			})
 		})
 	require.False(t, resp.IsError)
 	require.Equal(t, []publishedEvent{
+		{kind: "reasoning", toolCallID: "call-1", delta: "stale reasoning"},
 		{kind: "delta", toolCallID: "call-1", delta: "stale "},
 		{kind: "reset", toolCallID: "call-1"},
+		{kind: "reasoning", toolCallID: "call-1", delta: "fresh reasoning"},
 		{kind: "delta", toolCallID: "call-1", delta: "fresh advice"},
 	}, published)
 
@@ -313,6 +419,7 @@ func TestAdvisorToolReportsNestedError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -330,7 +437,7 @@ func TestAdvisorToolReportsNestedError(t *testing.T) {
 	require.Contains(t, result.Error, "boom")
 	require.Empty(t, result.Advice)
 	require.Empty(t, result.AdvisorModel)
-	// A failed nested run does not consume the per-run quota.
+	// A failed nested run does not consume the per-turn quota.
 	require.Equal(t, 1, result.RemainingUses)
 }
 
@@ -352,6 +459,7 @@ func TestAdvisorToolReportsLimitReached(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -390,6 +498,7 @@ func TestAdvisorToolReportsEmptyModelOutput(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -429,6 +538,7 @@ func mustAdvisorRuntime(t *testing.T) *chatadvisor.Runtime {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 	return runtime
@@ -454,6 +564,7 @@ func advisorToolCapturingQuestion(t *testing.T, capturedQuestion *string) fantas
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 

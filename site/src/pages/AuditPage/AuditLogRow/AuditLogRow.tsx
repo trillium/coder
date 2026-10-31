@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { InfoIcon, NetworkIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "#/api/typesGenerated";
@@ -31,7 +31,7 @@ type AuditLogRowProps = {
 	showOrgDetails: boolean;
 };
 
-export const AuditLogRow: FC<AuditLogRowProps> = ({
+export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 	auditLog,
 	defaultIsDiffOpen = false,
 	showOrgDetails,
@@ -67,14 +67,15 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
+							shouldDisplayDiff &&
+								"relative cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 						)}
 						{...(shouldDisplayDiff && {
 							tabIndex: 0,
 							role: "button",
 							"aria-expanded": isDiffOpen,
 							onClick: toggle,
-							onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+							onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
 								if (event.key === "Enter" || event.key === " ") {
 									event.preventDefault();
 									toggle();
@@ -118,8 +119,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 										{showOrgDetails ? (
-											<Tooltip>
-												<TooltipTrigger asChild>
+											<Tooltip interactive>
+												<TooltipTrigger aria-label="Request details">
 													<InfoIcon className="size-icon-sm text-content-secondary" />
 												</TooltipTrigger>
 												<TooltipContent side="bottom">

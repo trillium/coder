@@ -50,34 +50,34 @@ trap cleanup_scratch EXIT
 DEADLINE=$(($(date +%s) + EXPIRES_IN))
 echo "Polling Coder for sign-in completion; responses captured to $RESP" >&2
 while :; do
-  HTTP=$(curl -sS -o "$RESP" -w '%{http_code}' \
-    --cookie "$JAR" --cookie-jar "$JAR" \
-    "$ACCESS_URL/api/v2/users/oauth2/github/callback?code=$DEVICE_CODE&state=$STATE")
-  case "$HTTP" in
-    200) break ;;
-    400)
-      DETAIL="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("detail",""))' "$RESP" 2>/dev/null || true)"
-      case "$DETAIL" in
-        authorization_pending) ;;
-        slow_down) INTERVAL=$((INTERVAL + 5)) ;;
-        expired_token | access_denied | *)
-          echo "github device login failed: $DETAIL" >&2
-          cat "$RESP" >&2
-          exit 1
-          ;;
-      esac
-      ;;
-    *)
-      echo "github device login: unexpected HTTP $HTTP" >&2
-      cat "$RESP" >&2
-      exit 1
-      ;;
-  esac
-  if [ "$(date +%s)" -gt "$DEADLINE" ]; then
-    echo "github device login: code expired before user entered it" >&2
-    exit 1
-  fi
-  sleep "$INTERVAL"
+	HTTP=$(curl -sS -o "$RESP" -w '%{http_code}' \
+		--cookie "$JAR" --cookie-jar "$JAR" \
+		"$ACCESS_URL/api/v2/users/oauth2/github/callback?code=$DEVICE_CODE&state=$STATE")
+	case "$HTTP" in
+	200) break ;;
+	400)
+		DETAIL="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("detail",""))' "$RESP" 2>/dev/null || true)"
+		case "$DETAIL" in
+		authorization_pending) ;;
+		slow_down) INTERVAL=$((INTERVAL + 5)) ;;
+		expired_token | access_denied | *)
+			echo "github device login failed: $DETAIL" >&2
+			cat "$RESP" >&2
+			exit 1
+			;;
+		esac
+		;;
+	*)
+		echo "github device login: unexpected HTTP $HTTP" >&2
+		cat "$RESP" >&2
+		exit 1
+		;;
+	esac
+	if [ "$(date +%s)" -gt "$DEADLINE" ]; then
+		echo "github device login: code expired before user entered it" >&2
+		exit 1
+	fi
+	sleep "$INTERVAL"
 done
 
 # Pull the session token out of the cookie jar and write it to
@@ -86,8 +86,8 @@ done
 # default ~/.config/coderv2.
 TOKEN="$(awk '$6 == "coder_session_token" { print $7 }' "$JAR" | tail -1)"
 [ -n "$TOKEN" ] || {
-  echo "no coder_session_token in cookie jar" >&2
-  exit 1
+	echo "no coder_session_token in cookie jar" >&2
+	exit 1
 }
 
 CFG="${CODER_CONFIG_DIR:-$HOME/.config/coderv2}"

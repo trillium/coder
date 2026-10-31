@@ -68,21 +68,6 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	);
 };
 
-export const TableFooter: React.FC<React.ComponentProps<"tfoot">> = ({
-	className,
-	...props
-}) => {
-	return (
-		<tfoot
-			className={cn(
-				"border-t bg-surface-secondary/50 font-medium last:[&>tr]:border-b-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
 const tableRowVariants = cva(
 	[
 		"border-0 border-b border-solid border-border transition-colors",
@@ -93,7 +78,7 @@ const tableRowVariants = cva(
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer outline-none hover:outline-solid hover:outline-1 focus-visible:outline-solid focus-visible:outline-1 -outline-offset-1 outline-border-secondary",
+					"cursor-pointer outline-none hover:outline-solid hover:outline-1 -outline-offset-1 outline-border-secondary focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content-link",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},

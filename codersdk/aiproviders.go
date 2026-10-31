@@ -85,43 +85,64 @@ func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
 //
 // On the wire, settings serialize as a JSON object that always carries
 // _type and _version discriminator keys alongside the type-specific
-// fields. Bedrock settings may also carry upstream headers in the same
-// object. The custom (Un)MarshalJSON implementations on this type handle
-// the routing automatically; callers should never marshal the concrete
-// settings struct directly.
+// fields. The custom (Un)MarshalJSON implementations on this type
+// handle the routing automatically; callers should never marshal the
+// concrete settings struct directly.
+//
+// AIProviderTypeBedrock is a distinct provider type for historical reasons.
+// New Anthropic *authentication methods* do not get provider types: they are
+// settings variants on AIProviderTypeAnthropic, which is why
+// ClaudePlatformAWS has no matching AIProviderType.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
-	// UpstreamHeaders, when set, carries custom headers sent on every
-	// upstream request for the provider (e.g. a routing session header
-	// required by OpenAI-compatible endpoints such as OpenCode Zen).
-	// Headers may be combined with Bedrock settings; when both are set,
-	// they are encoded in the Bedrock settings object.
-	UpstreamHeaders *AIProviderUpstreamHeadersSettings `json:"-"`
+	// ClaudePlatformAWS, when set, indicates this provider targets
+	// Anthropic's AWS-hosted Messages API. Only valid for
+	// AIProviderTypeAnthropic.
+	ClaudePlatformAWS *AIProviderClaudePlatformAWSSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil && (s.UpstreamHeaders == nil || s.UpstreamHeaders.IsZero())
+	return s.Bedrock == nil && s.ClaudePlatformAWS == nil
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
 // as JSON null so the column round-trips cleanly through SQL NULL.
+//
+// Exactly one variant may be set: a settings blob encodes a single
+// authentication method, and silently dropping the others would persist a
+// provider that authenticates differently from what the caller asked for.
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
+	if err := s.validateSingleVariant(); err != nil {
+		return nil, err
+	}
 	switch {
 	case s.Bedrock != nil:
-		wire := aiProviderBedrockSettingsWire{AIProviderBedrockSettings: *s.Bedrock}
-		if s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero() {
-			wire.Headers = s.UpstreamHeaders.Headers
-		}
-		return marshalSettings(wire)
-	case s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero():
-		return marshalSettings(*s.UpstreamHeaders)
+		return marshalSettings(*s.Bedrock)
+	case s.ClaudePlatformAWS != nil:
+		return marshalSettings(*s.ClaudePlatformAWS)
 	default:
 		return []byte("null"), nil
 	}
+}
+
+// validateSingleVariant reports an error when more than one settings variant
+// is populated.
+func (s AIProviderSettings) validateSingleVariant() error {
+	var set []string
+	if s.Bedrock != nil {
+		set = append(set, AIProviderSettingsTypeBedrock)
+	}
+	if s.ClaudePlatformAWS != nil {
+		set = append(set, AIProviderSettingsTypeClaudePlatformAWS)
+	}
+	if len(set) > 1 {
+		return xerrors.Errorf("settings must carry exactly one authentication method, got %s", strings.Join(set, ", "))
+	}
+	return nil
 }
 
 // UnmarshalJSON inspects the _type discriminator and routes to the
@@ -147,25 +168,22 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
 				header.Type, header.Version, AIProviderBedrockSettingsVersion)
 		}
-		var wire aiProviderBedrockSettingsWire
-		if err := json.Unmarshal(data, &wire); err != nil {
+		var b AIProviderBedrockSettings
+		if err := json.Unmarshal(data, &b); err != nil {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
-		s.Bedrock = &wire.AIProviderBedrockSettings
-		if wire.Headers != nil {
-			s.UpstreamHeaders = &AIProviderUpstreamHeadersSettings{Headers: wire.Headers}
-		}
+		s.Bedrock = &b
 		return nil
-	case AIProviderSettingsTypeUpstreamHeaders:
-		if header.Version != AIProviderUpstreamHeadersSettingsVersion {
+	case AIProviderSettingsTypeClaudePlatformAWS:
+		if header.Version != AIProviderClaudePlatformAWSSettingsVersion {
 			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
-				header.Type, header.Version, AIProviderUpstreamHeadersSettingsVersion)
+				header.Type, header.Version, AIProviderClaudePlatformAWSSettingsVersion)
 		}
-		var h AIProviderUpstreamHeadersSettings
-		if err := json.Unmarshal(data, &h); err != nil {
-			return xerrors.Errorf("decode upstream-headers settings: %w", err)
+		var c AIProviderClaudePlatformAWSSettings
+		if err := json.Unmarshal(data, &c); err != nil {
+			return xerrors.Errorf("decode claude platform settings: %w", err)
 		}
-		s.UpstreamHeaders = &h
+		s.ClaudePlatformAWS = &c
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -177,22 +195,6 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 type aiProviderSettingsHeader struct {
 	Type    string `json:"_type"`
 	Version int    `json:"_version"`
-}
-
-// aiProviderBedrockSettingsWire preserves the single Bedrock discriminator
-// while allowing provider-wide upstream headers to coexist with Bedrock
-// authentication settings.
-type aiProviderBedrockSettingsWire struct {
-	AIProviderBedrockSettings
-	Headers map[string]string `json:"headers,omitempty"`
-}
-
-func (aiProviderBedrockSettingsWire) settingsType() string {
-	return AIProviderSettingsTypeBedrock
-}
-
-func (aiProviderBedrockSettingsWire) settingsVersion() int {
-	return AIProviderBedrockSettingsVersion
 }
 
 // settingsTyped is implemented by concrete settings structs so that
@@ -310,9 +312,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
-	if req.Settings.UpstreamHeaders != nil {
-		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
-	}
 	if req.Settings.Bedrock != nil &&
 		req.Type != AIProviderTypeAnthropic &&
 		req.Type != AIProviderTypeBedrock {
@@ -351,6 +350,16 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Field:  "api_keys",
 			Detail: "type=copilot does not accept api_keys",
 		})
+	}
+	validations = append(validations, validateAIProviderSettingsVariants(req.Settings)...)
+	if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+		if req.Type != AIProviderTypeAnthropic {
+			validations = append(validations, ValidationError{
+				Field:  "settings",
+				Detail: "claude platform settings are only valid for type=anthropic",
+			})
+		}
+		validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
 	}
 	return validations
 }
@@ -395,9 +404,6 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
-	if req.Settings != nil && req.Settings.UpstreamHeaders != nil {
-		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
-	}
 	// Despite arriving on a PATCH, a bedrock settings blob is a full
 	// replacement rather than a per-field patch: the caller must set every
 	// field, except AccessKey, AccessKeySecret, and ExternalID, which
@@ -412,6 +418,41 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings != nil {
+		validations = append(validations, validateAIProviderSettingsVariants(*req.Settings)...)
+		if cp := req.Settings.ClaudePlatformAWS; cp != nil {
+			validations = append(validations, validateAIProviderClaudePlatformAWS(*cp)...)
+		}
+	}
+	return validations
+}
+
+// validateAIProviderSettingsVariants rejects a settings blob carrying more than
+// one authentication method. MarshalJSON would otherwise pick the first arm and
+// silently drop the rest.
+func validateAIProviderSettingsVariants(settings AIProviderSettings) []ValidationError {
+	if err := settings.validateSingleVariant(); err != nil {
+		return []ValidationError{{Field: "settings", Detail: err.Error()}}
+	}
+	return nil
+}
+
+// validateAIProviderClaudePlatformAWS checks the shape of a Claude Platform for
+// AWS settings blob.
+func validateAIProviderClaudePlatformAWS(cp AIProviderClaudePlatformAWSSettings) []ValidationError {
+	var validations []ValidationError
+	if cp.Region == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.region",
+			Detail: "region is required",
+		})
+	}
+	if cp.WorkspaceID == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.workspace_id",
+			Detail: "workspace_id is required",
+		})
 	}
 	return validations
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
+	getEditableContentPayload,
 	getPendingToolCallIDs,
 	mergeTools,
 	parseMessageContent,
@@ -75,7 +76,7 @@ describe("parseToolResultIsError", () => {
 	});
 });
 
-describe("getEditableUserMessagePayload", () => {
+describe("getEditableContentPayload", () => {
 	it("keeps only editable stored attachments", () => {
 		const cases = [
 			{
@@ -150,8 +151,29 @@ describe("getEditableUserMessagePayload", () => {
 		];
 
 		for (const { message, want } of cases) {
-			expect(getEditableUserMessagePayload(message)).toEqual(want);
+			expect(getEditableContentPayload(message.content)).toEqual(want);
 		}
+	});
+
+	it("preserves workspace file references as editable file blocks", () => {
+		const workspacePart = {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 42,
+			workspace_file_workspace_id: "ws-1",
+		} as const;
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [{ type: "text", text: "Please use this file." }, workspacePart],
+		};
+
+		const payload = getEditableContentPayload(message.content);
+		expect(payload?.text).toBe("Please use this file.");
+		expect(payload?.fileBlocks).toEqual([workspacePart]);
 	});
 
 	it("preserves whitespace-only text parts when concatenating", () => {
@@ -170,8 +192,15 @@ describe("getEditableUserMessagePayload", () => {
 				{ type: "text", text: "world" },
 			],
 		};
-		expect(getEditableUserMessagePayload(message)).toEqual({
+		expect(getEditableContentPayload(message.content)).toEqual({
 			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
+
+	it("returns empty text and no attachments when content is absent", () => {
+		expect(getEditableContentPayload(undefined)).toEqual({
+			text: "",
 			fileBlocks: undefined,
 		});
 	});
@@ -196,6 +225,24 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([{ type: "text", text: "Hello" }]);
 		expect(result.markdown).toBe("Hello");
 		expect(result.blocks).toEqual([{ type: "response", text: "Hello" }]);
+	});
+
+	it("keeps skill invocations between the text around them", () => {
+		const skillPart = {
+			type: "skill-invocation",
+			skill_source: "project",
+			skill_name: "triage",
+		} as const;
+		const result = parseMessageContent([
+			{ type: "text", text: "Use " },
+			skillPart,
+			{ type: "text", text: " now" },
+		]);
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use " },
+			skillPart,
+			{ type: "response", text: " now" },
+		]);
 	});
 
 	it("merges multiple text blocks into a single response block", () => {
@@ -226,6 +273,20 @@ describe("parseMessageContent", () => {
 			type: "response",
 			text: "Intro\n\n- First item\n- Second item",
 		});
+	});
+
+	it("keeps whitespace-only parts between text parts", () => {
+		// Interrupted turns are saved with one part per streamed delta.
+		const result = parseMessageContent([
+			{ type: "text", text: "\n" },
+			{ type: "text", text: "writing." },
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Like this" },
+		]);
+		expect(result.markdown).toBe("writing.\n\nLike this");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "writing.\n\nLike this" },
+		]);
 	});
 
 	it("parses a reasoning block", () => {
@@ -444,11 +505,38 @@ describe("parseMessageContent", () => {
 		});
 	});
 
+	it("parses workspace file references without changing markdown", () => {
+		const result = parseMessageContent([
+			{ type: "text", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
+
+		expect(result.markdown).toBe("Use this file.");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
+	});
+
 	it("skips provider_executed tool-call parts", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-call",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 			},
@@ -461,7 +549,7 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-result",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 				result: { output: "results" },
@@ -469,6 +557,153 @@ describe("parseMessageContent", () => {
 		]);
 		expect(result.toolResults).toEqual([]);
 		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
+	});
+
+	it("groups each search's found pages under it and puts citations after the text", () => {
+		// Stored order: chatd saves a citation when it arrives, before the
+		// text that was streaming.
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { type: "search", queries: JSON.stringify(["go release"]) },
+						provider_executed: true,
+					},
+					{ type: "source", tool_call_id: "ws-1", url: "https://go.dev/dl/" },
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						args: { query: "go 1.27 notes" },
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "srvtoolu-2",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27",
+					},
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "source",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27 Release Notes",
+					},
+					{ type: "text", text: "Go 1.27 is out." },
+				],
+			},
+		]);
+		expect(
+			entry.parsed.tools.map(({ id, status, foundPages }) => ({
+				id,
+				status,
+				foundPages,
+			})),
+		).toEqual([
+			{
+				id: "ws-1",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/dl/", title: "" }],
+			},
+			{
+				id: "srvtoolu-2",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+		const citations = [
+			{ url: "https://go.dev/doc/go1.27", title: "Go 1.27 Release Notes" },
+		];
+		expect(entry.parsed.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{ type: "tool", id: "srvtoolu-2" },
+			{ type: "response", text: "Go 1.27 is out." },
+			{ type: "sources", sources: citations },
+		]);
+		expect(entry.parsed.sources).toEqual(citations);
+	});
+
+	it("keeps narration apart from the answer whose citation sits between them", () => {
+		// OpenAI ends the narration, then cites while the answer streams.
+		const result = parseMessageContent([
+			{ type: "text", text: "Checking the release notes.", narration: true },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "Go 1.27 is out." },
+		]);
+		expect(result.blocks).toEqual([
+			{
+				type: "response",
+				text: "Checking the release notes.",
+				narration: true,
+			},
+			{ type: "response", text: "Go 1.27 is out." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+	});
+
+	it("puts a tagged source without a matching call in the source row", () => {
+		const result = parseMessageContent([
+			{
+				type: "source",
+				tool_call_id: "missing",
+				url: "https://example.com",
+				title: "Example",
+			},
+		]);
+		expect(result.sources).toEqual([
+			{ url: "https://example.com", title: "Example" },
+		]);
+	});
+
+	it("leaves a web_search call without a result completed but resultless after the turn", () => {
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { query: "coder" },
+						provider_executed: true,
+					},
+				],
+			},
+		]);
+		expect(entry.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				result: undefined,
+				status: "completed",
+				providerExecuted: true,
+			}),
+		]);
 	});
 
 	it("parses a source part into a sources block", () => {
@@ -654,6 +889,143 @@ describe("pending durable tool parsing", () => {
 	});
 });
 
+describe("live tool result overlay", () => {
+	const mockAdvisorArgs = {
+		question: "on or off by default?",
+		model_intent: "Checking the default",
+	};
+	const mockAdvisorCall: ChatMessagePart = {
+		type: "tool-call",
+		tool_call_id: "call-advisor",
+		tool_name: "advisor",
+		args: mockAdvisorArgs,
+	};
+	const messages: ChatMessage[] = [
+		{
+			...MockChatMessage,
+			id: 24,
+			role: "user",
+			content: [{ type: "text", text: "Should this be on by default?" }],
+		},
+		{
+			...MockChatMessage,
+			id: 25,
+			role: "assistant",
+			content: [mockAdvisorCall],
+		},
+	];
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
+
+	it("streams a live result into the durable call that owns it", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: "Turn it on",
+					reasoning: "Weighing the default",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				args: mockAdvisorArgs,
+				modelIntent: "Checking the default",
+				result: "Turn it on",
+				reasoning: "Weighing the default",
+			}),
+		]);
+	});
+
+	it("completes the durable call from a final live result before the durable result lands", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: { type: "advice", advice: "Turn it on" },
+					isError: false,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+			status: "completed",
+			result: { type: "advice", advice: "Turn it on" },
+		});
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+
+	it.each([null, { type: "advice", advice: "Durable advice" }])(
+		"prefers the durable result over a stale live result: %j",
+		(durableResult) => {
+			const resolvedMessages: ChatMessage[] = [
+				...messages,
+				{
+					...MockChatMessage,
+					id: 26,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "call-advisor",
+							tool_name: "advisor",
+							result: durableResult,
+						},
+					],
+				},
+			];
+
+			const parsed = parseMessagesWithMergedTools(resolvedMessages, {
+				pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
+				liveToolResults: {
+					"call-advisor": {
+						id: "call-advisor",
+						name: "advisor",
+						result: "Stale partial advice",
+						reasoning: "Stale thinking",
+						isError: false,
+						isStreaming: true,
+					},
+				},
+			});
+
+			expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+				status: "completed",
+				result: durableResult,
+			});
+			expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+		},
+	);
+
+	it("ignores live results for other tool calls", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-other": {
+					id: "call-other",
+					name: "advisor",
+					result: "Unrelated",
+					reasoning: "Unrelated thinking",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({ status: "running" });
+		expect(parsed[1]?.parsed.tools[0]?.result).toBeUndefined();
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+});
+
 describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 	const msg = (
 		id: number,
@@ -785,6 +1157,37 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
+	});
+
+	it.each([
+		{
+			name: "annotates an execute result the user canceled as killed",
+			result: {
+				success: false,
+				output: "partial",
+				exit_code: -1,
+				error: "canceled by the user",
+				canceled: true,
+			},
+			want: "kill",
+		},
+		{
+			name: "does not annotate a failed execute result that was not canceled",
+			result: { success: false, output: "partial", exit_code: 1 },
+			want: undefined,
+		},
+	])("$name", ({ result, want }) => {
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "sleep 300" }),
+			]),
+			msg(2, "assistant", [toolResult("tc1", "execute", result)]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.killedBySignal).toBe(want);
 	});
 });
 

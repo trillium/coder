@@ -14,6 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
@@ -21,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 const (
@@ -46,8 +47,6 @@ type Copilot struct {
 }
 
 var _ Provider = &Copilot{}
-
-var _ UpstreamHeadersProvider = &Copilot{}
 
 func NewCopilot(cfg config.Copilot) *Copilot {
 	if cfg.Name == "" {
@@ -77,14 +76,6 @@ func (*Copilot) Enabled() bool { return true }
 
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
-}
-
-// UpstreamHeaders returns the admin-configured custom headers sent on every
-// upstream request for this provider. It satisfies UpstreamHeadersProvider,
-// consumed by the passthrough router; intercepted routes read the same
-// configuration from intercept.Config instead.
-func (p *Copilot) UpstreamHeaders() map[string]string {
-	return p.cfg.UpstreamHeaders
 }
 
 func (p *Copilot) RoutePrefix() string {
@@ -143,10 +134,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
-	if key == "" {
+	cred, err := p.ResolveCredential(r)
+	if err != nil {
 		span.SetStatus(codes.Error, "missing authorization")
-		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+		return nil, err
 	}
 
 	id := uuid.New()
@@ -154,13 +145,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
 	// It is always BYOK: the per-user key arrives in the Authorization header.
 	cfg := intercept.Config{
-		ProviderName:    p.Name(),
-		BaseURL:         p.cfg.BaseURL,
-		APIDumpDir:      p.cfg.APIDumpDir,
-		UpstreamHeaders: p.cfg.UpstreamHeaders,
+		ProviderName: p.Name(),
+		BaseURL:      p.cfg.BaseURL,
+		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
-
 	var interceptor intercept.Interceptor
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -216,4 +204,15 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// ResolveCredential resolves Copilot's per-request BYOK token.
+// Coder authentication credentials must already have been removed from the
+// request.
+func (*Copilot) ResolveCredential(r *http.Request) (credential.Credential, error) {
+	key := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization))
+	if key == "" {
+		return nil, xerrors.Errorf("missing Copilot authorization: Authorization header not found or invalid: %w", ErrNoCredential)
+	}
+	return credential.BYOK{Secret: key, Header: aibheaders.AuthHeaderAuthorization}, nil
 }

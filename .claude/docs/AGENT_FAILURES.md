@@ -92,10 +92,11 @@ shown below when adding new failures.
   the develop output. Check listeners with `lsof -iTCP:<port> -sTCP:LISTEN`.
 - Existing docs or tools: [Development Isolation Guide for Agents](DEV_ISOLATION.md)
   and `scripts/develop/main.go`.
-- Missing harness piece: There is no automatic per-worktree port allocator.
-- Proposed prevention: Assign each worktree a unique `CODER_DEV_PORT`,
-  `CODER_DEV_WEB_PORT`, `CODER_DEV_PROXY_PORT`, and
-  `CODER_DEV_PROMETHEUS_PORT` before starting the app.
+- Missing harness piece: The per-worktree port offset is opt-in, so default
+  runs still collide.
+- Proposed prevention: Start parallel worktrees with `--port-offset` or
+  `CODER_DEV_PORT_OFFSET=true`. If two paths hash to the same offset, set the
+  `CODER_DEV_*` port variables for one worktree.
 
 ## Symptom: Test using `time.Sleep`
 
@@ -136,10 +137,28 @@ shown below when adding new failures.
   or related annotations.
 - How to diagnose: Compare the new handler with nearby handlers and inspect
   generated API docs for the route.
-- Existing docs or tools: `AGENTS.md`, [Documentation Style Guide](DOCS_STYLE_GUIDE.md),
+- Existing docs or tools: `AGENTS.md`, [API Design Guardrails](WORKFLOWS.md#api-design-guardrails),
   and API generation checks.
 - Missing harness piece: Agents need a doc reminder that endpoint work includes
   docs unless the route is intentionally experimental.
 - Proposed prevention: Add swagger annotations in the same change as stable
   endpoints. For experimental or unstable API paths, add
   `// @x-apidocgen {"skip": true}` after `@Router`.
+
+## Symptom: Test assertion on one value fails right after waiting on another
+
+- Likely cause: The test waited on one value, then asserted another that is
+  updated separately, about which the wait says nothing. Prometheus metrics
+  invite this, because each series is updated and read independently.
+- How to reproduce: Temporarily block the code under test between the two
+  updates until the assertion has run, for example with a sleep or with a
+  channel receive that the test releases.
+- How to diagnose: If the assertion reads a value the wait did not poll,
+  check whether the code under test can write it after the awaited one.
+- Existing docs or tools: [Wait for Full Completion before Asserting](TESTING.md#wait-for-full-completion-before-asserting)
+  and the doc comments on the `coderd/coderdtest/promhelp` read helpers.
+- Missing harness piece: No lint flags a wait on one value followed by an
+  assertion on another.
+- Proposed prevention: Make the wait cover every value the assertions depend
+  on, for example by checking all of them inside one `require.Eventually`
+  condition. Do not rely on the order in which the code under test writes.

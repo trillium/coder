@@ -15,6 +15,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -23,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // Bedrock Mantle OpenAI protocol routes. The Bedrock provider bridges these
@@ -40,8 +41,6 @@ var bedrockOpenErrorResponse = func() []byte {
 
 var _ Provider = &Bedrock{}
 
-var _ UpstreamHeadersProvider = &Bedrock{}
-
 // Bedrock implements the Provider interface for AWS Bedrock. It serves the
 // native Anthropic Messages route under both the invoke-model and mantle
 // protocols, and the OpenAI-shaped chat-completions and responses routes under
@@ -52,7 +51,7 @@ type Bedrock struct {
 }
 
 // NewBedrock constructs a Bedrock provider. cfg supplies the shared
-// provider-level fields (Name, BaseURL, APIDumpDir, SendActorHeaders,
+// provider-level fields (Name, BaseURL, APIDumpDir, ActorHeaderNames,
 // CircuitBreaker); bedrockCfg supplies the Bedrock-specific runtime config and
 // resolves the AWS credentials provider once at construction.
 func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (*Bedrock, error) {
@@ -175,10 +174,9 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
-		UpstreamHeaders:  p.cfg.UpstreamHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -203,7 +201,7 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -232,7 +230,7 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -266,40 +264,33 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 		ProviderName:     p.Name(),
 		BaseURL:          p.runtime.Cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
-		UpstreamHeaders:  p.cfg.UpstreamHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 }
 
-// resolveCredential determines the upstream credential for a request. Bedrock
+// ResolveCredential determines the upstream credential for a request. Bedrock
 // authenticates via AWS signing, so when no BYOK header is present it returns
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
-func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
-		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
+// Coder authentication credentials must already have been removed from the
+// request.
+func (p *Bedrock) ResolveCredential(r *http.Request) (credential.Credential, error) {
+	if apiKey := r.Header.Get(aibheaders.AuthHeaderXAPIKey); apiKey != "" {
+		return credential.BYOK{Secret: apiKey, Header: aibheaders.AuthHeaderXAPIKey}, nil
 	}
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
-	return intercept.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
+	return credential.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
 }
 
 func (p *Bedrock) BaseURL() string {
 	return p.cfg.BaseURL
 }
 
-// UpstreamHeaders returns the admin-configured custom headers sent on every
-// upstream request for this provider. It satisfies UpstreamHeadersProvider,
-// consumed by the passthrough router; intercepted routes read the same
-// configuration from intercept.Config instead.
-func (p *Bedrock) UpstreamHeaders() map[string]string {
-	return p.cfg.UpstreamHeaders
-}
-
 func (*Bedrock) AuthHeader() string {
-	return intercept.AuthHeaderXAPIKey
+	return aibheaders.AuthHeaderXAPIKey
 }
 
 // KeyPool returns nil. Bedrock authenticates via AWS signing, not a key pool.

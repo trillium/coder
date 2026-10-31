@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo } from "react";
+import { useMemo } from "react";
 import type { UseQueryResult } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { Template } from "#/api/typesGenerated";
@@ -22,12 +22,12 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 type TemplatesQuery = UseQueryResult<Template[]>;
 
 type WorkspacesButtonProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	templatesFetchStatus: TemplatesQuery["status"];
 	templates: TemplatesQuery["data"];
 };
 
-export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
+export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 	children,
 	templatesFetchStatus,
 	templates,
@@ -124,7 +124,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 				<div className="shrink-0 border-0 border-t border-solid border-border py-1">
 					<RouterLink
 						to="/templates"
-						className="flex items-center gap-3 rounded-sm px-4 py-2 text-sm text-content-link no-underline outline-hidden hover:bg-surface-secondary hover:no-underline focus:bg-surface-secondary"
+						className="flex items-center gap-3 rounded-sm px-4 py-2 text-sm text-content-link no-underline outline-hidden hover:bg-surface-secondary hover:no-underline focus:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<ExternalLinkIcon className="size-icon-xs" />
 						<span>See all templates</span>

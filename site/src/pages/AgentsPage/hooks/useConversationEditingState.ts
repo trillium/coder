@@ -2,7 +2,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
-import type { PendingAttachment } from "../components/ChatPageContent";
+import type { EditingTarget } from "../components/ChatConversation/types";
+import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
 	type ParsedDraft,
@@ -11,26 +12,21 @@ import {
 
 export class BuiltInCommandPendingError extends Error {}
 
+export type SendChatTurnOptions = SendChatMessageOptions & {
+	editingTarget?: EditingTarget;
+};
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
-	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
+	chatID: string;
+	onSend: (options: SendChatTurnOptions) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
 	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
-	const draftStorageKey = chatID
-		? `${draftInputStorageKeyPrefix}${chatID}`
-		: null;
+	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (!draftStorageKey) {
-				return { editorInitialValue: "", initialEditorState: undefined };
-			}
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
 			return {
 				editorInitialValue: draft.text,
@@ -57,45 +53,48 @@ export function useConversationEditingState(deps: {
 		}
 	}, [editorInitialValue, inputValueRef]);
 
-	// -- History editing state --
-	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
-	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
-		useState<ParsedDraft | null>(null);
+	const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
+		null,
+	);
+	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
+		null,
+	);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
 
-	const handleEditUserMessage = (
-		messageId: number,
+	const handleBeginEdit = (
+		target: EditingTarget,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
+		editorState?: string,
 	) => {
-		if (editingMessageId === null) {
+		if (editingTarget === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeHistoryEdit({
+			const currentEditorState = parseStoredDraft(
+				localStorage.getItem(draftStorageKey),
+			).editorState;
+			setDraftBeforeEdit({
 				text: inputValueRef.current,
 				editorState: currentEditorState,
 			});
 		}
-		setEditingMessageId(messageId);
+		setEditingTarget(target);
 		setDraftState({
 			editorInitialValue: text,
-			initialEditorState: undefined,
+			initialEditorState: editorState,
 		});
-		serializedEditorStateRef.current = undefined;
+		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
-	const handleCancelHistoryEdit = () => {
-		const savedText = draftBeforeHistoryEdit?.text ?? "";
-		const savedState = draftBeforeHistoryEdit?.editorState;
+	const restoreDraftBeforeEdit = () => {
+		const savedText = draftBeforeEdit?.text ?? "";
+		const savedState = draftBeforeEdit?.editorState;
 		setDraftState({
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
@@ -103,24 +102,23 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
-		setEditingMessageId(null);
-		setDraftBeforeHistoryEdit(null);
+		setEditingTarget(null);
+		setDraftBeforeEdit(null);
 		setEditingFileBlocks([]);
 	};
 
-	// Clears the composer for an in-flight history edit and
-	// returns a rollback function that restores the editing draft
-	// if the send fails.
-	const clearInputForHistoryEdit = (message: string) => {
+	// Clears the composer for an in-flight edit and returns a rollback
+	// function that restores the editing draft if the send fails.
+	const clearInputForEdit = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
-			messageId: editingMessageId,
+			target: editingTarget,
 		};
 
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
-		setEditingMessageId(null);
+		setEditingTarget(null);
 
 		return () => {
 			setDraftState({
@@ -130,43 +128,42 @@ export function useConversationEditingState(deps: {
 			serializedEditorStateRef.current = snapshot.editorState;
 			setRemountKey((k) => k + 1);
 			inputValueRef.current = message;
-			setEditingMessageId(snapshot.messageId);
+			setEditingTarget(snapshot.target);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
+	const finalizeSuccessfulSend = (target: EditingTarget | undefined) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
 		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
-		if (draftStorageKey) {
-			localStorage.removeItem(draftStorageKey);
-		}
-		if (editedMessageID !== undefined) {
-			setDraftBeforeHistoryEdit(null);
+		localStorage.removeItem(draftStorageKey);
+		if (target !== undefined) {
+			setDraftBeforeEdit(null);
 			setEditingFileBlocks([]);
 		}
 	};
 
 	// Wraps the parent onSend to clear local input/editing state.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
-		const editedMessageID =
-			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+	const handleSendFromInput = async ({
+		message,
+		attachments,
+		workspaceUploads,
+	}: SendChatMessageOptions) => {
+		const target = editingTarget ?? undefined;
+		const sendPromise = onSend({
+			message,
+			attachments,
+			workspaceUploads,
+			editingTarget: target,
+		});
 
-		// For history edits, clear input immediately and prepare
-		// a rollback in case the send fails.
 		const rollback =
-			editedMessageID !== undefined
-				? clearInputForHistoryEdit(message)
-				: undefined;
+			target !== undefined ? clearInputForEdit(message) : undefined;
 
 		try {
 			await sendPromise;
@@ -178,7 +175,7 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(editedMessageID);
+		finalizeSuccessfulSend(target);
 	};
 
 	const handleContentChange = (
@@ -189,23 +186,21 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 
-		// Don't overwrite the persisted draft while editing a history message.
+		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
-		if (editingMessageId !== null) {
+		if (editingTarget !== null) {
 			return;
 		}
 
-		if (draftStorageKey) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(draftStorageKey);
+		const shouldPersist = content.trim() || hasFileReferences;
+		if (shouldPersist) {
+			try {
+				localStorage.setItem(draftStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
 			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
 		}
 	};
 
@@ -230,10 +225,10 @@ export function useConversationEditingState(deps: {
 		editorInitialValue,
 		initialEditorState,
 		remountKey,
-		editingMessageId,
+		editingTarget,
 		editingFileBlocks,
-		handleEditUserMessage,
-		handleCancelHistoryEdit,
+		handleBeginEdit,
+		handleCancelEdit: restoreDraftBeforeEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,

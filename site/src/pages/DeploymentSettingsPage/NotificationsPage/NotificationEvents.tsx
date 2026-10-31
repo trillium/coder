@@ -1,6 +1,4 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	type selectTemplatesByGroup,
@@ -16,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { toast } from "#/components/Toaster/toast";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -32,7 +31,7 @@ type NotificationEventsProps = {
 	canEdit?: boolean;
 };
 
-export const NotificationEvents: FC<NotificationEventsProps> = ({
+export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 	defaultMethod,
 	availableMethods,
 	templatesByGroup,
@@ -72,7 +71,6 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							rel="noreferrer"
 						>
 							View docs
-							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
@@ -91,7 +89,6 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							rel="noreferrer"
 						>
 							View docs
-							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
@@ -149,7 +146,7 @@ type MethodSelectProps = {
 	canEdit: boolean;
 };
 
-const MethodSelect: FC<MethodSelectProps> = ({
+const MethodSelect: React.FC<MethodSelectProps> = ({
 	value,
 	options,
 	templateId,
