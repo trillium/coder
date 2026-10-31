@@ -166,7 +166,7 @@ export const MemoizedMarkdown = memo(Markdown, isEqual);
  * content arrives with a single trailing newline from the parser, which is
  * not part of the block itself, so it is stripped for the copied value.
  */
-function childrenToCode(children: ReactNode): string {
+function childrenToCode(children: React.ReactNode): string {
 	return String(children).replace(/\n$/, "");
 }
 
@@ -175,7 +175,7 @@ function childrenToCode(children: ReactNode): string {
  * known. Returns null for rich element children, where the caller should
  * fall back to reading the rendered DOM text at click time instead.
  */
-function childrenToText(children: ReactNode): string | null {
+function childrenToText(children: React.ReactNode): string | null {
 	if (typeof children === "string" || typeof children === "number") {
 		return String(children);
 	}
