@@ -3207,8 +3207,10 @@ export const userAIDeviceGrant = (
 		queryKey: userAIDeviceGrantKey(providerId, grantId),
 		queryFn: () => API.experimental.getUserAIDeviceGrant(providerId, grantId),
 		refetchInterval: ({ state }) => {
+			// Keep polling until a terminal status, including after a failed
+			// poll that left no data.
 			const status = state.data?.status;
-			if (!status || isTerminalDeviceGrantStatus(status)) {
+			if (status && isTerminalDeviceGrantStatus(status)) {
 				return false;
 			}
 			// The server may raise the interval after slow_down; adopt it.
