@@ -101,7 +101,7 @@ else
 		'{display_name: $display_name, enabled: true, base_url: $base_url,
 		  settings: $settings}
 		 + if $api_key == "" then {} else {api_keys: [{api_key: $api_key}]} end')
-	api_json PATCH "$(api_url /api/v2/ai/providers/$provider_name_encoded)" "$update_payload" >/dev/null
+	api_json PATCH "$(api_url /api/v2/ai/providers/"$provider_name_encoded")" "$update_payload" >/dev/null
 fi
 
 organization_id=${CODER_ORGANIZATION_ID:-}
