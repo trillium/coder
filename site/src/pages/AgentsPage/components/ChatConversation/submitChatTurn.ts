@@ -1,9 +1,9 @@
-import { toast } from "sonner";
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import {
@@ -19,7 +19,10 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "../../utils/slashCommands";
-import type { PendingAttachment } from "../ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+} from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -28,17 +31,21 @@ import {
 	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
+import type { EditingTarget } from "./types";
 
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
-	editedMessageID?: number;
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+	editingTarget?: EditingTarget;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
+	organizationSkills: readonly { name: string }[] | undefined;
+	projectSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
@@ -112,11 +119,11 @@ export const resolveEditModelConfigID = ({
 
 const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
-	editedMessageID: number | undefined,
+	editingTarget: EditingTarget | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
-	if (editedMessageID !== undefined || content.length !== 1) {
+	// Built-ins only intercept new, text-only sends. A skill with the same
+	// name takes precedence at availability resolution.
+	if (editingTarget !== undefined || content.length !== 1) {
 		return undefined;
 	}
 	const [part] = content;
@@ -149,6 +156,7 @@ const runBuiltInChatCommand = async ({
 			// Set running before awaiting so the worker's streamed waiting status
 			// cannot be overwritten if it arrives before the POST resolves.
 			const previousSnapshot = store.getSnapshot();
+			const baselineFence = store.getQueueConvergenceFence();
 			clearChatErrorReason(agentId);
 			store.clearStreamError();
 			store.clearStreamState();
@@ -156,7 +164,11 @@ const runBuiltInChatCommand = async ({
 			try {
 				await compact();
 			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
@@ -244,12 +256,15 @@ export async function submitChatTurn(
 	const {
 		message,
 		attachments,
-		editedMessageID,
+		workspaceUploads,
+		editingTarget,
 		composerParts,
 		clearPlanMode = false,
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
+		organizationSkills,
+		projectSkills,
 		workspaceSkills,
 		compact,
 		clearChatContext,
@@ -278,19 +293,21 @@ export async function submitChatTurn(
 	const { content, hasContent } = buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		composerParts,
 	});
 	if (!hasContent || isSubmissionPending || !hasModelOptions) {
 		return;
 	}
 
-	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
+	const builtInCommand = findBuiltInChatCommand(content, editingTarget);
 	const builtInCommandResolution = builtInCommand
-		? resolveChatSlashCommandAvailability(
-				builtInCommand,
-				personalSkills,
-				workspaceSkills,
-			)
+		? resolveChatSlashCommandAvailability(builtInCommand, [
+				{ source: "personal", skills: personalSkills },
+				{ source: "org", skills: organizationSkills },
+				{ source: "project", skills: projectSkills },
+				{ source: "workspace", skills: workspaceSkills },
+			])
 		: undefined;
 	if (builtInCommandResolution === "pending" && builtInCommand) {
 		const triggerText = chatSlashCommandTriggerText(builtInCommand);
@@ -311,7 +328,8 @@ export async function submitChatTurn(
 		return;
 	}
 
-	if (editedMessageID !== undefined) {
+	if (editingTarget?.kind === "history") {
+		const editedMessageID = editingTarget.id;
 		const originalEditedMessage = chatMessages?.find(
 			(existingMessage) => existingMessage.id === editedMessageID,
 		);
@@ -337,6 +355,7 @@ export async function submitChatTurn(
 				})
 			: undefined;
 		const previousSnapshot = store.getSnapshot();
+		const baselineFence = store.getQueueConvergenceFence();
 		clearChatErrorReason(agentId);
 		store.clearStreamError();
 		store.batch(() => {
@@ -352,7 +371,11 @@ export async function submitChatTurn(
 				req: request,
 			},
 			onError: (error) => {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				onRequestError(error);
 				// Hook dispatch failures can park an idle chat in error before
 				// returning the request error.

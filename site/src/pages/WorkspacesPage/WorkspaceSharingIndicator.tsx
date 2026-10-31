@@ -1,5 +1,4 @@
 import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
 import type { SharedWorkspaceActor } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Link } from "#/components/Link/Link";
@@ -14,10 +13,9 @@ type WorkspaceSharingIndicatorProps = {
 	settingsPath: string;
 };
 
-export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
-	sharedWith,
-	settingsPath,
-}) => {
+export const WorkspaceSharingIndicator: React.FC<
+	WorkspaceSharingIndicatorProps
+> = ({ sharedWith, settingsPath }) => {
 	// Sort by type (users then groups) and then alphabetically by name.
 	const sortedActors = [...sharedWith].sort((a, b) => {
 		if (a.actor_type !== b.actor_type) {
@@ -27,11 +25,12 @@ export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
 	});
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="flex items-center text-content-secondary hover:text-content-primary">
-					<UsersIcon className="size-icon-xs" />
-				</span>
+		<Tooltip interactive>
+			<TooltipTrigger
+				aria-label="Workspace permissions"
+				className="text-content-secondary hover:text-content-primary"
+			>
+				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
 			<TooltipContent className="w-56 p-0">
 				<div className="px-3 py-2">
@@ -45,7 +44,7 @@ export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
 						return (
 							<li
 								key={actor.id}
-								className="flex px-3 gap-2 text-sm text-content-secondary"
+								className="flex items-center px-3 gap-2 text-sm text-content-secondary"
 							>
 								<span className="text-sm truncate">{actor.name}</span>
 								{isAdmin && (

@@ -88,56 +88,83 @@ func TestMergeAIProviderSettingsExternalID(t *testing.T) {
 	require.Equal(t, "stored-value", merged.Bedrock.ExternalID)
 }
 
-// TestMergeAIProviderSettingsUpstreamHeaders verifies PATCH merge semantics
-// for the independent headers variant: a headers patch replaces only the
-// headers while preserving Bedrock settings, and a zero patch clears.
-func TestMergeAIProviderSettingsUpstreamHeaders(t *testing.T) {
+// TestMergeAIProviderSettingsClaudePlatform verifies replacement and clearing
+// across settings variants.
+func TestMergeAIProviderSettingsClaudePlatform(t *testing.T) {
 	t.Parallel()
 
-	headers := func(h map[string]string) codersdk.AIProviderSettings {
-		return codersdk.AIProviderSettings{
-			UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{Headers: h},
-		}
-	}
-
-	t.Run("HeadersPatchPreservesBedrock", func(t *testing.T) {
+	t.Run("RegularFieldsReplace", func(t *testing.T) {
 		t.Parallel()
-		existing := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}}
-		patch := headers(map[string]string{"X-A": "b"})
-		merged := mergeAIProviderSettings(existing, patch)
-		require.Equal(t, "us-east-1", merged.Bedrock.Region)
-		require.Equal(t, map[string]string{"X-A": "b"}, merged.UpstreamHeaders.Headers)
-	})
-
-	t.Run("HeadersPatchReplacesHeaders", func(t *testing.T) {
-		t.Parallel()
-		existing := headers(map[string]string{"X-Old": "1"})
-		patch := headers(map[string]string{"X-New": "2"})
-		merged := mergeAIProviderSettings(existing, patch)
-		require.Equal(t, map[string]string{"X-New": "2"}, merged.UpstreamHeaders.Headers)
-	})
-
-	t.Run("ZeroPatchClears", func(t *testing.T) {
-		t.Parallel()
-		existing := headers(map[string]string{"X-Old": "1"})
-		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{})
-		require.True(t, merged.IsZero())
-	})
-
-	t.Run("BedrockPatchPreservesSecrets", func(t *testing.T) {
-		t.Parallel()
-		// A bedrock patch over headers-only settings has no stored secrets
-		// to carry forward; it applies verbatim.
-		secret := "secret"
-		existing := headers(map[string]string{"X-Old": "1"})
-		patch := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{
-			Region:          "us-east-1",
-			AccessKeySecret: &secret,
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		patch := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-west-2",
+			WorkspaceID: "patched-workspace",
 		}}
 		merged := mergeAIProviderSettings(existing, patch)
-		require.Equal(t, map[string]string{"X-Old": "1"}, merged.UpstreamHeaders.Headers)
-		require.NotNil(t, merged.Bedrock)
-		require.Equal(t, "us-east-1", merged.Bedrock.Region)
-		require.Equal(t, &secret, merged.Bedrock.AccessKeySecret)
+		require.NotNil(t, merged.ClaudePlatformAWS)
+		require.Equal(t, patch.ClaudePlatformAWS, merged.ClaudePlatformAWS)
 	})
+
+	t.Run("SwitchingVariantsReplaces", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		patch := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{
+			Region:         "us-east-1",
+			Model:          "anthropic.claude-sonnet-4-5",
+			SmallFastModel: "anthropic.claude-haiku-4-5",
+		}}
+		merged := mergeAIProviderSettings(existing, patch)
+		require.Nil(t, merged.ClaudePlatformAWS)
+		require.Equal(t, patch.Bedrock, merged.Bedrock)
+	})
+
+	t.Run("EmptyPatchClears", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		require.True(t, mergeAIProviderSettings(existing, codersdk.AIProviderSettings{}).IsZero())
+	})
+}
+
+// TestAIProviderSupportsAmbientCredentials pins which settings variants
+// support ambient credentials, which drives has_effective_api_key and the
+// chat model picker.
+func TestAIProviderSupportsAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		settings codersdk.AIProviderSettings
+		want     bool
+	}{
+		{
+			name: "NoSettings",
+			want: false,
+		},
+		{
+			name:     "Bedrock",
+			settings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			want:     true,
+		},
+		{
+			name:     "ClaudePlatform",
+			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{}},
+			want:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, aiProviderSupportsAmbientCredentials(tc.settings))
+		})
+	}
 }

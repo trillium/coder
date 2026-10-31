@@ -21,7 +21,7 @@ const meta: Meta<typeof OrganizationAgentSettings> = {
 	args: {
 		organization: MockDefaultOrganization,
 		canEdit: true,
-		showAdvisor: true,
+		showComputerUse: false,
 	},
 };
 export default meta;
@@ -90,7 +90,9 @@ export const SavesOverrideForSelectedOrganization: Story = {
 			name: "Explore subagent",
 		});
 		await userEvent.click(
-			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent, Use chat model",
+			}),
 		);
 		await userEvent.click(
 			await screen.findByRole("option", {

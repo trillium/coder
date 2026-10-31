@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
-import { type FC, Fragment, type ReactNode, useId } from "react";
+import { Fragment, useId } from "react";
 import { useQuery } from "react-query";
 import {
 	type FieldSchema,
@@ -57,6 +57,29 @@ const booleanFieldOptions = [
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
+
+/**
+ * Disabled controls in this form (read-only users, or while saving) render
+ * their text, placeholder, and icons in content-disabled at full opacity,
+ * instead of the primitives' mix of opacity-50 and content-secondary, so
+ * every disabled field looks the same.
+ */
+export const disabledControlClassName =
+	"disabled:opacity-100 disabled:text-content-disabled disabled:placeholder:text-content-disabled disabled:[&_svg]:text-content-disabled";
+
+/**
+ * Class names for an InputGroup with a unit suffix such as "tokens". By
+ * default a disabled InputGroup and its addon each apply opacity-50. These
+ * keep them opaque and color the suffix content-disabled. Pair with
+ * disabledControlClassName on the input.
+ */
+export const unitInputGroupClassName = "has-[input:disabled]:opacity-100";
+/** See unitInputGroupClassName. */
+export const unitInputAddonClassName =
+	"group-has-[input:disabled]/input-group:opacity-100";
+/** See unitInputGroupClassName. */
+export const unitSuffixClassName =
+	"text-xs text-content-secondary group-has-[input:disabled]/input-group:text-content-disabled";
 
 const isReasoningEffortField = (jsonName: string): boolean =>
 	jsonName === "reasoning_effort.default" ||
@@ -129,7 +152,7 @@ type FieldRenderContext = {
 };
 
 /** Label with an optional info tooltip for field descriptions. */
-const FieldLabel: FC<{
+const FieldLabel: React.FC<{
 	htmlFor: string;
 	label: string;
 	description?: string;
@@ -152,7 +175,7 @@ const FieldLabel: FC<{
 	</Label>
 );
 
-const InputField: FC<
+const InputField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -177,25 +200,31 @@ const InputField: FC<
 	const fieldProps = form.getFieldProps(fieldKey);
 
 	const inputEl = suffix ? (
-		<InputGroup className={cn(fieldError && "border-border-destructive")}>
+		<InputGroup
+			className={cn(
+				unitInputGroupClassName,
+				fieldError && "border-border-destructive",
+			)}
+		>
 			<InputGroupInput
 				id={fieldKey}
-				className="min-w-0 placeholder:text-content-disabled"
+				className={cn("min-w-0", disabledControlClassName)}
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
 				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
-			<InputGroupAddon align="inline-end">
-				<span className="text-xs text-content-disabled">{suffix}</span>
+			<InputGroupAddon align="inline-end" className={unitInputAddonClassName}>
+				<span className={unitSuffixClassName}>{suffix}</span>
 			</InputGroupAddon>
 		</InputGroup>
 	) : (
 		<Input
 			id={fieldKey}
 			className={cn(
-				"min-w-0 placeholder:text-content-disabled",
+				"min-w-0",
+				disabledControlClassName,
 				fieldError && "border-content-destructive",
 			)}
 			placeholder={placeholder}
@@ -219,7 +248,7 @@ const InputField: FC<
 	);
 };
 
-const SelectField: FC<
+const SelectField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -259,6 +288,7 @@ const SelectField: FC<
 					id={fieldKey}
 					className={cn(
 						"min-w-0 shadow-none",
+						disabledControlClassName,
 						fieldError && "border-content-destructive",
 					)}
 					aria-invalid={Boolean(fieldError)}
@@ -284,7 +314,7 @@ const SelectField: FC<
 	);
 };
 
-const SegmentedField: FC<
+const SegmentedField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -343,7 +373,12 @@ const SegmentedField: FC<
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
-								disabled && "pointer-events-none opacity-60",
+								disabled && "pointer-events-none text-content-disabled",
+								// content-disabled text is unreadable on the filled highlight,
+								// so a disabled selection is marked with an outline instead.
+								disabled &&
+									isActive &&
+									"bg-transparent inset-ring inset-ring-border",
 							)}
 							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
@@ -361,7 +396,7 @@ const SegmentedField: FC<
 	);
 };
 
-const JSONField: FC<
+const JSONField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -393,7 +428,8 @@ const JSONField: FC<
 				id={fieldKey}
 				rows={1}
 				className={cn(
-					"min-h-0 resize-y font-mono text-xs leading-tight placeholder:text-content-disabled",
+					"min-h-0 resize-y font-mono text-xs leading-tight",
+					disabledControlClassName,
 					showError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
@@ -423,7 +459,7 @@ type SchemaFieldProps = FieldRenderContext & {
  * Render a single field from the schema using the appropriate
  * generic renderer based on its `input_type`.
  */
-const SchemaField: FC<SchemaFieldProps> = ({
+const SchemaField: React.FC<SchemaFieldProps> = ({
 	field,
 	fieldKey,
 	errorKey,
@@ -516,7 +552,7 @@ type ModelConfigFieldsProps = {
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
 /**
@@ -526,7 +562,7 @@ type ModelConfigFieldsProps = {
  * Fields and their input types are driven by the auto-generated
  * schema in `api/chatModelOptions`.
  */
-export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
+export const ModelConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -583,7 +619,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /** Reasoning effort selects, outside Advanced. */
-export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+export const ReasoningEffortConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -621,7 +657,7 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /** See ReasoningEffortConfigFields for reasoning effort fields. */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+export const GeneralModelConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -685,7 +721,7 @@ const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
 const priceOrUndefined = (micros: number | null): number | undefined =>
 	micros === null ? undefined : microsToDollars(micros);
 
-export const PricingEstimateFields: FC<{
+export const PricingEstimateFields: React.FC<{
 	provider: string;
 	model: string;
 }> = ({ provider, model }) => {
@@ -787,7 +823,7 @@ export const PricingEstimateFields: FC<{
 								</span>
 							)}
 							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">
+								<span className="text-xs text-content-secondary">
 									USD/1M tokens
 								</span>
 							</InputGroupAddon>

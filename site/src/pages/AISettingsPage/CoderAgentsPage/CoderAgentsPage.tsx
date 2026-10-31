@@ -1,12 +1,9 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import {
 	chatAdvisorConfig,
-	chatComputerUseProvider,
 	chatPersonalModelOverridesAdminSettings,
 	updateChatAdvisorConfig,
-	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -23,11 +20,12 @@ import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
-const CoderAgentsPage: FC = () => {
+const CoderAgentsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
+
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const accessibleOrganizationsQuery =
 		useAccessibleModelOrganizations(organizations);
@@ -45,54 +43,51 @@ const CoderAgentsPage: FC = () => {
 	const activeOrganizationPermissions = activeOrganization
 		? organizationPermissionsQuery.data?.[activeOrganization.id]
 		: undefined;
-	const showAdvisorSettings = experiments.includes("chat-advisor");
-	const showVirtualDesktopSettings = experiments.includes(
-		"chat-virtual-desktop",
-	);
+
+	const showComputerUseSettings = experiments.includes("chat-virtual-desktop");
+
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
 	});
+
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
-		enabled: canEditDeploymentConfig && showAdvisorSettings,
+		enabled: canEditDeploymentConfig,
 	});
-	const computerUseProviderQuery = useQuery({
-		...chatComputerUseProvider(),
-		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
-	});
+
 	const savePersonalOverridesMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
+
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
 	);
-	const saveComputerUseProviderMutation = useMutation(
-		updateChatComputerUseProvider(queryClient),
-	);
+
 	const canAccessOrganizationSettings =
 		accessibleOrganizationsQuery.organizations.length > 0;
+
 	const isFeatureVisible =
 		canEditDeploymentConfig ||
 		canAccessOrganizationSettings ||
 		accessibleOrganizationsQuery.isLoading ||
 		accessibleOrganizationsQuery.error !== null;
-	const organizationSettings =
-		activeOrganization &&
-		organizationPermissionsQuery.data === undefined &&
-		organizationPermissionsQuery.error == null ? (
-			<Loader />
-		) : activeOrganization &&
-			organizationPermissionsQuery.data !== undefined ? (
+
+	let organizationSettings: React.ReactNode;
+	if (activeOrganization && organizationPermissionsQuery.data !== undefined) {
+		organizationSettings = (
 			<OrganizationAgentSettings
 				organization={activeOrganization}
 				canEdit={
 					!organizationSelection.requestedOrganizationDenied &&
 					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
 				}
-				showAdvisor={showAdvisorSettings}
+				showComputerUse={showComputerUseSettings}
 			/>
-		) : undefined;
+		);
+	} else if (activeOrganization && organizationPermissionsQuery.error == null) {
+		organizationSettings = <Loader />;
+	}
 
 	return (
 		<RequirePermission isFeatureVisible={isFeatureVisible}>
@@ -123,7 +118,6 @@ const CoderAgentsPage: FC = () => {
 				onSaveAdminOverrides={savePersonalOverridesMutation.mutate}
 				isSavingAdminOverrides={savePersonalOverridesMutation.isPending}
 				isSaveAdminOverridesError={savePersonalOverridesMutation.isError}
-				showAdvisorSettings={showAdvisorSettings}
 				advisorConfigData={advisorConfigQuery.data}
 				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
 				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
@@ -132,12 +126,6 @@ const CoderAgentsPage: FC = () => {
 				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
 				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
-				showVirtualDesktopSettings={showVirtualDesktopSettings}
-				computerUseProviderData={computerUseProviderQuery.data}
-				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
-				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
-				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
-				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
 			/>
 		</RequirePermission>
 	);

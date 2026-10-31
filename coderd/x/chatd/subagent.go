@@ -38,14 +38,6 @@ var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of c
 // agent is still working and the wait can be retried.
 var ErrSubagentWaitTimeout = xerrors.New("timed out waiting for delegated subagent completion")
 
-// subagentToolNameAliases maps deprecated subagent tool names to their
-// current names so historical close_agent calls in chat history still
-// dispatch to interrupt_agent without advertising the old name in the
-// tool list.
-var subagentToolNameAliases = map[string]string{
-	"close_agent": "interrupt_agent",
-}
-
 // subagentStatusError wraps a subagent that reached error status. It
 // carries the chat and report so callers can surface a structured,
 // recoverable-aware payload instead of a bare tool error.
@@ -204,31 +196,21 @@ func (p *Server) resolvePersonalModelOverride(
 ) (database.ChatModelConfig, bool, error) {
 	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
 	if err != nil {
-		switch {
-		case xerrors.Is(err, sql.ErrNoRows):
-			p.logger.Debug(ctx,
-				"personal model override is unavailable, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-			)
-		case errors.Is(err, errInvalidModelOverrideMetadata):
-			p.logger.Debug(ctx,
-				"personal model override metadata is invalid, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-				slog.Error(err),
-			)
-		default:
-			p.logger.Warn(ctx,
-				"failed to resolve personal model override, using deployment default",
-				slog.F("override_context", overrideContext),
-				slog.F("owner_id", ownerID),
-				slog.F("model_config_id", modelConfigID),
-				slog.Error(err),
+		if !modelConfigUnavailable(err) {
+			return database.ChatModelConfig{}, false, xerrors.Errorf(
+				"resolve %s personal model override %s: %w",
+				subagentModelOverrideLogLabel(overrideContext),
+				modelConfigID,
+				err,
 			)
 		}
+		p.logger.Debug(ctx,
+			"personal model override is unavailable, using deployment default",
+			slog.F("override_context", overrideContext),
+			slog.F("owner_id", ownerID),
+			slog.F("model_config_id", modelConfigID),
+			slog.Error(err),
+		)
 		return database.ChatModelConfig{}, false, nil
 	}
 	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
@@ -286,12 +268,9 @@ func (p *Server) resolveSubagentModelConfigID(
 	}
 
 	resolved, err := p.resolveModelOverride(chatdCtx, modelOverrideSpec{
-		context:         string(overrideContext),
-		ownerID:         ownerID,
-		organizationID:  organizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeSoft,
+		context:        string(overrideContext),
+		ownerID:        ownerID,
+		organizationID: organizationID,
 	})
 	if err != nil {
 		return uuid.Nil, nil, err
@@ -448,17 +427,20 @@ func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
 		currentChatSnapshot = currentChat()
 	}
 
-	spawnAgentDescription := buildSpawnAgentDescription(
+	spawnAgentDescription, err := buildSpawnAgentDescription(
 		ctx,
 		p,
 		currentChatSnapshot,
 	)
+	if err != nil {
+		return nil, xerrors.Errorf("build spawn agent description: %w", err)
+	}
 
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
@@ -590,7 +572,9 @@ func (p *Server) subagentTools(
 				"a longer timeout is set. A timeout does not stop the child; it "+
 				"still owns its task. Wait again or check its status with "+
 				"list_agents; do not take over its work without an acknowledged "+
-				"handoff.",
+				"handoff. A timeout with status paused means the child's owner is "+
+				"editing one of its queued messages; the child continues when the "+
+				"edit ends, so keep waiting unless the owner says otherwise.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -798,7 +782,8 @@ func (p *Server) subagentTools(
 			"interrupt_agent",
 			"Interrupt a spawned child agent's current work. The "+
 				"status may briefly read interrupting before transitioning "+
-				"to waiting, or running if there are queued messages. "+
+				"to waiting, running if there are queued messages, or "+
+				"paused if its owner is editing its next queued message. "+
 				"Resume with message_agent or leave it idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -847,7 +832,8 @@ func (p *Server) subagentTools(
 				"agent has chat_id, title, type, status, created_at, "+
 				"updated_at. Status: running = working, "+
 				"interrupting = transient, waiting = idle, "+
-				"error = stopped on error.",
+				"error = stopped on error, paused = waiting for its owner "+
+				"to finish editing a queued message.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -909,7 +895,7 @@ func (p *Server) subagentTools(
 				}), nil
 			},
 		),
-	}
+	}, nil
 }
 
 func (p *Server) loadSubagentSpawnParentChat(
@@ -932,7 +918,20 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
+	// Fail before prompt hooks run for a child that cannot be created.
+	// Spawn parents are always roots, so this is the family's archived
+	// flag. The locked check in chatstate.CreateChat stays authoritative.
+	if parent.Archived {
+		return database.Chat{}, errSpawnUnderArchivedParent(chatstate.ErrChatFamilyArchived)
+	}
 	return parent, nil
+}
+
+// errSpawnUnderArchivedParent wraps err, which must match
+// chatstate.ErrChatFamilyArchived, into the tool error spawn_agent
+// returns to the model.
+func errSpawnUnderArchivedParent(err error) error {
+	return xerrors.Errorf("cannot create a child agent because the parent chat is archived: %w", err)
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
@@ -1057,10 +1056,17 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	deploymentPrompt, err := p.resolveDeploymentSystemPrompt(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// Delegated chats cannot call list_agents or message_agent, so
 	// strip the root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
+	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, parent.OrganizationID)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
@@ -1091,8 +1097,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 			prompt = override
 		}
 	}
+	titleSource := database.ChatTitleSourceUser
 	if title == "" {
 		title = subagentFallbackChatTitle(prompt)
+		titleSource = database.ChatTitleSourceFallback
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
@@ -1112,7 +1120,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
 
-	initialMessages := make([]chatstate.Message, 0, 4)
+	initialMessages := make([]chatstate.Message, 0, 5)
 	if deploymentPrompt != "" {
 		deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(deploymentPrompt),
@@ -1121,6 +1129,15 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return database.Chat{}, xerrors.Errorf("marshal deployment system prompt: %w", err)
 		}
 		initialMessages = append(initialMessages, systemMessage(deploymentContent, modelConfigID))
+	}
+	if organizationPrompt != "" {
+		organizationContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(organizationPrompt),
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal organization system prompt: %w", err)
+		}
+		initialMessages = append(initialMessages, systemMessage(organizationContent, modelConfigID))
 	}
 	if childSystemPrompt != "" {
 		childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1153,6 +1170,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
 		LastModelConfigID: modelConfigID,
 		Title:             title,
+		TitleSource:       titleSource,
 		Mode:              opts.chatMode,
 		PlanMode:          childPlanMode,
 		MCPServerIDs:      mcpServerIDs,
@@ -1163,8 +1181,12 @@ func (p *Server) createChildSubagentChatWithOptions(
 		DynamicTools:    pqtype.NullRawMessage{},
 		ClientType:      parent.ClientType,
 		InitialMessages: initialMessages,
+		InitialStatus:   database.ChatStatusRunning,
 	})
 	if err != nil {
+		if errors.Is(err, chatstate.ErrChatFamilyArchived) {
+			return database.Chat{}, errSpawnUnderArchivedParent(err)
+		}
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
@@ -1401,7 +1423,8 @@ func (p *Server) interruptSubagent(
 		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	if targetChat.Status == database.ChatStatusWaiting {
+	// Idle and paused chats have no turn to interrupt.
+	if targetChat.Status == database.ChatStatusWaiting || targetChat.Status == database.ChatStatusPaused {
 		return targetChat, false, nil
 	}
 
@@ -1432,9 +1455,11 @@ func (p *Server) checkSubagentCompletion(
 	// interrupting is transient: the worker transitions it to
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
-	// classification, avoiding stale partial output.
+	// classification, avoiding stale partial output. Paused is not
+	// done either: the child resumes when the queued edit ends.
 	if chat.Status == database.ChatStatusRunning ||
-		chat.Status == database.ChatStatusInterrupting {
+		chat.Status == database.ChatStatusInterrupting ||
+		chat.Status == database.ChatStatusPaused {
 		return chat, "", false, nil
 	}
 
@@ -1524,7 +1549,7 @@ func subagentFallbackChatTitle(message string) string {
 
 	words := strings.Fields(message)
 	if len(words) == 0 {
-		return "New Chat"
+		return chatprompt.DefaultChatTitle
 	}
 
 	truncated := false

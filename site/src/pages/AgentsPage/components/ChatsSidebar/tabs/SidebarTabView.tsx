@@ -8,15 +8,7 @@ import {
 	PanelLeftIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useEffectEvent,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
 import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
@@ -27,10 +19,10 @@ export type SidebarTab = {
 	/** Label shown in the tab button. */
 	label: string;
 	/** Optional icon shown before the label. */
-	icon?: ReactNode;
-	badge?: ReactNode;
+	icon?: React.ReactNode;
+	badge?: React.ReactNode;
 	/** The content to render when this tab is active. */
-	content: ReactNode;
+	content: React.ReactNode;
 	onClose?: () => void;
 };
 
@@ -55,7 +47,7 @@ type SidebarTabViewProps = {
 	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
-	addTabControl?: ReactNode;
+	addTabControl?: React.ReactNode;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -121,7 +113,7 @@ type ScrollChevronButtonProps = {
 	ariaLabel: string;
 };
 
-const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
+const ScrollChevronButton: React.FC<ScrollChevronButtonProps> = ({
 	direction,
 	onClick,
 	ariaLabel,
@@ -146,7 +138,7 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	);
 };
 
-export const SidebarTabView: FC<SidebarTabViewProps> = ({
+export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
 	onToggleExpanded,
@@ -167,17 +159,19 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
 
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
+	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
+		(t) => ({
+			id: t.id,
+			content: t.content,
+		}),
+	);
 
 	if (tabs.length === 0) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 				>
 					{onClose && (
 						<Button
@@ -219,7 +213,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 			>
 				{onClose && (
 					<Button
@@ -253,7 +247,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
+						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
@@ -272,7 +266,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
-										isCloseable && "rounded-r-none border-r-0 pr-2.5",
+										isCloseable &&
+											"rounded-r-none border-r-0 pr-2.5 focus-visible:ring-inset",
 									)}
 								>
 									{tab.icon}
@@ -313,6 +308,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 											isActive &&
 												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+											"focus-visible:ring-inset",
 										)}
 									>
 										<XIcon />

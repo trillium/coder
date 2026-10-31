@@ -81,7 +81,7 @@ export const SelectContent: React.FC<
 			className={cn(
 				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
-				"origin-(--radix-popper-transform-origin) ",
+				"origin-(--radix-popper-transform-origin) ease-out-strong ",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
 				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
 				"data-[state=open]:data-[side=bottom]:slide-in-from-top-2 data-[state=open]:data-[side=left]:slide-in-from-right-2 ",
@@ -128,6 +128,7 @@ export const SelectItem: React.FC<
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
 			"pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary ",
 			"focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+			"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 			className,
 		)}
 		{...props}

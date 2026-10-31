@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import { Button } from "#/components/Button/Button";
@@ -15,7 +14,7 @@ type PasswordSignInFormProps = {
 	autoFocus: boolean;
 };
 
-export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
+export const PasswordSignInForm: React.FC<PasswordSignInFormProps> = ({
 	onSubmit,
 	isSigningIn,
 	autoFocus,
@@ -59,6 +58,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					autoFocus={autoFocus}
 					autoComplete="email"
 					type="email"
+					placeholder="you@example.com"
 					aria-invalid={Boolean(emailField.error)}
 					aria-describedby={emailField.error ? emailErrorId : undefined}
 				/>
@@ -85,6 +85,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					onBlur={passwordField.onBlur}
 					autoComplete="current-password"
 					type="password"
+					placeholder="Enter your password"
 					aria-invalid={Boolean(passwordField.error)}
 					aria-describedby={passwordField.error ? passwordErrorId : undefined}
 				/>
