@@ -10,6 +10,25 @@ upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
 - **Control plane:** Docker container `coder` on **lnx**
   (`100.81.88.113`, MagicDNS `lnx.hippo-tilapia.ts.net`).
   Image `coder-keep:pr15-pr16-batch`, restart policy `unless-stopped`.
+- **Entrypoint form differs by image lineage (diagnosed 2026-09-25,
+  task-dh2qn).** Fresh builds via `scripts/build_docker.sh`
+  (`scripts/Dockerfile:24`) bake `ENTRYPOINT ["/opt/coder", "server"]`,
+  so launch them with NO trailing command. `coder-keep:*` savepoints are
+  `docker commit`s of the running container and carry the split form
+  (`Entrypoint ["/opt/coder"]` + `Cmd ["server"]`), which is why live
+  `coder` runs with a trailing `server` arg. Copying that arg onto a fresh
+  image executes `/opt/coder server server` and fails with
+  `error: unrecognized subcommand "server"` (while `server --help` via
+  `--entrypoint /opt/coder` still works, which masks the cause). Safe
+  verify pattern: `docker run --rm --entrypoint /opt/coder <img> version`;
+  throwaway server proof: `docker run -d --name coder-test -p 17080:7080
+  -e CODER_ACCESS_URL=http://lnx.hippo-tilapia.ts.net:17080 <img>` (no
+  command), then `curl localhost:17080/api/v2/buildinfo`.
+- **MCP allowlist:** the container was recreated 2026-09-24 to add
+  `CODER_MCP_ALLOWED_PRIVATE_CIDRs=100.64.0.0/10` (lets the chat backend
+  reach tailnet MCP servers through the SSRF guard). Rollback image and
+  host PGDATA backup from that recreate:
+  `/home/trillium/backups/coder-pgdata-20260924/`.
 - **Access URL:** `http://lnx.hippo-tilapia.ts.net:7080` (tailnet-only, no
   public ingress). `CODER_HTTP_ADDRESS=0.0.0.0:7080`.
 - **Version:** `v2.37.1-devel+337f49d6cd` — a development build. There is no
@@ -30,6 +49,11 @@ upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
   snapshot with `docker commit coder coder-keep:<reason>-YYYYMMDD`
   before touching the deployment (taken 2026-09-30:
   `coder-keep:pre-bin-fix-20260930`). See open questions below.
+  WARNING: postgres data lives in the container layer
+  (`/home/coder/.config/coderv2/postgres/data`), NOT the
+  `/var/lib/coder` mount; never `docker rm` the container without
+  `docker stop` + `docker commit` (or a `docker cp` backup) first.
+  A recreate from the base image serves stale baked-in Sept-19 data.
 - **Provisioning:** built-in provisioner daemons (`scope=organization`,
   key `built-in`); no separate provisionerd on this single host.
 - **CLI auth (this machine):** `coder` CLI is logged in as `admin`.
