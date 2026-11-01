@@ -5708,7 +5708,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Initiate an AI provider browser PKCE grant
+## Initiate AI provider browser grant
 
 ### Code samples
 
@@ -5752,7 +5752,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPr
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Cancel an AI provider browser PKCE grant
+## Cancel AI provider browser grant
 
 ### Code samples
 
@@ -5780,7 +5780,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Exchange an AI provider browser PKCE grant code
+## Exchange AI provider browser grant
 
 ### Code samples
 
@@ -5835,7 +5835,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPr
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Initiate an AI provider device-code grant
+## Initiate AI provider device-code grant
 
 ### Code samples
 
@@ -5882,7 +5882,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPr
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Poll an AI provider device-code grant
+## Poll AI provider device-code grant
 
 ### Code samples
 
@@ -5932,7 +5932,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Cancel an AI provider device-code grant
+## Cancel AI provider device-code grant
 
 ### Code samples
 
