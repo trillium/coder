@@ -552,7 +552,7 @@ func aiBrowserGrantExchangeResponse(grant *aiBrowserGrant, now time.Time) coders
 	}
 }
 
-// @Summary Initiate an AI provider browser PKCE grant
+// @Summary Initiate AI provider browser grant
 // @ID initiate-ai-provider-browser-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -601,7 +601,7 @@ func (api *API) postUserAIBrowserGrant(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, aiBrowserGrantInitiateResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Exchange an AI provider browser PKCE grant code
+// @Summary Exchange AI provider browser grant
 // @ID exchange-ai-provider-browser-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -672,7 +672,7 @@ func (api *API) postUserAIBrowserGrantExchange(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, aiBrowserGrantExchangeResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Cancel an AI provider browser PKCE grant
+// @Summary Cancel AI provider browser grant
 // @ID cancel-ai-provider-browser-grant
 // @Security CoderSessionToken
 // @Tags Chats
