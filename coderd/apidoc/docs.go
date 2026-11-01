@@ -14110,7 +14110,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Initiate an AI provider browser PKCE grant",
+                "summary": "Initiate AI provider browser grant",
                 "operationId": "initiate-ai-provider-browser-grant",
                 "parameters": [
                     {
@@ -14149,7 +14149,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Cancel an AI provider browser PKCE grant",
+                "summary": "Cancel AI provider browser grant",
                 "operationId": "cancel-ai-provider-browser-grant",
                 "parameters": [
                     {
@@ -14199,7 +14199,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Exchange an AI provider browser PKCE grant code",
+                "summary": "Exchange AI provider browser grant",
                 "operationId": "exchange-ai-provider-browser-grant",
                 "parameters": [
                     {
@@ -14258,7 +14258,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Initiate an AI provider device-code grant",
+                "summary": "Initiate AI provider device-code grant",
                 "operationId": "initiate-ai-provider-device-code-grant",
                 "parameters": [
                     {
@@ -14300,7 +14300,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Poll an AI provider device-code grant",
+                "summary": "Poll AI provider device-code grant",
                 "operationId": "poll-ai-provider-device-code-grant",
                 "parameters": [
                     {
@@ -14345,7 +14345,7 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Cancel an AI provider device-code grant",
+                "summary": "Cancel AI provider device-code grant",
                 "operationId": "cancel-ai-provider-device-code-grant",
                 "parameters": [
                     {
