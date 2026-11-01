@@ -864,7 +864,7 @@ func (api *API) resolveAIDeviceGrantTarget(ctx context.Context, rw http.Response
 	return targetUser, provider, true
 }
 
-// @Summary Initiate an AI provider device-code grant
+// @Summary Initiate AI provider device-code grant
 // @ID initiate-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -913,7 +913,7 @@ func (api *API) postUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, aiDeviceGrantInitiateResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Poll an AI provider device-code grant
+// @Summary Poll AI provider device-code grant
 // @ID poll-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -966,7 +966,7 @@ func (api *API) getUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, aiDeviceGrantPollResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Cancel an AI provider device-code grant
+// @Summary Cancel AI provider device-code grant
 // @ID cancel-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats
