@@ -447,7 +447,9 @@ jobs:
 
   gen:
     needs: changes
-    timeout-minutes: 20
+    # GitHub-hosted runners used outside the coder org are slower than the
+    # depot runners, so they get more time.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 20 || 40 }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
@@ -484,7 +486,7 @@ jobs:
         run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
-        timeout-minutes: 8
+        timeout-minutes: ${{ github.repository_owner == 'coder' && 8 || 25 }}
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
