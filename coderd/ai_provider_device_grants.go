@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -822,6 +824,45 @@ func aiDeviceGrantInitiateResponse(grant *aiDeviceGrant, now time.Time) codersdk
 	}
 }
 
+// persistAIDeviceGrantCredential writes one approved device-grant credential
+// to the user's key row. It is the server-side custody path implementing
+// the captain's Q1 decision: the refresh token is written here and never
+// appears in a poll response. A fresh approval clears any stale refresh
+// failure bookkeeping. The Upsert overwrites OAuth state wholesale: a later
+// pasted/static replace carries no OAuth material and drops it by
+// definition.
+func persistAIDeviceGrantCredential(db database.Store, clock quartz.Clock) func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
+	return func(ctx context.Context, ownerID, providerID uuid.UUID, cred AIDeviceOAuthCredential) error {
+		now := clock.Now()
+		params := database.UpsertUserAIProviderKeyParams{
+			ID:                        uuid.New(),
+			UserID:                    ownerID,
+			AIProviderID:              providerID,
+			APIKey:                    cred.AccessToken,
+			ApiKeyKeyID:               sql.NullString{},
+			OAuthRefreshToken:         sql.NullString{},
+			OAuthRefreshTokenKeyID:    sql.NullString{},
+			OAuthExpiry:               sql.NullTime{},
+			AccountID:                 sql.NullString{},
+			OAuthExtra:                pqtype.NullRawMessage{},
+			OauthRefreshFailureReason: sql.NullString{},
+			CreatedAt:                 now,
+			UpdatedAt:                 now,
+		}
+		if strings.TrimSpace(cred.AccountID) != "" {
+			params.AccountID = sql.NullString{String: cred.AccountID, Valid: true}
+		}
+		if strings.TrimSpace(cred.RefreshToken) != "" {
+			params.OAuthRefreshToken = sql.NullString{String: cred.RefreshToken, Valid: true}
+		}
+		if !cred.ExpiresAt.IsZero() {
+			params.OAuthExpiry = sql.NullTime{Time: cred.ExpiresAt, Valid: true}
+		}
+		_, err := db.UpsertUserAIProviderKey(ctx, params)
+		return err
+	}
+}
+
 func aiDeviceGrantPollResponse(grant *aiDeviceGrant, now time.Time) codersdk.AIDeviceGrantPollResponse {
 	return codersdk.AIDeviceGrantPollResponse{
 		GrantID:                 grant.id,
@@ -864,7 +905,7 @@ func (api *API) resolveAIDeviceGrantTarget(ctx context.Context, rw http.Response
 	return targetUser, provider, true
 }
 
-// @Summary Initiate an AI provider device-code grant
+// @Summary Initiate AI provider device-code grant
 // @ID initiate-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -913,7 +954,7 @@ func (api *API) postUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, aiDeviceGrantInitiateResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Poll an AI provider device-code grant
+// @Summary Poll AI provider device-code grant
 // @ID poll-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats
@@ -966,7 +1007,7 @@ func (api *API) getUserAIDeviceGrant(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, aiDeviceGrantPollResponse(grant, api.Clock.Now()))
 }
 
-// @Summary Cancel an AI provider device-code grant
+// @Summary Cancel AI provider device-code grant
 // @ID cancel-ai-provider-device-code-grant
 // @Security CoderSessionToken
 // @Tags Chats

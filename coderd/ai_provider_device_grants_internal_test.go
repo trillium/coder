@@ -11,10 +11,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -598,4 +601,63 @@ func TestUserAIProviderKeyOAuthSlots(t *testing.T) {
 	require.Nil(t, userAIProviderKeyOAuthExpiry(missingRow))
 	require.False(t, userAIProviderKeyRefreshSupported(missingRow))
 	require.False(t, userAIProviderKeyReauthRequired(missingRow))
+}
+
+// The persist hook writes the approved credential, including the refresh
+// token and expiry the chatd refresher depends on, to the owner's key row.
+func TestPersistAIDeviceGrantCredential(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+	access := testDeviceAccessJWT(t, "acct-persist")
+
+	t.Run("OAuthCredential", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		expiresAt := now.Add(time.Hour)
+		db.EXPECT().UpsertUserAIProviderKey(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
+				require.Equal(t, ownerID, params.UserID)
+				require.Equal(t, providerID, params.AIProviderID)
+				require.Equal(t, access, params.APIKey)
+				require.Equal(t, sql.NullString{String: "refresh-persist", Valid: true}, params.OAuthRefreshToken)
+				require.Equal(t, sql.NullTime{Time: expiresAt, Valid: true}, params.OAuthExpiry)
+				require.Equal(t, sql.NullString{String: "acct-persist", Valid: true}, params.AccountID)
+				require.False(t, params.OauthRefreshFailureReason.Valid, "fresh approval clears refresh failure")
+				require.Equal(t, now, params.UpdatedAt)
+				return database.UserAIProviderKey{}, nil
+			}).Times(1)
+
+		err := persistAIDeviceGrantCredential(db, clock)(testutil.Context(t, testutil.WaitShort), ownerID, providerID, AIDeviceOAuthCredential{
+			AccessToken:  access,
+			RefreshToken: "refresh-persist",
+			ExpiresAt:    expiresAt,
+			AccountID:    "acct-persist",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("AccessOnly", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().UpsertUserAIProviderKey(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
+				require.Equal(t, access, params.APIKey)
+				require.False(t, params.OAuthRefreshToken.Valid, "no refresh token persists as NULL")
+				require.False(t, params.OAuthExpiry.Valid, "unknown expiry persists as NULL")
+				require.False(t, params.AccountID.Valid)
+				return database.UserAIProviderKey{}, nil
+			}).Times(1)
+
+		err := persistAIDeviceGrantCredential(db, clock)(testutil.Context(t, testutil.WaitShort), ownerID, providerID, AIDeviceOAuthCredential{
+			AccessToken: access,
+		})
+		require.NoError(t, err)
+	})
 }
