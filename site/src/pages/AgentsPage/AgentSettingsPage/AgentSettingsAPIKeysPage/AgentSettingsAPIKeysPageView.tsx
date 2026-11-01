@@ -18,6 +18,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { getFormHelpers } from "#/utils/formUtils";
 import { SectionHeader } from "../../components/SectionHeader";
+import { BrowserSignIn } from "./BrowserSignIn";
+import { DeviceCodeSignIn } from "./DeviceCodeSignIn";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
@@ -37,7 +39,11 @@ const providerKeyExpiryNote = (
 	if (Number.isNaN(expires.getTime())) {
 		return undefined;
 	}
-	return `Access token expires ${expires.toLocaleString()}.`;
+	const when = expires.toLocaleString("en-US");
+	if (provider.refresh_supported) {
+		return `Access token expires ${when}. Coder refreshes it automatically.`;
+	}
+	return `Access token expires ${when}. Sign in again to renew it.`;
 };
 
 const getProviderStatus = (
@@ -51,13 +57,11 @@ const getProviderStatus = (
 		};
 	}
 
-	// A terminal OAuth failure keeps the saved key and asks for a new
-	// sign-in. The sign-in panels are not on this page in this build.
 	if (provider.reauth_required) {
 		return {
 			label: "Sign-in expired",
 			variant: "warning",
-			note: "Your saved sign-in expired. Your saved key is kept until a new sign-in replaces it.",
+			note: "Your saved sign-in expired. Sign in again below. Your saved key is kept until the new sign-in completes.",
 		};
 	}
 
@@ -255,6 +259,14 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 				</div>
 			</form>
 
+			{provider.device_flow_supported && provider.byok_enabled && (
+				<DeviceCodeSignIn provider={provider} />
+			)}
+
+			{provider.browser_flow_supported && provider.byok_enabled && (
+				<BrowserSignIn provider={provider} />
+			)}
+
 			<div className="mt-6 flex flex-col gap-2">
 				<p className="m-0 text-sm font-medium text-content-primary">
 					Enabled models
@@ -306,15 +318,17 @@ export const AgentSettingsAPIKeysPageView: React.FC<
 				label="Secrets (API keys)"
 				description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
 			/>
-			{error ? (
-				<ErrorAlert error={error} />
-			) : isLoading ? (
+			{/* A failed refetch keeps the list mounted so in-progress sign-ins survive. */}
+			{Boolean(error) && <ErrorAlert error={error} />}
+			{isLoading ? (
 				<Loader />
 			) : providers.length === 0 ? (
-				<EmptyState
-					message="No providers allow personal API keys."
-					description="Ask your administrator to enable personal API keys for at least one provider."
-				/>
+				!error && (
+					<EmptyState
+						message="No providers allow personal API keys."
+						description="Ask your administrator to enable personal API keys for at least one provider."
+					/>
+				)
 			) : (
 				<div className="flex flex-col gap-4">
 					{providers.map((provider) => (

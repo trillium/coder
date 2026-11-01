@@ -447,7 +447,9 @@ jobs:
 
   gen:
     needs: changes
-    timeout-minutes: 20
+    # GitHub-hosted runners used outside the coder org are slower than the
+    # depot runners, so they get more time.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 20 || 40 }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
@@ -465,7 +467,9 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm protoc protoc-gen-go"
+          # helm renders the chart golden files; without the pinned version,
+          # a runner that ships its own helm produces different output.
+          install-args: "go node pnpm protoc protoc-gen-go helm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -484,7 +488,7 @@ jobs:
         run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
-        timeout-minutes: 8
+        timeout-minutes: ${{ github.repository_owner == 'coder' && 8 || 25 }}
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
@@ -559,7 +563,9 @@ jobs:
     # Leave at least 5 minutes after the Go timeout fires, counting the
     # slowest setup steps, for the dump and the artifact uploads. The
     # macOS lane shortens its Go timeout below because its setup is slow.
-    timeout-minutes: 30
+    # GitHub-hosted runners used outside the coder org are slower than the
+    # depot runners, so they get more time.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 30 || 75 }}
     strategy:
       fail-fast: false
       matrix:
@@ -691,6 +697,7 @@ jobs:
           # Our Linux runners have 8 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          test-timeout: ${{ github.repository_owner == 'coder' && '' || '65m' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -713,7 +720,7 @@ jobs:
           # 5 minute margin for the dump and artifact uploads even after a
           # 10 minute setup. A healthy run of these packages takes about 4
           # minutes.
-          test-timeout: "15m"
+          test-timeout: ${{ github.repository_owner == 'coder' && '15m' || '60m' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -784,7 +791,9 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 30
+    # GitHub-hosted runners used outside the coder org are slower than the
+    # depot runners, so they get more time.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 30 || 75 }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -844,6 +853,7 @@ jobs:
           # Our Linux runners have 8 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          test-timeout: ${{ github.repository_owner == 'coder' && '' || '65m' }}
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -876,7 +886,9 @@ jobs:
     # `make test-race` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 30
+    # GitHub-hosted runners used outside the coder org are slower than the
+    # depot runners, so they get more time.
+    timeout-minutes: ${{ github.repository_owner == 'coder' && 30 || 75 }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -942,6 +954,7 @@ jobs:
           test-parallelism-packages: "4"
           test-parallelism-tests: "4"
           race-detection: "true"
+          test-timeout: ${{ github.repository_owner == 'coder' && '' || '65m' }}
           gotestsum-json-file: default
 
       - name: Publish Go test failure report

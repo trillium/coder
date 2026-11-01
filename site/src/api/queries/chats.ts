@@ -12,7 +12,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
-import { isWorkspaceNotFound } from "#/api/errors";
+import { getErrorStatus, isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -3099,7 +3099,7 @@ export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
-export const chatModelsKey = [...chatConfigKey, "models"] as const;
+const chatModelsKey = [...chatConfigKey, "models"] as const;
 
 export const organizationChatModelsKey = (organizationId: string) =>
 	[...chatModelsKey, organizationId] as const;
@@ -3183,20 +3183,34 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	},
 });
 
-export const TERMINAL_DEVICE_GRANT_STATUSES: readonly TypesGen.AIDeviceGrantStatus[] =
+const TERMINAL_DEVICE_GRANT_STATUSES: readonly TypesGen.AIDeviceGrantStatus[] =
 	["authorized", "expired", "denied", "canceled"];
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const isTerminalDeviceGrantStatus = (
 	status: TypesGen.AIDeviceGrantStatus,
 ): boolean => TERMINAL_DEVICE_GRANT_STATUSES.includes(status);
 
-export const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
+/**
+ * Reports whether a failed grant poll will keep failing: a client error
+ * other than rate limiting, such as a grant that no longer exists.
+ */
+export const isFinalDeviceGrantPollError = (error: unknown): boolean => {
+	const status = getErrorStatus(error);
+	return (
+		status !== undefined && status >= 400 && status < 500 && status !== 429
+	);
+};
+
+const userAIDeviceGrantKey = (providerId: string, grantId: string) =>
 	["ai", "device-grants", providerId, grantId] as const;
 
 /**
  * Live poll for one device-code grant. Polling follows the interval the
  * server returns and stops on terminal states; the panel restarts it by
  * remounting on a fresh grant.
+ *
+ * @public Used by the Agents Secrets sign-in panels.
  */
 export const userAIDeviceGrant = (
 	providerId: string,
@@ -3207,8 +3221,13 @@ export const userAIDeviceGrant = (
 		queryKey: userAIDeviceGrantKey(providerId, grantId),
 		queryFn: () => API.experimental.getUserAIDeviceGrant(providerId, grantId),
 		refetchInterval: ({ state }) => {
+			// Keep polling until a terminal status, including after a failed
+			// poll that left no data.
 			const status = state.data?.status;
-			if (!status || isTerminalDeviceGrantStatus(status)) {
+			if (
+				(status && isTerminalDeviceGrantStatus(status)) ||
+				isFinalDeviceGrantPollError(state.error)
+			) {
 				return false;
 			}
 			// The server may raise the interval after slow_down; adopt it.
@@ -3222,11 +3241,13 @@ type InitiateUserDeviceGrantArgs = {
 	providerConfigId: string;
 };
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const initiateUserDeviceGrant = (_queryClient: QueryClient) => ({
 	mutationFn: ({ providerConfigId }: InitiateUserDeviceGrantArgs) =>
 		API.experimental.initiateUserAIDeviceGrant(providerConfigId),
 });
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const cancelUserDeviceGrant = () => ({
 	mutationFn: ({
 		providerConfigId,
@@ -3241,6 +3262,7 @@ type InitiateUserBrowserGrantArgs = {
 	providerConfigId: string;
 };
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const initiateUserBrowserGrant = (_queryClient: QueryClient) => ({
 	mutationFn: ({ providerConfigId }: InitiateUserBrowserGrantArgs) =>
 		API.experimental.initiateUserAIBrowserGrant(providerConfigId),
@@ -3252,6 +3274,7 @@ type ExchangeUserBrowserGrantArgs = {
 	req: TypesGen.AIBrowserGrantExchangeRequest;
 };
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const exchangeUserBrowserGrant = (queryClient: QueryClient) => ({
 	mutationFn: ({
 		providerConfigId,
@@ -3269,6 +3292,7 @@ export const exchangeUserBrowserGrant = (queryClient: QueryClient) => ({
 	},
 });
 
+/** @public Used by the Agents Secrets sign-in panels. */
 export const cancelUserBrowserGrant = () => ({
 	mutationFn: ({
 		providerConfigId,
