@@ -33,6 +33,37 @@ variable "inference_proxy_url" {
   type        = string
 }
 
+variable "tailscale_auth_key" {
+  default     = ""
+  description = "Tailscale auth key the workspace uses to join the tailnet as its own tagged node. Supply it at push time (`--variable tailscale_auth_key=...`), never commit it. Use a tagged (tag:cyc26-dev), non-reusable, pre-approved key. It is only used on the first join; the node state then lives in the home volume. Empty means the workspace starts without Tailscale."
+  sensitive   = true
+  type        = string
+}
+
+variable "tailscale_hostname" {
+  default     = "cyc26-dev"
+  description = "Tailnet machine name of the workspace node. Teammates reach it as <name>.<tailnet>.ts.net."
+  type        = string
+}
+
+variable "tailscale_version" {
+  default     = "1.104.2"
+  description = "Pinned version of the static Tailscale build installed into the home volume (pkgs.tailscale.com/stable). Needs a release whose `tailscale up` reads --auth-key=file:."
+  type        = string
+}
+
+variable "code_server_version" {
+  default     = "4.141.1"
+  description = "Pinned version of the password-protected code-server served on the tailnet node."
+  type        = string
+}
+
+variable "code_server_tailnet_port" {
+  default     = 8443
+  description = "Port the tailnet node serves code-server on. The tailnet policy in homelab/cyc26/RUNBOOK.md allows shared users to reach this port and SSH only."
+  type        = number
+}
+
 variable "docker_socket" {
   default     = ""
   description = "(Optional) Docker socket URI"
@@ -82,13 +113,21 @@ ME_EOF
 
     # Print the caller's inference proxy pass. Harness configs call this, so a
     # pass is never written into a config file. Order: $CYC26_PASS from the
-    # session (`CODER_SSH_ENV=CYC26_PASS=... coder ssh ...`), then ~/.cyc26/pass
-    # for sessions that cannot set it (code-server, web terminal).
+    # session (`CODER_SSH_ENV=CYC26_PASS=... coder ssh ...`), then
+    # ~/.cyc26/passes/$CYC26_USER (Tailscale SSH sessions, one file per
+    # teammate), then ~/.cyc26/pass for sessions that cannot set either
+    # (code-server, web terminal).
     sudo tee /usr/local/bin/cyc26-pass >/dev/null <<'PASS_EOF'
 #!/bin/sh
 if [ -n "$CYC26_PASS" ]; then printf %s "$CYC26_PASS"
+elif [ -n "$CYC26_USER" ]; then
+  case "$CYC26_USER" in
+    */* | .*) echo "cyc26-pass: invalid CYC26_USER" >&2; exit 1 ;;
+  esac
+  if [ -r "$HOME/.cyc26/passes/$CYC26_USER" ]; then cat "$HOME/.cyc26/passes/$CYC26_USER"
+  else echo "cyc26-pass: no pass in ~/.cyc26/passes/$CYC26_USER" >&2; exit 1; fi
 elif [ -r "$HOME/.cyc26/pass" ]; then cat "$HOME/.cyc26/pass"
-else echo "cyc26-pass: set CYC26_PASS or put your pass in ~/.cyc26/pass" >&2; exit 1; fi
+else echo "cyc26-pass: set CYC26_PASS or CYC26_USER, or put your pass in ~/.cyc26/pass" >&2; exit 1; fi
 PASS_EOF
     sudo chmod 755 /usr/local/bin/cyc26-pass
   EOT
@@ -369,6 +408,197 @@ OC_EOF
       "$bin" --version 2>&1 | head -1 || true
     done
     exit "$failed"
+  EOT
+}
+
+# Tailnet node: runs tailscaled inside the workspace container so teammates
+# reach this one container (and nothing else on lnx) through Tailscale node
+# sharing, with no Coder account. Userspace networking needs no NET_ADMIN or
+# /dev/net/tun. The node joins tagged (tag:cyc26-dev) with Tailscale SSH, which
+# lands teammates as the workspace's normal user; the node state lives in the
+# home volume, so the auth key is only consumed on the first join. With no key
+# and no saved state the script exits cleanly and the workspace runs without
+# Tailscale. The key is passed to `tailscale up` through a root-only file, never
+# an argument, and is not echoed. See homelab/cyc26/RUNBOOK.md.
+resource "coder_script" "tailscale" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Join tailnet"
+  icon               = "/icon/code.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  timeout            = 600
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    SUDO=""
+    [ "$(id -u)" = 0 ] || SUDO="sudo"
+    curl() { command curl --connect-timeout 15 --max-time 300 --retry 3 "$@"; }
+
+    TS_VERSION='${var.tailscale_version}'
+    TS_HOSTNAME='${var.tailscale_hostname}'
+    TS_AUTHKEY='${var.tailscale_auth_key}'
+    TS_PORT='${var.code_server_tailnet_port}'
+    # Loopback port of the password-protected code-server ("Serve code-server
+    # on the tailnet"); the tailnet port above forwards to it.
+    CS_LOCAL_PORT=13338
+
+    state_dir="$HOME/.local/state/tailscale"
+    state_file="$state_dir/tailscaled.state"
+    sock=/var/run/tailscale/tailscaled.sock
+    ts_home="$HOME/.local/tailscale"
+
+    # The state dir is root-only (it holds the node key), so test as root.
+    if [ -z "$TS_AUTHKEY" ] && ! $SUDO test -s "$state_file"; then
+      echo "No Tailscale auth key and no saved node state; starting without Tailscale."
+      exit 0
+    fi
+
+    # Static build into the home volume, verified against the published
+    # checksum. Skipped when the pinned version is already installed.
+    if [ "$("$ts_home/tailscale" version 2>/dev/null | head -1)" != "$TS_VERSION" ]; then
+      case "$(uname -m)" in
+        x86_64) ts_arch=amd64 ;;
+        aarch64 | arm64) ts_arch=arm64 ;;
+        *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;;
+      esac
+      base=https://pkgs.tailscale.com/stable
+      tarball="tailscale_$${TS_VERSION}_$${ts_arch}.tgz"
+      tmp="$(mktemp -d)"
+      trap 'rm -rf "$tmp"' EXIT
+      curl -fsSL "$base/$tarball" -o "$tmp/$tarball"
+      echo "$(curl -fsSL "$base/$tarball.sha256")  $tarball" > "$tmp/$tarball.sha256"
+      (cd "$tmp" && sha256sum -c "$tarball.sha256")
+      rm -rf "$ts_home"
+      mkdir -p "$ts_home"
+      tar -xzf "$tmp/$tarball" -C "$ts_home" --strip-components=1
+    fi
+    for bin in tailscale tailscaled; do
+      $SUDO ln -sf "$ts_home/$bin" "/usr/local/bin/$bin"
+    done
+
+    ts() { $SUDO tailscale --socket="$sock" "$@"; }
+    backend_state() {
+      ts status --json 2>/dev/null | grep -o '"BackendState": *"[A-Za-z]*"' | cut -d'"' -f4 || true
+    }
+
+    # Start the daemon unless this script is re-running against a live one.
+    if [ -z "$(backend_state)" ]; then
+      mkdir -p "$HOME/.local/state"
+      $SUDO mkdir -p -m 700 "$state_dir"
+      $SUDO mkdir -p /var/run/tailscale
+      $SUDO setsid nohup tailscaled --tun=userspace-networking \
+        --state="$state_file" --socket="$sock" </dev/null >/tmp/tailscaled.log 2>&1 &
+    fi
+
+    state=""
+    for _ in $(seq 1 30); do
+      state="$(backend_state)"
+      case "$state" in Running | NeedsLogin | Stopped | NeedsMachineAuth) break ;; esac
+      sleep 1
+    done
+
+    up_node() {
+      ts up --reset --ssh --hostname="$TS_HOSTNAME" --advertise-tags=tag:cyc26-dev --timeout=60s "$@"
+    }
+    case "$state" in
+      NeedsLogin)
+        if [ -z "$TS_AUTHKEY" ]; then
+          echo "Tailscale node needs a new login but no auth key was supplied; push the template with tailscale_auth_key." >&2
+          exit 1
+        fi
+        keyfile="$state_dir/authkey"
+        trap '$SUDO rm -f "$keyfile"; rm -rf "$${tmp:-}"' EXIT
+        (umask 077; printf %s "$TS_AUTHKEY" | $SUDO tee "$keyfile" >/dev/null)
+        up_node --auth-key="file:$keyfile"
+        $SUDO rm -f "$keyfile"
+        ;;
+      Running | Stopped | NeedsMachineAuth)
+        up_node
+        ;;
+      *)
+        echo "tailscaled did not become ready; log follows" >&2
+        tail -n 20 /tmp/tailscaled.log >&2 || true
+        exit 1
+        ;;
+    esac
+
+    # Forward the tailnet port to the local code-server. HTTPS (a certificate
+    # for the node's MagicDNS name) needs HTTPS enabled for the tailnet; when it
+    # is not, fall back to a plain TCP forward, which is still encrypted by
+    # WireGuard but is not a secure context for the browser. Both are bounded
+    # because `serve` can wait on an admin to enable the feature.
+    if $SUDO timeout 30 tailscale --socket="$sock" serve --bg --https="$TS_PORT" "http://127.0.0.1:$CS_LOCAL_PORT"; then
+      echo "code-server is served over HTTPS on tailnet port $TS_PORT"
+    else
+      ts serve reset || true
+      $SUDO timeout 30 tailscale --socket="$sock" serve --bg --tcp="$TS_PORT" "tcp://127.0.0.1:$CS_LOCAL_PORT"
+      echo "HTTPS is not enabled for the tailnet; code-server is served as plain TCP on tailnet port $TS_PORT"
+    fi
+
+    echo "Tailscale node $TS_HOSTNAME is up: $(ts ip -4 | head -1)"
+  EOT
+}
+
+# Password-protected code-server for teammates on the tailnet. It is separate
+# from the Coder-proxied code-server module below (no auth, reachable only
+# through Coder): this one listens on loopback and is exposed by `tailscale
+# serve`, so it carries its own password. The password is generated on first
+# start into a mode-600 config in the home volume and never leaves the
+# workspace; the captain reads it there and hands it out. Skipped, like the
+# tailnet node, when there is no auth key and no saved node state.
+resource "coder_script" "code_server_tailnet" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Serve code-server on the tailnet"
+  icon               = "/icon/code.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  timeout            = 600
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    SUDO=""
+    [ "$(id -u)" = 0 ] || SUDO="sudo"
+
+    CS_VERSION='${var.code_server_version}'
+    TS_AUTHKEY='${var.tailscale_auth_key}'
+    # Must match CS_LOCAL_PORT in "Join tailnet".
+    CS_LOCAL_PORT=13338
+    state_file="$HOME/.local/state/tailscale/tailscaled.state"
+
+    if [ -z "$TS_AUTHKEY" ] && ! $SUDO test -s "$state_file"; then
+      echo "No Tailscale node for this workspace; not starting the tailnet code-server."
+      exit 0
+    fi
+
+    export PATH="$HOME/.local/bin:$PATH"
+    if [ "$(code-server --version 2>/dev/null | cut -d' ' -f1)" != "$CS_VERSION" ]; then
+      tmp="$(mktemp -d)"
+      trap 'rm -rf "$tmp"' EXIT
+      # The install script of the pinned release, not the moving copy on code-server.dev.
+      curl -fsSL --connect-timeout 15 --max-time 120 --retry 3 \
+        "https://raw.githubusercontent.com/coder/code-server/v$CS_VERSION/install.sh" -o "$tmp/install.sh"
+      timeout 600 sh "$tmp/install.sh" --method standalone --prefix "$HOME/.local" --version "$CS_VERSION"
+    fi
+
+    cfg_dir="$HOME/.config/cyc26-code-server"
+    cfg="$cfg_dir/config.yaml"
+    if [ ! -s "$cfg" ]; then
+      ( umask 077
+        mkdir -p "$cfg_dir"
+        password="$(head -c 24 /dev/urandom | base64 | tr -d '/+=\n')"
+        printf 'bind-addr: 127.0.0.1:%s\nauth: password\npassword: %s\ncert: false\n' \
+          "$CS_LOCAL_PORT" "$password" > "$cfg" )
+    fi
+
+    if ! (exec 3<>"/dev/tcp/127.0.0.1/$CS_LOCAL_PORT") 2>/dev/null; then
+      nohup setsid code-server --config "$cfg" \
+        --user-data-dir "$HOME/.local/share/cyc26-code-server" \
+        --disable-telemetry --disable-update-check /home/coder \
+        </dev/null >/tmp/cyc26-code-server.log 2>&1 &
+    fi
+    echo "code-server $CS_VERSION listens on 127.0.0.1:$CS_LOCAL_PORT; password is in $cfg"
   EOT
 }
 
