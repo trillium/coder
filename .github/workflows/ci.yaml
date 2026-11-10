@@ -400,8 +400,12 @@ jobs:
           # lint/go/new-code only checks lines changed since this revision.
           # Pull requests check out the merge commit, whose first parent is
           # the base branch tip (kept by fetch-depth: 2). Other events compare
-          # HEAD with itself, so the pass reports nothing.
-          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD' }}
+          # HEAD with itself, so the pass reports nothing. Forks also compare
+          # HEAD with itself: a PR that merges coder/coder main has every
+          # upstream-authored change as new relative to the fork's main, and
+          # upstream code predates these stricter rules, so the pass would
+          # flag code the fork did not write. The full-tree lint still runs.
+          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && github.repository_owner == 'coder' && 'HEAD^1' || 'HEAD' }}
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
