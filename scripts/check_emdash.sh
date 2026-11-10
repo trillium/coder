@@ -117,6 +117,14 @@ scan_diff() {
 if [[ "$mode" == "all" ]]; then
 	scan_all_files
 else
+	# A fork PR that merges coder/coder main makes every upstream-authored
+	# line an added line relative to the fork's main, and upstream docs and
+	# code carry characters this check forbids in new work. Forks skip the
+	# diff check; pass --all to scan the whole tree.
+	if [[ -n "${GITHUB_BASE_REF:-}" && -n "${GITHUB_REPOSITORY_OWNER:-}" && "${GITHUB_REPOSITORY_OWNER}" != "coder" ]]; then
+		echo "OK: fork pull request; skipping emdash diff check."
+		exit 0
+	fi
 	base=$(resolve_diff_base) || {
 		echo "ERROR: could not determine base ref." >&2
 		exit 1

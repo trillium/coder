@@ -57,8 +57,19 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Free disk space (Linux forks)
+      # Forks run on shared runners with about 14 GB of free disk and no
+      # tmpfs headroom (see the next step), so drop preinstalled SDKs that
+      # the tests never use.
+      if: runner.os == 'Linux' && github.repository_owner != 'coder'
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
     - name: Mount tmpfs for Go temp dir (Linux)
-      if: runner.os == 'Linux'
+      # A 16g tmpfs is backed by RAM. On a fork's 16 GB shared runner the
+      # test binaries and t.TempDir output exhaust memory and the runner
+      # is lost mid-run, so forks keep GOTMPDIR on disk.
+      if: runner.os == 'Linux' && github.repository_owner == 'coder'
       shell: bash
       run: | # zizmor: ignore[github-env] GOTMPDIR uses only runner-provided paths.
         # GOTMPDIR holds test binaries and t.TempDir() output. Keep them off
