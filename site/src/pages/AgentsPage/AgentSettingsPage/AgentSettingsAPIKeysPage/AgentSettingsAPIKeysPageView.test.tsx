@@ -1,0 +1,1302 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type {
+	AIBrowserGrantExchangeResponse,
+	AIBrowserGrantInitiateResponse,
+	AIDeviceGrantInitiateResponse,
+	AIDeviceGrantPollResponse,
+	UserAIProviderKeyConfig,
+	UserChatProviderConfig,
+} from "#/api/typesGenerated";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	AgentSettingsAPIKeysPageView,
+	type AgentSettingsAPIKeysPageViewProps,
+	BROWSER_CALLBACK_EMPTY_ERROR,
+	BROWSER_CALLBACK_MALFORMED_ERROR,
+	parseBrowserCallbackInput,
+} from "./AgentSettingsAPIKeysPageView";
+
+const createProvider = (
+	overrides: Partial<UserChatProviderConfig> &
+		Pick<UserChatProviderConfig, "provider_id" | "provider">,
+): UserChatProviderConfig => ({
+	provider_id: overrides.provider_id,
+	provider: overrides.provider,
+	display_name: overrides.display_name ?? overrides.provider,
+	icon: overrides.icon ?? "",
+	enabled: overrides.enabled ?? true,
+	has_user_api_key: overrides.has_user_api_key ?? false,
+	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
+	byok_enabled: overrides.byok_enabled ?? true,
+	device_flow_supported: overrides.device_flow_supported ?? false,
+	browser_flow_supported: overrides.browser_flow_supported ?? false,
+	oauth_expiry: overrides.oauth_expiry,
+	refresh_supported: overrides.refresh_supported ?? false,
+	reauth_required: overrides.reauth_required ?? false,
+});
+
+const baseProvider = createProvider({
+	provider_id: "prov-1",
+	provider: "openai",
+	display_name: "OpenAI",
+});
+
+const savedKeyConfig: UserAIProviderKeyConfig = {
+	provider: {
+		id: "prov-1",
+		type: "openai",
+		name: "openai",
+		display_name: "OpenAI",
+		icon: "",
+		enabled: true,
+		deleted: false,
+	},
+	has_user_api_key: true,
+	has_provider_api_key: false,
+	byok_enabled: true,
+	device_flow_supported: false,
+	browser_flow_supported: false,
+	refresh_supported: false,
+	reauth_required: false,
+};
+
+const defaultProps: AgentSettingsAPIKeysPageViewProps = {
+	error: undefined,
+	isLoading: false,
+	providers: [baseProvider],
+	models: [],
+	isModelsLoading: false,
+	areModelsUnavailable: false,
+};
+
+const renderView = (ui: React.ReactElement) => {
+	const queryClient = createTestQueryClient();
+	queryClient.setDefaultOptions({
+		...queryClient.getDefaultOptions(),
+		mutations: { retry: false },
+	});
+	return render(
+		<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+	);
+};
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
+describe("AgentSettingsAPIKeysPageView", () => {
+	it("saves a replacement key after a successful save remasks the field", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "upsertUserAIProviderKey").mockResolvedValue(
+			savedKeyConfig,
+		);
+
+		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
+
+		const apiKeyInput = screen.getByLabelText("API Key");
+		await user.type(apiKeyInput, "sk-test-key");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledWith(
+				"prov-1",
+				{ api_key: "sk-test-key" },
+			);
+		});
+
+		await user.type(apiKeyInput, "sk-other-key");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledTimes(2);
+		});
+		expect(API.experimental.upsertUserAIProviderKey).toHaveBeenLastCalledWith(
+			"prov-1",
+			{ api_key: "sk-other-key" },
+		);
+	});
+
+	it("trims leading and trailing whitespace before saving", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "upsertUserAIProviderKey").mockResolvedValue(
+			savedKeyConfig,
+		);
+
+		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
+
+		await user.type(screen.getByLabelText("API Key"), "  sk-test-key  ");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledWith(
+				"prov-1",
+				{ api_key: "sk-test-key" },
+			);
+		});
+	});
+
+	it("keeps the draft after a failed save so the user can retry", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "upsertUserAIProviderKey")
+			.mockRejectedValueOnce(new Error("failed to save"))
+			.mockResolvedValueOnce(savedKeyConfig);
+
+		renderView(<AgentSettingsAPIKeysPageView {...defaultProps} />);
+
+		await user.type(screen.getByLabelText("API Key"), "sk-test-key");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledTimes(1);
+		});
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledTimes(2);
+		});
+		expect(API.experimental.upsertUserAIProviderKey).toHaveBeenLastCalledWith(
+			"prov-1",
+			{ api_key: "sk-test-key" },
+		);
+	});
+
+	it("calls the remove API when the user confirms removal", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "deleteUserAIProviderKey").mockResolvedValue(
+			undefined,
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					{
+						...baseProvider,
+						has_user_api_key: true,
+					},
+				]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove" }));
+		const dialog = await screen.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+		await waitFor(() => {
+			expect(API.experimental.deleteUserAIProviderKey).toHaveBeenCalledWith(
+				"prov-1",
+			);
+		});
+	});
+
+	it("keeps the remove dialog open after a failed remove so the user can retry", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "deleteUserAIProviderKey")
+			.mockRejectedValueOnce(new Error("failed to remove"))
+			.mockResolvedValueOnce(undefined);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					{
+						...baseProvider,
+						has_user_api_key: true,
+					},
+				]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove" }));
+		const dialog = await screen.findByRole("dialog");
+		const confirmButton = within(dialog).getByRole("button", {
+			name: "Remove",
+		});
+		await user.click(confirmButton);
+
+		await waitFor(() => {
+			expect(API.experimental.deleteUserAIProviderKey).toHaveBeenCalledTimes(1);
+		});
+
+		await user.click(confirmButton);
+
+		await waitFor(() => {
+			expect(API.experimental.deleteUserAIProviderKey).toHaveBeenCalledTimes(2);
+		});
+	});
+});
+
+// Throwaway fixtures only: no test below uses a real credential.
+const deviceGrant: AIDeviceGrantInitiateResponse = {
+	grant_id: "grant-1",
+	provider_id: "prov-chatgpt",
+	user_code: "ABCD-1234",
+	verification_uri: "https://auth.example.com/device",
+	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
+	expires_in: 900,
+	poll_interval: 5,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "Test re-auth message.",
+};
+
+const devicePoll = (
+	overrides: Partial<AIDeviceGrantPollResponse> &
+		Pick<AIDeviceGrantPollResponse, "status">,
+): AIDeviceGrantPollResponse => ({
+	grant_id: "grant-1",
+	provider_id: "prov-chatgpt",
+	user_code: "ABCD-1234",
+	verification_uri: "https://auth.example.com/device",
+	verification_uri_complete: "https://auth.example.com/device/ABCD-1234",
+	expires_in: 900,
+	poll_interval: 5,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "Test re-auth message.",
+	...overrides,
+});
+
+const chatgptProvider = createProvider({
+	provider_id: "prov-chatgpt",
+	provider: "openai",
+	display_name: "ChatGPT",
+	device_flow_supported: true,
+	browser_flow_supported: true,
+});
+
+// Throwaway fixtures only: no test below uses a real credential.
+const browserGrant: AIBrowserGrantInitiateResponse = {
+	grant_id: "bgrant-1",
+	provider_id: "prov-chatgpt",
+	authorize_url:
+		"https://auth.example.com/oauth/authorize?code_challenge=test&state=test-state",
+	expires_in: 900,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "Test browser re-auth message.",
+};
+
+const browserExchange = (
+	overrides: Partial<AIBrowserGrantExchangeResponse> &
+		Pick<AIBrowserGrantExchangeResponse, "status">,
+): AIBrowserGrantExchangeResponse => ({
+	grant_id: "bgrant-1",
+	provider_id: "prov-chatgpt",
+	expires_in: 900,
+	stores_access_token_only: false,
+	refresh_supported: true,
+	reauth_message: "Test browser re-auth message.",
+	...overrides,
+});
+
+describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
+	it("offers sign-in only for device-flow providers", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					chatgptProvider,
+					createProvider({
+						provider_id: "prov-plain",
+						provider: "openai",
+						display_name: "Plain keys",
+					}),
+				]}
+			/>,
+		);
+
+		expect(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Sign in with Plain keys" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("starts a grant and shows the user code plus verification link", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+			);
+		});
+		expect(screen.getByText("ABCD-1234")).toBeInTheDocument();
+		// The link must use the bare verification_uri (not
+		// verification_uri_complete) so the user lands on the provider's
+		// device-code entry page and types the code.
+		expect(screen.getByRole("link")).toHaveAttribute(
+			"href",
+			"https://auth.example.com/device",
+		);
+		expect(screen.getByText(/Waiting for approval/)).toBeInTheDocument();
+	});
+
+	it("saves the approved token through the existing user-keys endpoint", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({
+				status: "authorized",
+				api_key: "test-device-access-token",
+			}),
+		);
+		vi.spyOn(API.experimental, "upsertUserAIProviderKey").mockResolvedValue(
+			savedKeyConfig,
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.upsertUserAIProviderKey).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				{ api_key: "test-device-access-token" },
+			);
+		});
+		// The token itself is never rendered.
+		expect(
+			screen.queryByText("test-device-access-token"),
+		).not.toBeInTheDocument();
+	});
+
+	it("cancels the grant and resets the panel", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+		vi.spyOn(API.experimental, "cancelUserAIDeviceGrant").mockResolvedValue(
+			undefined,
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+		await screen.findByText("ABCD-1234");
+		await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.cancelUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"grant-1",
+			);
+		});
+		await waitFor(() => {
+			expect(screen.queryByText("ABCD-1234")).not.toBeInTheDocument();
+		});
+		expect(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		).toBeInTheDocument();
+	});
+
+	it("completes a server-persisted grant with no dashboard PUT", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		// Authorized with no api_key: the credential already reached the
+		// key row server-side, so the dashboard must not PUT after it.
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "authorized" }),
+		);
+		const upsertSpy = vi
+			.spyOn(API.experimental, "upsertUserAIProviderKey")
+			.mockResolvedValue(savedKeyConfig);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+			).toBeInTheDocument();
+		});
+		expect(upsertSpy).not.toHaveBeenCalled();
+		expect(screen.queryByText("ABCD-1234")).not.toBeInTheDocument();
+	});
+
+	it("surfaces expiry with the re-auth path", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "expired" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await screen.findByText("Test re-auth message.");
+		expect(
+			screen.getByRole("button", { name: "Start over" }),
+		).toBeInTheDocument();
+	});
+
+	it("renders the bare verification URI as the link, not the code-in-path form", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await screen.findByText("ABCD-1234");
+		// The link must point to the bare verification_uri so the user
+		// stays on the provider's code-entry page. It must NOT use the
+		// verification_uri_complete (which embeds the code in the path and
+		// causes OpenAI's device page to lose the return path).
+		const link = screen.getByRole("link");
+		expect(link).toHaveAttribute("href", deviceGrant.verification_uri);
+		expect(link).not.toHaveAttribute(
+			"href",
+			deviceGrant.verification_uri_complete,
+		);
+		// The user code is shown prominently for the user to type.
+		expect(screen.getByText(deviceGrant.user_code)).toBeInTheDocument();
+	});
+});
+
+describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
+	it("offers browser sign-in only for browser-flow providers", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					chatgptProvider,
+					createProvider({
+						provider_id: "prov-plain",
+						provider: "openai",
+						display_name: "Plain keys",
+					}),
+				]}
+			/>,
+		);
+
+		expect(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", {
+				name: "Sign in with Plain keys in your browser",
+			}),
+		).not.toBeInTheDocument();
+	});
+
+	it("starts a grant and opens the provider authorize URL", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+			);
+		});
+		expect(openSpy).toHaveBeenCalledWith(
+			browserGrant.authorize_url,
+			"_blank",
+			"noopener,noreferrer",
+		);
+		expect(screen.getByRole("link")).toHaveAttribute(
+			"href",
+			browserGrant.authorize_url,
+		);
+		expect(screen.getByLabelText("Authorization callback")).toBeInTheDocument();
+	});
+
+	it("completes an authorized exchange with the pasted callback and no dashboard PUT", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "authorized" }),
+		);
+		const upsertSpy = vi
+			.spyOn(API.experimental, "upsertUserAIProviderKey")
+			.mockResolvedValue(savedKeyConfig);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		const callback =
+			"http://localhost:1455/auth/callback?code=test-code&state=test-state";
+		await user.type(screen.getByLabelText("Authorization callback"), callback);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.exchangeUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+				{ input: callback },
+			);
+		});
+		expect(upsertSpy).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", {
+					name: "Sign in with ChatGPT in your browser",
+				}),
+			).toBeInTheDocument();
+		});
+	});
+
+	it("keeps the panel open after a failed exchange so the user can retry", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		const exchangeSpy = vi
+			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
+			.mockRejectedValueOnce(new Error("bad code"))
+			.mockResolvedValueOnce(browserExchange({ status: "authorized" }));
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"bad-code",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(exchangeSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(
+			screen.getByRole("button", { name: "Complete sign-in" }),
+		).toBeInTheDocument();
+
+		await user.clear(screen.getByLabelText("Authorization callback"));
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"good-code",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(exchangeSpy).toHaveBeenCalledTimes(2);
+		});
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", {
+					name: "Sign in with ChatGPT in your browser",
+				}),
+			).toBeInTheDocument();
+		});
+	});
+
+	it("cancels the grant and resets the panel", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "cancelUserAIBrowserGrant").mockResolvedValue(
+			undefined,
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await screen.findByLabelText("Authorization callback");
+		await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.cancelUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+			);
+		});
+		await waitFor(() => {
+			expect(
+				screen.queryByLabelText("Authorization callback"),
+			).not.toBeInTheDocument();
+		});
+		expect(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("disables Cancel sign-in while the exchange is in flight", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		let releaseExchange!: (value: AIBrowserGrantExchangeResponse) => void;
+		const exchangeGate = new Promise<AIBrowserGrantExchangeResponse>(
+			(resolve) => {
+				releaseExchange = resolve;
+			},
+		);
+		const exchangeSpy = vi
+			.spyOn(API.experimental, "exchangeUserAIBrowserGrant")
+			.mockReturnValue(exchangeGate);
+		const cancelSpy = vi
+			.spyOn(API.experimental, "cancelUserAIBrowserGrant")
+			.mockResolvedValue(undefined);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"http://localhost:1455/auth/callback?code=test-code",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(exchangeSpy).toHaveBeenCalledTimes(1);
+		});
+		// The exchange is still in flight: Cancel must stay disabled so a
+		// cancel cannot race the in-flight server-side persist.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Cancel sign-in" }),
+			).toBeDisabled();
+		});
+		expect(cancelSpy).not.toHaveBeenCalled();
+
+		releaseExchange(browserExchange({ status: "authorized" }));
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", {
+					name: "Sign in with ChatGPT in your browser",
+				}),
+			).toBeInTheDocument();
+		});
+		expect(cancelSpy).not.toHaveBeenCalled();
+	});
+
+	it("surfaces expiry with the re-auth path", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "expired" }),
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"stale-code",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await screen.findByText("Test browser re-auth message.");
+		expect(
+			screen.getByRole("button", { name: "Start over" }),
+		).toBeInTheDocument();
+	});
+
+	it("does not open about:blank or depend on a null popup handle", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalled();
+		});
+
+		// The browser door must open the authorize URL directly, never
+		// about:blank. The old about:blank + noopener pattern returned a
+		// null handle and silently failed to navigate.
+		expect(openSpy).not.toHaveBeenCalledWith(
+			"about:blank",
+			expect.anything(),
+			expect.anything(),
+		);
+		expect(openSpy).toHaveBeenCalledWith(
+			browserGrant.authorize_url,
+			"_blank",
+			"noopener,noreferrer",
+		);
+		// The panel still renders the in-page link as a fallback for
+		// popup-blocked scenarios.
+		expect(screen.getByRole("link")).toHaveAttribute(
+			"href",
+			browserGrant.authorize_url,
+		);
+	});
+
+	it("does not open a popup when authorize_url is empty", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue({
+			...browserGrant,
+			authorize_url: "",
+		});
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalled();
+		});
+
+		// When authorize_url is empty, no popup should be opened and the
+		// grant panel should NOT be shown (early return with toast error).
+		expect(openSpy).not.toHaveBeenCalled();
+		expect(
+			screen.queryByLabelText("Authorization callback"),
+		).not.toBeInTheDocument();
+	});
+});
+
+describe("AgentSettingsAPIKeysPageView OAuth refresh state", () => {
+	it("shows expiry and auto-refresh for an OAuth-derived key", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[
+					{
+						...chatgptProvider,
+						has_user_api_key: true,
+						oauth_expiry: "2030-05-01T12:00:00Z",
+						refresh_supported: true,
+					},
+				]}
+			/>,
+		);
+
+		expect(screen.getByText("Key saved")).toBeInTheDocument();
+		// The expiry note is the only copy naming the access token: the
+		// sign-in panel below also mentions automatic refresh.
+		expect(
+			screen.getByText(/Access token expires.*refreshes it automatically/),
+		).toBeInTheDocument();
+	});
+
+	it("shows no expiry or refresh claims for a static key", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[{ ...baseProvider, has_user_api_key: true }]}
+			/>,
+		);
+
+		expect(screen.getByText("Key saved")).toBeInTheDocument();
+		expect(screen.queryByText(/Access token expires/)).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/refreshes it automatically/),
+		).not.toBeInTheDocument();
+	});
+
+	it("renders exactly one re-auth prompt and never a saved-key badge", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		const queryClient = createTestQueryClient();
+		const view = () => (
+			<QueryClientProvider client={queryClient}>
+				<AgentSettingsAPIKeysPageView
+					{...defaultProps}
+					providers={[
+						{
+							...chatgptProvider,
+							has_user_api_key: true,
+							reauth_required: true,
+						},
+					]}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(view());
+
+		expect(screen.getByText("Sign-in expired")).toBeInTheDocument();
+		expect(screen.queryByText("Key saved")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/The shared deployment key is being used/),
+		).not.toBeInTheDocument();
+
+		// Exactly one prompt, reusing the device-grant initiate path.
+		const prompts = screen.getAllByRole("button", {
+			name: "Sign in again with ChatGPT",
+		});
+		expect(prompts).toHaveLength(1);
+
+		// A second identical failure re-renders the same banner instead of
+		// stacking another prompt.
+		rerender(view());
+		expect(
+			screen.getAllByRole("button", { name: "Sign in again with ChatGPT" }),
+		).toHaveLength(1);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in again with ChatGPT" }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIDeviceGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+			);
+		});
+		await screen.findByText("ABCD-1234");
+	});
+});
+
+describe("parseBrowserCallbackInput", () => {
+	it("accepts the full callback URL", () => {
+		const parsed = parseBrowserCallbackInput(
+			"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		);
+		expect(parsed).toEqual({
+			ok: true,
+			input:
+				"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		});
+	});
+
+	it("accepts a bare code", () => {
+		expect(parseBrowserCallbackInput("test-code-123")).toEqual({
+			ok: true,
+			input: "test-code-123",
+		});
+	});
+
+	it("trims whitespace and newlines around a full URL", () => {
+		const parsed = parseBrowserCallbackInput(
+			"  http://localhost:1455/auth/callback?code=test-code&state=test-state\n",
+		);
+		expect(parsed).toEqual({
+			ok: true,
+			input:
+				"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		});
+	});
+
+	it("trims whitespace around a bare code", () => {
+		expect(parseBrowserCallbackInput("  test-code-123\n")).toEqual({
+			ok: true,
+			input: "test-code-123",
+		});
+	});
+
+	it("rejects an empty paste with a specific error", () => {
+		expect(parseBrowserCallbackInput("   \n ")).toEqual({
+			ok: false,
+			error: BROWSER_CALLBACK_EMPTY_ERROR,
+		});
+	});
+
+	it("rejects garbage with a specific error", () => {
+		const parsed = parseBrowserCallbackInput("not a callback!!!");
+		expect(parsed.ok).toBe(false);
+		if (!parsed.ok) {
+			expect(parsed.error).toBe(BROWSER_CALLBACK_MALFORMED_ERROR);
+		}
+	});
+
+	it("rejects a URL without a code parameter", () => {
+		const parsed = parseBrowserCallbackInput(
+			"http://localhost:1455/auth/callback?state=test-state",
+		);
+		expect(parsed).toEqual({
+			ok: false,
+			error: BROWSER_CALLBACK_MALFORMED_ERROR,
+		});
+	});
+});
+
+describe("AgentSettingsAPIKeysPageView browser return guidance", () => {
+	const startBrowserGrant = async (
+		user: ReturnType<typeof userEvent.setup>,
+	) => {
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await screen.findByLabelText("Authorization callback");
+	};
+
+	it("warns before leaving that approval lands on a failed page to copy back", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		// No grant started: the pre-departure guidance must already name the
+		// failed page and the copy-back step.
+		expect(screen.getByText(/fails to load/)).toBeInTheDocument();
+		expect(screen.getByText(/localhost:1455/)).toBeInTheDocument();
+		expect(screen.getByText(/full address-bar URL/)).toBeInTheDocument();
+	});
+
+	it("labels the device door recommended and the browser door the advanced alternative", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		expect(screen.getByText("Recommended")).toBeInTheDocument();
+		expect(screen.getByText("Advanced alternative")).toBeInTheDocument();
+		expect(
+			screen.getByText(/completes here, with no copy-paste step/),
+		).toBeInTheDocument();
+	});
+
+	it("sends a trimmed full URL when the paste is whitespace-padded", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "authorized" }),
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		const callback = screen.getByLabelText("Authorization callback");
+		await user.type(
+			callback,
+			"  http://localhost:1455/auth/callback?code=test-code&state=test-state\n",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.exchangeUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+				{
+					input:
+						"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+				},
+			);
+		});
+	});
+
+	it("sends a bare code without requiring the full URL", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "authorized" }),
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"test-code-123",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.exchangeUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+				{ input: "test-code-123" },
+			);
+		});
+	});
+
+	it("shows a specific error and never calls exchange on garbage", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+		const exchangeSpy = vi.spyOn(
+			API.experimental,
+			"exchangeUserAIBrowserGrant",
+		);
+
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"not a callback!!!",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			BROWSER_CALLBACK_MALFORMED_ERROR,
+		);
+		expect(exchangeSpy).not.toHaveBeenCalled();
+		expect(
+			screen.getByRole("button", { name: "Complete sign-in" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows a specific error and never calls exchange on an empty submit", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+		const exchangeSpy = vi.spyOn(
+			API.experimental,
+			"exchangeUserAIBrowserGrant",
+		);
+
+		// The submit button stays enabled on an empty field so the empty
+		// submit fails loudly instead of silently doing nothing.
+		expect(
+			screen.getByRole("button", { name: "Complete sign-in" }),
+		).toBeEnabled();
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			BROWSER_CALLBACK_EMPTY_ERROR,
+		);
+		expect(exchangeSpy).not.toHaveBeenCalled();
+	});
+
+	it("auto-focuses the callback field once a grant exists", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Authorization callback")).toHaveFocus();
+		});
+	});
+
+	it("fills the field from the clipboard when Paste from clipboard is clicked", async () => {
+		const user = userEvent.setup();
+		const pasted =
+			"http://localhost:1455/auth/callback?code=test-code&state=test-state";
+		Object.defineProperty(window.navigator, "clipboard", {
+			value: { readText: async () => pasted },
+			configurable: true,
+		});
+		await startBrowserGrant(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Paste from clipboard" }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Authorization callback")).toHaveValue(
+				pasted,
+			);
+		});
+	});
+
+	it("degrades gracefully when the clipboard API is missing", async () => {
+		const user = userEvent.setup();
+		Object.defineProperty(window.navigator, "clipboard", {
+			value: undefined,
+			configurable: true,
+		});
+		await startBrowserGrant(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Paste from clipboard" }),
+		);
+
+		expect(await screen.findByText(/paste it manually/)).toBeInTheDocument();
+		// Manual paste must always keep working.
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"test-code-123",
+		);
+		expect(screen.getByLabelText("Authorization callback")).toHaveValue(
+			"test-code-123",
+		);
+	});
+});

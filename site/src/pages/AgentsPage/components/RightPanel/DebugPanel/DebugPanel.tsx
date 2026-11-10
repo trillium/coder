@@ -1,13 +1,12 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
 	type QueryClient,
 	useMutation,
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatDebugRun,
@@ -19,6 +18,8 @@ import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
+import { useTabPanelState } from "../../ChatsSidebar/tabs/SidebarTabView";
 import { DebugRunList } from "./DebugRunList";
 import {
 	buildChatDebugExport,
@@ -30,7 +31,6 @@ import {
 
 type DebugPanelProps = {
 	chatId: string;
-	isVisible?: boolean;
 	download?: DownloadDebugFile;
 };
 
@@ -98,11 +98,13 @@ const fetchDebugRunDetailsForExport = async (
 	return { runDetails, failedRuns };
 };
 
-export const DebugPanel: FC<DebugPanelProps> = ({
+export const DebugPanel: React.FC<DebugPanelProps> = ({
 	chatId,
-	isVisible = false,
 	download = saveAs,
 }) => {
+	const { isActive, isPanelOpen } = useTabPanelState();
+	const isVisible = isPanelOpen && isActive;
+
 	const runsQuery = useQuery({
 		...chatDebugRuns(chatId),
 		enabled: isVisible,
@@ -129,7 +131,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 			</div>
 		) : null;
 
-	let content: ReactNode;
+	let content: React.ReactNode;
 	if (runsQuery.isError && !hasRunsData) {
 		content = (
 			<div className="p-4">
@@ -204,7 +206,7 @@ type ExportAllDebugRunsButtonProps = {
 	download: DownloadDebugFile;
 };
 
-const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
+const ExportAllDebugRunsButton: React.FC<ExportAllDebugRunsButtonProps> = ({
 	chatId,
 	runs,
 	download,

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { organizationMembers } from "#/api/queries/organizations";
 import { users } from "#/api/queries/users";
@@ -32,14 +32,14 @@ type UserAutocompleteProps = CommonMultiSelectProps<User> & {
 	filter: string;
 };
 
-export const MultiUserSelect: FC<UserAutocompleteProps> = ({
+export const MultiUserSelect: React.FC<UserAutocompleteProps> = ({
 	filter,
 	setFilter,
 	...props
 }) => {
 	const usersQuery = useQuery({
 		...users({
-			q: prepareQuery(encodeURI(filter ?? "")),
+			q: prepareQuery(filter ?? ""),
 			limit: 25,
 		}),
 		placeholderData: keepPreviousData,
@@ -60,7 +60,7 @@ type MemberAutocompleteProps =
 		organizationId: string;
 	};
 
-export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
+export const MultiMemberSelect: React.FC<MemberAutocompleteProps> = ({
 	filter,
 	organizationId,
 	setFilter,
@@ -68,7 +68,7 @@ export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
 }) => {
 	const membersQuery = useQuery({
 		...organizationMembers(organizationId, {
-			q: prepareQuery(encodeURI(filter ?? "")),
+			q: prepareQuery(filter ?? ""),
 			limit: 25,
 		}),
 		placeholderData: keepPreviousData,
@@ -217,13 +217,13 @@ const InnerMultiSelect = <T extends SelectedUser>({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
 	return (
 		<div>
 			{skeletonRows.map((row) => (
-				<div className="flex min-h-[64px] items-center px-4 py-3" key={row}>
+				<div className="flex min-h-16 items-center px-4 py-3" key={row}>
 					<div className="flex items-center gap-3">
 						<Checkbox disabled />
 						<AvatarDataSkeleton />
@@ -236,7 +236,7 @@ const TableLoader: FC = () => {
 
 type UserRowProps<T extends SelectedUser> = {
 	checked: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	isFirst: boolean;
 	isLast: boolean;
 	onChange: (user: T, checked: boolean) => void;
@@ -272,7 +272,7 @@ const UserRow = <T extends SelectedUser>({
 		>
 			<div
 				className={cn(
-					"flex min-h-[64px] items-center px-4 py-3",
+					"flex min-h-16 items-center px-4 py-3",
 					isFirst && "rounded-tl-md rounded-tr-md",
 					isLast && "rounded-bl-md rounded-br-md",
 				)}

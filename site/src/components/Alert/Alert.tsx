@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 
 const alertVariants = cva(
@@ -28,7 +28,7 @@ const alertVariants = cva(
 		compoundVariants: [
 			{
 				prominent: false,
-				className: "border-border-default bg-surface-secondary",
+				className: "border-border bg-surface-secondary",
 			},
 			{
 				severity: "success",
@@ -54,25 +54,37 @@ const alertVariants = cva(
 );
 
 const severityIcons = {
-	info: { icon: InfoIcon, className: "text-highlight-sky" },
-	success: { icon: CircleCheckIcon, className: "text-content-success" },
-	warning: { icon: TriangleAlertIcon, className: "text-content-warning" },
-	error: { icon: CircleAlertIcon, className: "text-content-destructive" },
+	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },
+	success: {
+		icon: CircleCheckIcon,
+		className: "text-content-success",
+		label: "Success",
+	},
+	warning: {
+		icon: TriangleAlertIcon,
+		className: "text-content-warning",
+		label: "Warning",
+	},
+	error: {
+		icon: CircleAlertIcon,
+		className: "text-content-destructive",
+		label: "Error",
+	},
 } as const;
 
 export type AlertColor = "info" | "success" | "warning" | "error";
 
 export type AlertProps = {
-	actions?: ReactNode;
+	actions?: React.ReactNode;
 	dismissible?: boolean;
 	onDismiss?: () => void;
 	severity?: AlertColor;
 	prominent?: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	className?: string;
 };
 
-export const Alert: FC<AlertProps> = ({
+export const Alert: React.FC<AlertProps> = ({
 	children,
 	actions,
 	dismissible,
@@ -88,7 +100,11 @@ export const Alert: FC<AlertProps> = ({
 		return null;
 	}
 
-	const { icon: Icon, className: iconClassName } = severityIcons[severity];
+	const {
+		icon: Icon,
+		className: iconClassName,
+		label,
+	} = severityIcons[severity];
 
 	return (
 		<div
@@ -102,10 +118,13 @@ export const Alert: FC<AlertProps> = ({
 					dismissible ? "pr-8" : undefined,
 				)}
 			>
-				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
-					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
+				<div className="flex min-w-0 flex-1 items-start gap-3">
+					<Icon className={cn("size-icon-sm mt-0.75", iconClassName)} />
 					<div className="flex min-w-0 flex-1 flex-col gap-4">
-						<div className="min-w-0 flex-1">{children}</div>
+						<div className="min-w-0 flex-1">
+							<span className="sr-only">{label}: </span>
+							{children}
+						</div>
 						{actions && (
 							<div className="flex items-center gap-2">{actions}</div>
 						)}
@@ -131,11 +150,11 @@ export const Alert: FC<AlertProps> = ({
 	);
 };
 
-export const AlertDescription: React.FC<React.PropsWithChildren> = ({
-	children,
-}) => {
+export const AlertDescription: React.FC<
+	React.PropsWithChildren<{ className?: string }>
+> = ({ children, className }) => {
 	return (
-		<span className="m-0 text-sm" data-pixel="ignore">
+		<span className={cn("m-0 text-sm", className)} data-pixel="ignore">
 			{children}
 		</span>
 	);

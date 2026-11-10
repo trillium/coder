@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -17,10 +17,10 @@ import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
+import { clampContent } from "#/utils/text";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { HighlightText } from "./HighlightText";
@@ -31,6 +31,10 @@ import {
 	matchesNetworkCallSearch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
+
+// Threads repeat the same toggles, so each toggle's name ends with the start of
+// the text it belongs to.
+const TOGGLE_CONTEXT_MAX_CHARS = 40;
 
 type ExpandableTextProps = {
 	maxHeight: number;
@@ -45,7 +49,7 @@ type ExpandableTextProps = {
 	expandToMatch?: boolean;
 };
 
-const ExpandableText: FC<ExpandableTextProps> = ({
+const ExpandableText: React.FC<ExpandableTextProps> = ({
 	maxHeight,
 	text,
 	className,
@@ -74,6 +78,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	}, []);
 
 	const isExpandable = fullHeight > maxHeight;
+	const toggleLabel = isExpanded ? "Collapse" : "Show more";
 
 	return (
 		<div className="relative">
@@ -101,9 +106,10 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 						size="sm"
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
+						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
-						{isExpanded ? "Collapse" : "Show more"}
+						{toggleLabel}
 					</Button>
 				</div>
 			)}
@@ -113,13 +119,15 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 
 type CollapseButtonProps = {
 	isOpen: boolean;
+	accessibleNameSuffix?: string;
 	onClick: () => void;
 	children: React.ReactNode;
 	className?: string;
 };
 
-const CollapseButton: FC<CollapseButtonProps> = ({
+const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
+	accessibleNameSuffix,
 	onClick,
 	children,
 }) => (
@@ -138,6 +146,9 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		/>
 		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
+		{accessibleNameSuffix && (
+			<span className="sr-only">{accessibleNameSuffix}</span>
+		)}
 	</Button>
 );
 
@@ -150,7 +161,7 @@ type BracketConnectorProps = {
 	hideBottomLine?: boolean;
 };
 
-const BracketConnector: FC<BracketConnectorProps> = ({
+const BracketConnector: React.FC<BracketConnectorProps> = ({
 	children,
 	contentClassName,
 	firstRowHeight = "2rem",
@@ -164,11 +175,11 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 				: "grid-rows-[2rem_auto]",
 		)}
 	>
-		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid rounded-bl-lg">
+		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid border-border-control rounded-bl-lg">
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid rounded-tl-lg -mt-px">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-border-control rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -182,7 +193,7 @@ type ThinkingBlockProps = {
 	text: string;
 };
 
-const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
+const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
 			<LoaderIcon className="size-icon-xs text-content-secondary" />
@@ -200,23 +211,17 @@ type ToolCallBlockProps = {
 	tool: string;
 	serverURL: string;
 	input: string;
-	inputTokens: number;
-	outputTokens: number;
 	timestamp: Date;
-	tokenUsageMetadata?: Record<string, unknown>;
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
 };
 
-const ToolCallBlock: FC<ToolCallBlockProps> = ({
+const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
-	inputTokens,
-	outputTokens,
 	timestamp,
-	tokenUsageMetadata,
 	expandedByDefault = false,
 	highlight,
 }) => {
@@ -225,14 +230,14 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	const isOpen = userToggled ?? expandedByDefault;
 
 	return (
-		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
+		<BracketConnector contentClassName="mt-2 mr-4 border border-solid border-border-control rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
-					<Badge size="xs" className="font-mono ml-1">
+					<Badge size="sm" className="font-mono ml-1">
 						<HighlightText text={tool} highlight={highlight} />
 					</Badge>
 				</CollapseButton>
@@ -243,11 +248,8 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						className="mt-2 ml-5 mr-4 lg:w-1/2 overflow-x-auto"
 						timestamp={timestamp}
 						serverURL={serverURL}
-						inputTokens={inputTokens}
-						outputTokens={outputTokens}
-						tokenUsageMetadata={tokenUsageMetadata}
 					/>
-					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
+					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto">
 						<span>
 							<HighlightText text={tool} highlight={highlight} />
 						</span>
@@ -274,7 +276,7 @@ type AgenticActionItemProps = {
 	highlight: string;
 };
 
-const AgenticActionItem: FC<AgenticActionItemProps> = ({
+const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
@@ -299,9 +301,6 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 					tool={tool_call.tool}
 					serverURL={tool_call.server_url}
 					input={tool_call.input}
-					inputTokens={action.token_usage.input_tokens}
-					outputTokens={action.token_usage.output_tokens}
-					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
@@ -331,7 +330,7 @@ type ThreadItemProps = {
 	highlight: string;
 };
 
-const ThreadItem: FC<ThreadItemProps> = ({
+const ThreadItem: React.FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchPromptMatch,
@@ -358,53 +357,37 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	);
 
 	return (
-		<>
-			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
-				{/* left column: avatar and username */}
-				<div className="flex flex-row items-center gap-1">
-					<Avatar
-						src={initiator.avatar_url}
-						fallback={initiator.name ?? initiator.username}
-						size="sm"
-						className="shrink-0"
-					/>
-					<span className="text-sm text-content-secondary font-normal py-1">
-						{initiator.username}
-					</span>
-				</div>
-
-				{/* center column: prompt */}
+		<li>
+			<div className="border border-solid border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
 							<div className="text-sm text-content-secondary font-normal my-1 flex items-center gap-1">
 								Prompt
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
-										</TooltipTrigger>
-										<TooltipContent
-											className="max-w-96 text-sm font-normal"
-											align="start"
-											side="top"
+								<Tooltip interactive>
+									<TooltipTrigger aria-label="About prompt attribution">
+										<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
+									</TooltipTrigger>
+									<TooltipContent
+										className="max-w-96 text-sm font-normal"
+										align="start"
+										side="top"
+									>
+										<p className="text-content-secondary m-0 mb-1">
+											Prompt origin cannot be reliably determined. This may have
+											been authored by a human or generated by an agent.{" "}
+										</p>
+										<Link
+											href={docs(
+												"/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
+											)}
+											target="_blank"
+											className="text-sm"
 										>
-											<p className="text-content-secondary m-0 mb-1">
-												Prompt origin cannot be reliably determined. This may
-												have been authored by a human or generated by an agent.{" "}
-											</p>
-											<Link
-												href={docs(
-													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
-												)}
-												target="_blank"
-												className="text-sm"
-											>
-												Learn about human vs. agent attribution
-											</Link>
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
+											Learn about human vs. agent attribution
+										</Link>
+									</TooltipContent>
+								</Tooltip>
 							</div>
 							<ExpandableText
 								maxHeight={200}
@@ -416,27 +399,47 @@ const ThreadItem: FC<ThreadItemProps> = ({
 						</>
 					)}
 				</div>
-				{/* right column: details */}
-				<PromptTable
-					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
-					timestamp={new Date(thread.started_at)}
-					model={thread.model}
-					inputTokens={thread.token_usage.input_tokens}
-					outputTokens={thread.token_usage.output_tokens}
-					tokenUsageMetadata={thread.token_usage.metadata}
-				/>
+				<div className="flex flex-col gap-1 lg:max-w-64 min-w-0 shrink-0 w-full lg:w-auto">
+					<div className="flex items-center gap-1">
+						<Avatar
+							src={initiator.avatar_url}
+							fallback={initiator.name ?? initiator.username}
+							size="sm"
+							className="shrink-0"
+						/>
+						<span className="min-w-0 break-all text-sm text-content-secondary font-normal py-1">
+							{initiator.username}
+						</span>
+					</div>
+					<PromptTable
+						timestamp={new Date(thread.started_at)}
+						model={thread.model}
+						pricedModel={thread.priced_model}
+						inputTokens={thread.token_usage.input_tokens}
+						outputTokens={thread.token_usage.output_tokens}
+						cacheReadTokens={thread.token_usage.cache_read_input_tokens}
+						cacheWriteTokens={thread.token_usage.cache_write_input_tokens}
+						costMicros={thread.token_usage.cost_micros}
+						hasUnpricedUsage={thread.token_usage.has_unpriced_usage}
+						tokenUsageMetadata={thread.token_usage.metadata}
+					/>
+				</div>
 			</div>
 
 			{hasAgenticLoop ? (
 				<BracketConnector
 					firstRowHeight="60px"
-					contentClassName="border border-dashed rounded-md my-4"
+					contentClassName="border border-dashed border-border-control rounded-md my-4"
 				>
 					{/* Agentic loop */}
 					<div className="flex flex-col lg:flex-row lg:items-center justify-between">
 						<div>
 							<CollapseButton
 								isOpen={agenticLoopOpen}
+								accessibleNameSuffix={
+									thread.prompt &&
+									`for prompt: ${clampContent(thread.prompt, TOGGLE_CONTEXT_MAX_CHARS)}`
+								}
 								onClick={toggleAgenticLoop}
 							>
 								<span className="text-sm font-normal">Agentic loop</span>
@@ -455,7 +458,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 					{agenticLoopOpen && (
 						<>
 							{/* the little top rounded line above the thinking block */}
-							<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+							<div className="border-0 border-t border-r border-solid border-border-control rounded-tr-lg w-4.25 h-5">
 								{/* we need the 1px extra to line up with the left border on the other lines */}
 							</div>
 
@@ -471,7 +474,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 
 							{/* Agentic loop completed */}
 							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
-								<div className="flex flex-row items-center ml-2">
+								<div className="flex items-center ml-2">
 									<StatusIndicatorDot variant="success" />
 									<span className="text-content-success font-normal ml-2 text-sm py-1">
 										Agentic loop completed
@@ -483,10 +486,10 @@ const ThreadItem: FC<ThreadItemProps> = ({
 				</BracketConnector>
 			) : (
 				// Spacer to create visual gap between threads. Hidden on the
-				// last thread via the wrapper div's :last-child selector.
+				// last thread via the list's :last-child selector.
 				<div className="h-4 thread-gap" />
 			)}
-		</>
+		</li>
 	);
 };
 
@@ -509,7 +512,7 @@ type SessionTimelineProps = {
 	onFetchNextPage: () => void;
 };
 
-export const SessionTimeline: FC<SessionTimelineProps> = ({
+export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
 	networkCallSummary,
@@ -584,44 +587,42 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 2: vertical line */}
-				<div className="row-start-2 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid h-6">
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-border-control h-6">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3/4: AI Governance tooltip */}
 				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary font-normal px-2 pt-1">
 					AI Governance
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
-							</TooltipTrigger>
-							<TooltipContent
-								className="max-w-80 text-sm font-normal"
-								align="end"
-								side="top"
-							>
-								<div className="text-content-secondary mb-1">
-									Controls and logs AI tooling so AI use stays secure,
-									compliant, and visible.
-								</div>
-								<div>
-									<Link
-										href={docs("/ai-coder/ai-governance")}
-										target="_blank"
-										className="text-sm"
-									>
-										More about AI Governance
-									</Link>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip interactive>
+						<TooltipTrigger aria-label="About AI Governance">
+							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+						</TooltipTrigger>
+						<TooltipContent
+							className="max-w-80 text-sm font-normal"
+							align="end"
+							side="top"
+						>
+							<div className="text-content-secondary mb-1">
+								Controls and logs AI tooling so AI use stays secure, compliant,
+								and visible.
+							</div>
+							<div>
+								<Link
+									href={docs("/ai-governance")}
+									target="_blank"
+									className="text-sm"
+								>
+									More about AI Governance
+								</Link>
+							</div>
+						</TooltipContent>
+					</Tooltip>
 				</div>
 
 				{/* row 4:  */}
@@ -631,7 +632,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
@@ -660,7 +661,10 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 						</div>
 					)}
 					{/* threads */}
-					<div className="[&>.thread-gap:last-child]:hidden">
+					<ol
+						aria-label="Threads"
+						className="list-none m-0 p-0 [&>li:last-child>.thread-gap]:hidden"
+					>
 						{threadItems.map(({ thread, classification }) => (
 							<ThreadItem
 								key={thread.id}
@@ -672,7 +676,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								highlight={searchQuery}
 							/>
 						))}
-					</div>
+					</ol>
 					{isSearching && !hasAnyMatches ? (
 						<p
 							className="m-0 py-4 text-sm font-normal text-content-secondary"
@@ -713,7 +717,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
@@ -730,7 +734,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				{!hasNextPage && !isFetchingNextPage && (
 					<>
 						{/* row 7: sized intentionally to create the visual space below the timeline border */}
-						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
+						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-border-control h-4">
 							{/* vertical line */}
 						</div>
 

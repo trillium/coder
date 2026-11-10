@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -14,7 +14,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
@@ -39,17 +38,17 @@ type UsageSectionData = {
 	title: string;
 	progressLabel: string;
 	percent: number;
-	detail: ReactNode;
-	icon: ReactNode;
+	detail: React.ReactNode;
+	icon: React.ReactNode;
 	hoverLabel: string;
-	secondaryDetail?: ReactNode;
-	tooltip?: ReactNode;
+	secondaryDetail?: React.ReactNode;
+	tooltip?: React.ReactNode;
 	severity: UsageSeverity;
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
-export const UsageIndicator: FC = () => {
+export const UsageIndicator: React.FC = () => {
 	const { user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const aiSpendAvailable = Boolean(useFeatureVisibility().aibridge);
@@ -151,7 +150,7 @@ export const UsageIndicator: FC = () => {
 	return <UsageMenu sections={sections} />;
 };
 
-const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
+const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	const triggerAriaLabel =
@@ -163,13 +162,13 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 				<button
 					type="button"
 					aria-label={triggerAriaLabel}
-					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden"
+					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 				>
 					<UsageTriggerProgress sections={sections} />
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[240px]">
+			<DropdownMenuContent align="end" className="w-60">
 				{sections.map((section, index) => (
 					<Fragment key={section.id}>
 						{index > 0 && <DropdownMenuSeparator />}
@@ -196,40 +195,38 @@ const severityRingClasses = {
 	exceeded: "stroke-content-destructive",
 } as const satisfies Record<UsageSeverity, string>;
 
-const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
-	sections,
-}) => {
+const UsageTriggerProgress: React.FC<{
+	sections: readonly UsageSectionData[];
+}> = ({ sections }) => {
 	return (
-		<TooltipProvider delayDuration={150}>
-			<div className="flex shrink-0 items-center gap-2">
-				{sections.map((section) => (
-					<Tooltip key={section.id}>
-						<TooltipTrigger asChild>
-							<div>
-								<UsageRingProgress
-									ariaLabel={section.progressLabel}
-									percent={section.percent}
-									severity={section.severity}
-									icon={section.icon}
-								/>
-							</div>
-						</TooltipTrigger>
-						<TooltipContent side="top" sideOffset={6}>
-							{section.hoverLabel}
-						</TooltipContent>
-					</Tooltip>
-				))}
-			</div>
-		</TooltipProvider>
+		<div className="flex shrink-0 items-center gap-2">
+			{sections.map((section) => (
+				<Tooltip delayDuration={150} key={section.id}>
+					<TooltipTrigger asChild>
+						<div>
+							<UsageRingProgress
+								ariaLabel={section.progressLabel}
+								percent={section.percent}
+								severity={section.severity}
+								icon={section.icon}
+							/>
+						</div>
+					</TooltipTrigger>
+					<TooltipContent side="top" sideOffset={6}>
+						{section.hoverLabel}
+					</TooltipContent>
+				</Tooltip>
+			))}
+		</div>
 	);
 };
 
-const UsageRingProgress: FC<{
+const UsageRingProgress: React.FC<{
 	ariaLabel: string;
 	percent: number;
-	severity?: UsageSeverity;
-	icon: ReactNode;
-}> = ({ ariaLabel, percent, severity = "normal", icon }) => {
+	severity: UsageSeverity;
+	icon: React.ReactNode;
+}> = ({ ariaLabel, percent, severity, icon }) => {
 	const clampedPercent = clampPercentage(percent);
 
 	return (
@@ -261,13 +258,13 @@ const UsageRingProgress: FC<{
 	);
 };
 
-const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
+const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 	const roundedPercent = Math.round(section.percent);
 
 	return (
 		<>
 			<div className="flex items-center justify-between gap-2 px-2 py-1.5">
-				<span className="truncate text-sm font-medium text-content-primary">
+				<span className="truncate text-sm text-content-primary">
 					{section.title}
 				</span>
 				<span
@@ -297,26 +294,24 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				<div className="flex items-start gap-1.5">
 					<span className="min-w-0 flex-1">{section.detail}</span>
 					{section.tooltip && (
-						<TooltipProvider delayDuration={300}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										type="button"
-										className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
-										aria-label={`${section.title} help`}
-									>
-										<InfoIcon className="size-3.5" />
-									</button>
-								</TooltipTrigger>
-								<TooltipContent
-									side="right"
-									sideOffset={4}
-									className="max-w-48 text-xs"
+						<Tooltip delayDuration={300}>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
+									aria-label={`${section.title} help`}
 								>
-									{section.tooltip}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+									<InfoIcon className="size-3.5" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent
+								side="right"
+								sideOffset={4}
+								className="max-w-48 text-xs"
+							>
+								{section.tooltip}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</div>
 			</div>

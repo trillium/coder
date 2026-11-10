@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection, VerticalForm } from "#/components/Form/Form";
@@ -17,7 +16,7 @@ type ProvisionerTagsPopoverProps = {
 	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
 };
 
-export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
+export const ProvisionerTagsPopover: React.FC<ProvisionerTagsPopoverProps> = ({
 	tags,
 	onTagsChange,
 }) => {
@@ -31,7 +30,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="w-[300px] bg-surface-secondary border-surface-quaternary"
+				className="w-75 bg-surface-secondary border-surface-quaternary"
 			>
 				<div className="text-content-secondary p-5">
 					<VerticalForm>
@@ -51,7 +50,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 										href={docs("/admin/provisioners")}
 										target="_blank"
 										rel="noreferrer"
-										className="p-0"
+										className="pl-0"
 										showExternalIcon={false}
 									>
 										Learn more...

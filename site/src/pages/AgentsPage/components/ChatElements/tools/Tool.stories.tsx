@@ -1,41 +1,54 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { defaultUrlTransform } from "streamdown";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import {
+	MockACPSession,
+	MockACPSessionArgs,
+	MockACPSpawnArgs,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceAgentLogs,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
+import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
+import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
-const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
-
-// 1x1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
 	args: {
 		organizationId: MockChatModel.organization_id,
+		mcpServers: [],
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -54,16 +67,39 @@ type ToolShowcaseItem = {
 	result?: unknown;
 	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
+	providerExecuted?: boolean;
+	foundPages?: React.ComponentProps<typeof Tool>["foundPages"];
 };
 
 const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
+		name: ACPToolNames.SpawnAgent,
+		args: MockACPSpawnArgs,
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.WaitAgent,
+		args: MockACPSessionArgs,
+		result: MockACPWaitResult,
+	},
+	{
+		name: ACPToolNames.MessageAgent,
+		args: {
+			...MockACPSessionArgs,
+			message: "Check error handling.",
+		},
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.InterruptAgent,
+		args: MockACPSessionArgs,
+		result: { ...MockACPSessionArgs, ...MockACPSession, interrupted: true },
+	},
+	{
 		name: "execute",
-		args: { command: "pnpm check", model_intent: "Checking frontend" },
-		modelIntent: "Checking frontend",
+		args: { command: "pnpm check" },
 		parsedCommands: [["pnpm", "check"]],
 		result: {
 			output: "Checked 1799 files.",
@@ -209,7 +245,7 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "computer",
 		args: { action: "screenshot" },
-		result: { output: { type: "image", data: TEST_PNG_B64 } },
+		result: { output: { type: "image", data: MockPngBase64 } },
 	},
 	{
 		name: "read_skill",
@@ -290,6 +326,13 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		},
 	},
 	{
+		name: "web_search",
+		args: { type: "search", queries: ["coder agents release notes"] },
+		result: {},
+		providerExecuted: true,
+		foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+	},
+	{
 		name: "unknown_tool",
 		args: { example: true },
 		result: { ok: true },
@@ -305,51 +348,6 @@ export const ExecuteRunning: Story = {
 		status: "running",
 		result: {
 			output: "remote: Enumerating objects: 12, done.\nFetching origin...",
-		},
-	},
-};
-
-export const ExecuteModelIntent: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeIntentCommand,
-			model_intent: "Running tests using npm for 5s",
-		},
-		modelIntent: "Running tests using npm for 5s",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-		},
-	},
-};
-
-export const ExecuteModelIntentRunning: Story = {
-	args: {
-		shellToolDisplayMode: "always_expanded",
-		status: "running",
-		args: {
-			command: executeCommand,
-			model_intent: "checking repository state",
-		},
-		modelIntent: "checking repository state",
-		result: {
-			output: "",
-		},
-	},
-};
-
-export const ExecuteModelIntentLeadingUsing: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeCommand,
-			model_intent: "using git fetch origin",
-		},
-		modelIntent: "using git fetch origin",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
 		},
 	},
 };
@@ -561,23 +559,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 			command: "npm start",
 			output: "dogfood complete",
 			exit_code: 0,
-		},
-	},
-};
-
-/** A model_intent result replaces the command in the label. */
-export const ProcessOutputModelIntent: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: {
-			process_id: "process-123",
-			model_intent: "Waiting for the dev server to be ready",
-		},
-		modelIntent: "Waiting for the dev server to be ready",
-		result: {
-			command: "npm start",
-			output: "> Starting Vite dev server...",
 		},
 	},
 };
@@ -836,14 +817,14 @@ export const SubagentMessageLinkCard: Story = {
 	},
 };
 
-export const SubagentNoErrorWhenCompleted: Story = {
+export const SubagentFailedWithCompletedChild: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
 			status: "completed",
-			error: "provider metadata noise",
+			error: "Unable to spawn agent",
 		},
 		status: "error",
 		isError: true,
@@ -1023,6 +1004,49 @@ export const InterruptAgentExploreCompleted: Story = {
 			status: "completed",
 			interrupted: true,
 		},
+	},
+};
+
+export const WaitAgentFailedWhileChildRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "review-child" },
+		result: { error: "Unable to wait for agent" },
+		subagentTitles: new Map([["review-child", "Repo review"]]),
+		subagentStatusOverrides: new Map([["review-child", "running"]]),
+	},
+};
+
+export const WaitAgentErrorOverridesCompletedStatus: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		status: "completed",
+	},
+};
+
+export const MessageAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "message_agent",
+		args: { chat_id: "review-child", message: "Check error handling" },
+		result: { error: "Unable to message agent" },
+	},
+};
+
+export const InterruptAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "interrupt_agent",
+		result: { error: "Unable to interrupt agent" },
+	},
+};
+
+export const WaitAgentFailedWhileChildCompleted: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentStatusOverrides: new Map([["review-child", "completed"]]),
 	},
 };
 
@@ -1466,7 +1490,7 @@ export const MCPToolMediaShapedTextResult: Story = {
 		...MCPToolImageResult.args,
 		isMedia: false,
 		result: {
-			data: TEST_PNG_B64,
+			data: MockPngBase64,
 			mime_type: "image/png",
 			source: "structured-content",
 		},
@@ -1710,6 +1734,32 @@ export const EditFilesSingleSuccess: Story = {
 			files: [
 				{
 					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
+export const EditFilesLongPath: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-80 max-w-full">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...EditFilesSingleSuccess.args,
+		args: {
+			files: [
+				{
+					path: "site/src/pages/AgentsPage/components/ChatElements/charts/ConversationChart.tsx",
 					edits: [
 						{
 							search: "const timeout = 30;",
@@ -2007,6 +2057,45 @@ export const ComputerError: Story = {
 	},
 };
 
+export const ComputerActionText: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		args: { action: "left_click", coordinate: [512, 300] },
+		result: { output: "left_click action performed" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Left click" });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionHalted: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		args: { action: "type", text: "hello" },
+		result: {
+			error: "Not executed: an earlier computer action in this turn failed.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /^Type/ });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+		args: { action: "type", text: "hello" },
+	},
+};
+
 export const ComputerPromotedAttachmentArrayResult: Story = {
 	args: {
 		name: "computer",
@@ -2072,7 +2161,7 @@ export const GenericToolFailed: Story = {
 
 export const GenericToolStringError: Story = {
 	args: {
-		name: "web_search",
+		name: "search_docs",
 		status: "error",
 		isError: true,
 		result: "Network unreachable",
@@ -2298,6 +2387,13 @@ export const WaitAgentComputerUseRunning: Story = {
 	],
 };
 
+export const WaitAgentComputerUseFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentVariants: new Map([["review-child", "computer_use"]]),
+	},
+};
+
 export const WaitAgentComputerUseCompletedNoRecording: Story = {
 	args: {
 		name: "wait_agent",
@@ -2338,6 +2434,144 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			error: "timed out waiting for agent",
 		},
 		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// web_search stories
+// ---------------------------------------------------------------------------
+
+// Anthropic emits the call before its search runs.
+export const WebSearchRunning: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "running",
+		args: { query: "coder workspace templates" },
+	},
+};
+
+// OpenAI found pages carry no titles, so pills show hostname plus path, or
+// the URL when it has no hostname. The ftp and data pages render as text, not
+// links. Padded, repeated, and empty queries are each listed once or not at
+// all.
+export const WebSearchQueriesAndFoundPages: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "search",
+			queries: [
+				"coder agents release notes",
+				" coder ai gateway docs ",
+				"coder ai gateway docs",
+				"",
+			],
+		},
+		result: {},
+		foundPages: [
+			{ url: "https://coder.com/changelog", title: "" },
+			{ url: "https://coder.com/docs/ai-coder/ai-gateway", title: "" },
+			{ url: "ftp://example.com/release.txt", title: "" },
+			{ url: "data:text/html,unsafe", title: "" },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder agents/i }),
+		);
+	},
+};
+
+export const WebSearchNoQueries: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search" },
+		result: {},
+	},
+};
+
+// Anthropic keeps the query in the call args and titles its found pages.
+// A single query is listed too because the header truncates long ones.
+export const WebSearchAnthropicQuery: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { query: "coder workspace templates" },
+		result: {},
+		foundPages: [
+			{
+				url: "https://coder.com/docs/admin/templates",
+				title: "Templates | Coder Docs",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder workspace/i }),
+		);
+	},
+};
+
+export const WebSearchOpenPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: {},
+	},
+};
+
+export const WebSearchFindInPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "find_in_page",
+			url: "https://coder.com/docs",
+			pattern: "templates",
+		},
+		result: {},
+	},
+};
+
+// The message stopped streaming before the search sent its result.
+export const WebSearchUnfinished: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search", queries: ["coder release notes"] },
+	},
+};
+
+export const WebSearchError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "search", queries: ["coder release notes"] },
+		result: { error: "web search failed: upstream timeout" },
+	},
+};
+
+export const WebSearchOpenPageError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: { error: "web search failed" },
 	},
 };
 
@@ -2539,6 +2773,169 @@ export const StartWorkspaceQuotaReached: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+export const StartWorkspaceAgentLogsStreaming: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+			"/workspaceagents/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						...MockWorkspaceAgentLogs,
+						// Overflows the box, so the screenshot shows it scrolled to the end.
+						...Array.from({ length: 10 }, (_, index) => ({
+							...MockWorkspaceAgentLogs[0],
+							id: 900010 + index,
+							output: `Installing extension ${index + 1} of 10`,
+						})),
+						{
+							...MockWorkspaceAgentLogs[0],
+							id: 900001,
+							output: "\u001b[32m✔\u001b[0m code-server installed",
+						},
+						{
+							...MockWorkspaceAgentLogs[0],
+							id: 900002,
+							output: "Downloading  10%\rDownloading  60%\rDownloading 100%",
+						},
+					]),
+				},
+			],
+		},
+	},
+};
+
+export const StartWorkspaceAgentNotInLatestBuild: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: "agent-from-previous-build",
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+		},
+	},
+};
+
+export const StartWorkspaceAgentNoLogs: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+			"/workspaceagents/": [],
+		},
+	},
+};
+
+export const StartWorkspaceCompletedWithAgentLogs: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: MockWorkspace.name,
+			agent_status: "ready",
+			build_id: MockWorkspace.latest_build.id,
+		},
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace },
+			{
+				key: workspaceBuildLogs(MockWorkspace.latest_build.id).queryKey,
+				data: MockWorkspaceBuildLogs,
+			},
+		],
+		webSocket: {
+			"/workspaceagents/": [
+				{ event: "message", data: JSON.stringify(MockWorkspaceAgentLogs) },
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: `Started ${MockWorkspace.name}` }),
+		);
+		await canvas.findByRole("region", { name: "Workspace agent startup log" });
 	},
 };
 
@@ -2778,19 +3175,32 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						organizationId="organization-id"
+						mcpServers={[]}
+						urlTransform={defaultUrlTransform}
+						isStreaming={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						hasUserResponseAfterAskQuestion={false}
+						onImageClick={fn()}
+						onTextFileClick={fn()}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
 							name={tool.name}
+							organizationId="organization-id"
+							mcpServers={[]}
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
+							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
-							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
-							subagentVariants={tool.subagentVariants}
+							subagentTitles={new Map()}
+							subagentVariants={tool.subagentVariants ?? new Map()}
+							providerExecuted={tool.providerExecuted}
+							foundPages={tool.foundPages}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -2856,14 +3266,18 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 						>
 							<Tool
 								name={tool.name}
+								organizationId="organization-id"
+								mcpServers={[]}
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}
-								isError={tool.isError}
+								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
-								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
-								subagentVariants={tool.subagentVariants}
+								subagentTitles={new Map()}
+								subagentVariants={tool.subagentVariants ?? new Map()}
+								providerExecuted={tool.providerExecuted}
+								foundPages={tool.foundPages}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

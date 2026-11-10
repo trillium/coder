@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
@@ -15,7 +14,7 @@ type AdminChatDebugLoggingSettingsProps = {
 	isSaveAdminSettingError: boolean;
 };
 
-export const AdminChatDebugLoggingSettings: FC<
+export const AdminChatDebugLoggingSettings: React.FC<
 	AdminChatDebugLoggingSettingsProps
 > = ({
 	adminSettings,
@@ -44,14 +43,14 @@ export const AdminChatDebugLoggingSettings: FC<
 				}
 				className={cn("mt-0.5")}
 			/>
-			<div className="flex max-w-[980px] flex-1 flex-col">
+			<div className="flex max-w-245 flex-1 flex-col">
 				<h3 className="m-0 text-sm font-normal leading-6 text-content-primary">
 					Let users record chat debug logs
 				</h3>
 				<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
 					{description}{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/agents/platform-controls/chat-debug-logging")}
+						href={docs("/coder-agents/platform-controls/chat-debug-logging")}
 						context="about chat debug logging"
 					/>
 				</p>

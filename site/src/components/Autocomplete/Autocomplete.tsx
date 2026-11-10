@@ -1,14 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, XIcon } from "lucide-react";
-import {
-	type KeyboardEvent,
-	type ReactNode,
-	type SyntheticEvent,
-	useCallback,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Command,
@@ -33,7 +25,7 @@ type AutocompleteProps<TOption> = {
 	getOptionValue: (option: TOption) => string;
 	getOptionLabel: (option: TOption) => string;
 	isOptionEqualToValue?: (option: TOption, value: TOption) => boolean;
-	renderOption?: (option: TOption, isSelected: boolean) => ReactNode;
+	renderOption?: (option: TOption, isSelected: boolean) => React.ReactNode;
 	loading?: boolean;
 	placeholder?: string;
 	noOptionsText?: string;
@@ -46,10 +38,12 @@ type AutocompleteProps<TOption> = {
 	inlineSearch?: boolean;
 	clearable?: boolean;
 	disabled?: boolean;
-	startAdornment?: ReactNode;
+	startAdornment?: React.ReactNode;
 	className?: string;
 	triggerAriaInvalid?: boolean;
 	triggerAriaDescribedBy?: string;
+	triggerAriaLabelledBy?: string;
+	triggerRef?: React.Ref<HTMLButtonElement>;
 	id?: string;
 	"data-testid"?: string;
 };
@@ -78,6 +72,8 @@ export function Autocomplete<TOption>({
 	className,
 	triggerAriaInvalid,
 	triggerAriaDescribedBy,
+	triggerAriaLabelledBy,
+	triggerRef,
 	id,
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
@@ -140,7 +136,7 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleClear = useCallback(
-		(e: SyntheticEvent) => {
+		(e: React.SyntheticEvent) => {
 			e.stopPropagation();
 			onChange(null);
 			handleInputChange("");
@@ -149,7 +145,7 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleKeyDown = useCallback(
-		(e: KeyboardEvent<HTMLElement>) => {
+		(e: React.KeyboardEvent<HTMLElement>) => {
 			if (e.key === "Escape") {
 				// cmdk consumes Escape unless default is prevented before its handler.
 				e.preventDefault();
@@ -175,7 +171,7 @@ export function Autocomplete<TOption>({
 			? `${listboxId}-option-${highlightedIndex}`
 			: undefined;
 
-	const handleInlineKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+	const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
 		if (disabled) {
 			return;
 		}
@@ -273,6 +269,7 @@ export function Autocomplete<TOption>({
 						aria-haspopup="listbox"
 						aria-invalid={triggerAriaInvalid}
 						aria-describedby={triggerAriaDescribedBy}
+						aria-labelledby={triggerAriaLabelledBy}
 						disabled={disabled}
 						placeholder={placeholder}
 						value={inlineInputValue}
@@ -297,11 +294,11 @@ export function Autocomplete<TOption>({
 						}}
 						onKeyDownCapture={handleInlineKeyDown}
 						className={cn(
-							`flex h-10 w-full items-center rounded-md border border-border border-solid
-							bg-transparent px-3 py-2 text-sm shadow-xs transition-colors
-							placeholder:text-content-secondary text-content-primary
-							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-							disabled:cursor-not-allowed disabled:opacity-50`,
+							"flex h-10 w-full items-center rounded-md border border-border border-solid",
+							"bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
+							"placeholder:text-content-secondary text-content-primary",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							"disabled:cursor-not-allowed disabled:opacity-50",
 							className,
 						)}
 					/>
@@ -370,19 +367,21 @@ export function Autocomplete<TOption>({
 			<PopoverTrigger asChild disabled={disabled}>
 				<button
 					type="button"
+					ref={triggerRef}
 					id={id}
 					data-testid={testId}
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
 					aria-describedby={triggerAriaDescribedBy}
+					aria-labelledby={triggerAriaLabelledBy}
 					disabled={disabled}
 					className={cn(
-						`flex h-10 w-full items-center justify-between gap-2
-						rounded-md border border-border border-solid bg-transparent px-3 py-2
-						text-sm shadow-xs transition-colors
-						placeholder:text-content-secondary
-						focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-						disabled:cursor-not-allowed disabled:opacity-50`,
+						"flex h-10 w-full items-center justify-between gap-2",
+						"rounded-md border border-border border-solid bg-transparent px-3 py-2",
+						"text-sm shadow-xs transition-colors",
+						"placeholder:text-content-secondary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+						"disabled:cursor-not-allowed disabled:opacity-50",
 						className,
 					)}
 				>
@@ -411,7 +410,7 @@ export function Autocomplete<TOption>({
 										handleClear(e);
 									}
 								}}
-								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
+								className="flex items-center justify-center size-6 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
 								aria-label="Clear selection"
 							>
 								<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
@@ -431,7 +430,10 @@ export function Autocomplete<TOption>({
 				align="start"
 				onKeyDownCapture={handleKeyDown}
 			>
-				<Command shouldFilter={controlledInputValue === undefined}>
+				<Command
+					shouldFilter={controlledInputValue === undefined}
+					label={placeholder}
+				>
 					<CommandInput
 						placeholder={placeholder}
 						value={inputValue}

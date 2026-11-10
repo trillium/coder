@@ -1,8 +1,9 @@
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
+import { getMonacoTheme } from "#/theme/monaco";
 
 loader.config({ monaco });
 
@@ -26,7 +27,7 @@ type EditorWithKeybindingService = monaco.editor.IStandaloneCodeEditor & {
 	readonly _standaloneKeybindingService: StandaloneKeybindingService;
 };
 
-export const MonacoEditor: FC<MonacoEditorProps> = ({
+export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 	onChange,
 	value,
 	path,
@@ -44,7 +45,7 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
 				// Not a biggie!
 			});
 
-		monaco.editor.defineTheme("min", theme.monaco);
+		monaco.editor.defineTheme("min", getMonacoTheme(theme.mode));
 	}, [theme]);
 
 	return (

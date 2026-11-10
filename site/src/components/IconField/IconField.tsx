@@ -1,13 +1,5 @@
 import { cn } from "cn";
-import {
-	type ComponentProps,
-	type FC,
-	lazy,
-	type ReactNode,
-	Suspense,
-	useId,
-	useState,
-} from "react";
+import { lazy, Suspense, useId, useState } from "react";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -26,16 +18,30 @@ import {
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-type IconFieldProps = Omit<ComponentProps<"input">, "type"> & {
-	label?: ReactNode;
-	error?: boolean;
-	helperText?: ReactNode;
-	onPickEmoji: (value: string) => void;
-	/** Accepted for call-site compatibility with former MUI TextField usage. */
-	fullWidth?: boolean;
+// Emoji values are code point file paths such as "/emojis/1f524.png", which
+// don't name the image, so the preview uses the emoji character as its alt.
+// Other icon URLs are already readable in the input.
+const emojiAltText = (src: string): string => {
+	const match = /^\/emojis\/([\da-f-]+)\.png$/.exec(src);
+	if (!match) {
+		return "";
+	}
+	const codePoints = match[1].split("-").map((hex) => Number.parseInt(hex, 16));
+	// The value is user-editable, so reject anything String.fromCodePoint throws on.
+	if (!codePoints.every((cp) => cp <= 0x10ffff)) {
+		return "";
+	}
+	return String.fromCodePoint(...codePoints);
 };
 
-export const IconField: FC<IconFieldProps> = ({
+type IconFieldProps = Omit<React.ComponentProps<"input">, "type"> & {
+	label?: React.ReactNode;
+	error?: boolean;
+	helperText?: React.ReactNode;
+	onPickEmoji: (value: string) => void;
+};
+
+export const IconField: React.FC<IconFieldProps> = ({
 	id: idProp,
 	value,
 	label = "Icon",
@@ -44,7 +50,6 @@ export const IconField: FC<IconFieldProps> = ({
 	disabled,
 	className,
 	onPickEmoji,
-	fullWidth: _fullWidth,
 	...inputProps
 }) => {
 	if (typeof value !== "string" && typeof value !== "undefined") {
@@ -83,7 +88,7 @@ export const IconField: FC<IconFieldProps> = ({
 					{hasIcon && (
 						<span className="flex size-5 items-center justify-center">
 							<ExternalImage
-								alt=""
+								alt={emojiAltText(stringValue)}
 								src={stringValue}
 								className="max-w-full object-contain"
 								onError={(event) => {
@@ -120,8 +125,7 @@ export const IconField: FC<IconFieldProps> = ({
 						>
 							<Suspense fallback={<Loader />}>
 								<EmojiPicker
-									onEmojiSelect={(emoji) => {
-										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
+									onEmojiSelect={(picked) => {
 										onPickEmoji(picked);
 										setOpen(false);
 									}}
@@ -153,7 +157,7 @@ export const IconField: FC<IconFieldProps> = ({
       - Except we don't do it when running tests, because it would make them
       slower anyway. */}
 			{process.env.NODE_ENV !== "test" && (
-				<div className="sr-only" aria-hidden="true">
+				<div className="sr-only" aria-hidden="true" inert>
 					<Suspense>
 						<EmojiPicker onEmojiSelect={() => {}} />
 					</Suspense>

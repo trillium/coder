@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
@@ -23,7 +22,7 @@ type DisableWorkspaceSharingDialogProps = {
 	isLoading?: boolean;
 };
 
-export const DisableWorkspaceSharingDialog: FC<
+export const DisableWorkspaceSharingDialog: React.FC<
 	DisableWorkspaceSharingDialogProps
 > = ({
 	isOpen,
@@ -69,7 +68,7 @@ export const DisableWorkspaceSharingDialog: FC<
 							{isLoadingCount ? (
 								<Skeleton className="h-6 w-4/5" />
 							) : sharedCount > 0 ? (
-								<p className="text-content-danger font-medium m-0">
+								<p className="text-content-destructive font-medium m-0">
 									This action will affect{" "}
 									<strong className="text-content-primary">
 										{sharedCount} workspace{sharedCount !== 1 ? "s" : ""}

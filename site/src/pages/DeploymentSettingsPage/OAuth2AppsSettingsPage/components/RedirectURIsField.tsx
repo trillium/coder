@@ -1,5 +1,5 @@
 import { PlusIcon, XIcon } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { OAuth2RedirectURIsMaxCount } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
@@ -14,7 +14,7 @@ type RedirectURIsFieldProps = {
 	errors?: string[];
 };
 
-export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
+export const RedirectURIsField: React.FC<RedirectURIsFieldProps> = ({
 	values,
 	onChange,
 	onBlur,
@@ -36,7 +36,7 @@ export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-col gap-1">
-				<span className="text-sm font-medium">Redirect URIs</span>
+				<span className="text-sm">Redirect URIs</span>
 				<span className="text-xs text-content-secondary">
 					{isPublicClient
 						? "URIs this application may redirect to. This app has no client secret, so http is limited to a loopback address; https, a custom scheme, and the out-of-band URN are also accepted."

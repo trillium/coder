@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	Link as RouterLink,
 	useLocation,
@@ -33,10 +32,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	disabledControlClassName,
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
+	unitInputAddonClassName,
+	unitInputGroupClassName,
+	unitSuffixClassName,
 } from "#/modules/aiModels/ModelConfigFields";
 import { ModelIdentifierField } from "#/modules/aiModels/ModelIdentifierField";
 import type {
@@ -54,14 +57,14 @@ import {
 } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
-const CollapsibleSection: FC<{
+const CollapsibleSection: React.FC<{
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	contentClassName?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	description,
@@ -79,14 +82,12 @@ const CollapsibleSection: FC<{
 		>
 			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
-					<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				) : (
-					<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				)}
 				<div>
-					<h3 className="m-0 text-sm font-medium text-content-primary">
-						{title}
-					</h3>
+					<h3 className="m-0 text-sm text-content-primary">{title}</h3>
 					<p className="m-0 text-xs text-content-secondary">{description}</p>
 				</div>
 			</CollapsibleTrigger>
@@ -97,7 +98,7 @@ const CollapsibleSection: FC<{
 	);
 };
 
-export const ModelFormFields: FC<{
+export const ModelFormFields: React.FC<{
 	form: FormikContextType<ModelFormValues>;
 	mode: "add" | "edit" | "duplicate";
 	providerStates: readonly ProviderState[];
@@ -276,13 +277,17 @@ export const ModelFormFields: FC<{
 						)}
 						<InputGroup
 							className={cn(
+								unitInputGroupClassName,
 								contextLimitField.error && "border-border-destructive",
 							)}
 						>
 							<InputGroupInput
 								id={contextLimitField.id}
 								name={contextLimitField.name}
-								className="min-w-0 placeholder:text-content-disabled"
+								className={cn(
+									"min-w-0 placeholder:text-content-disabled",
+									disabledControlClassName,
+								)}
 								placeholder="200000"
 								value={contextLimitField.value}
 								onChange={contextLimitField.onChange}
@@ -290,8 +295,11 @@ export const ModelFormFields: FC<{
 								disabled={isSaving || isReadOnly}
 								aria-invalid={contextLimitField.error}
 							/>
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">Tokens</span>
+							<InputGroupAddon
+								align="inline-end"
+								className={unitInputAddonClassName}
+							>
+								<span className={unitSuffixClassName}>Tokens</span>
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
@@ -307,9 +315,11 @@ export const ModelFormFields: FC<{
 								Model prices are managed by AI Gateway.{" "}
 								<Link
 									href={docs(
-										"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+										"/ai-governance/ai-gateway/cost-controls#configure-model-prices",
 									)}
 									size="sm"
+									target="_blank"
+									rel="noreferrer"
 								>
 									Learn how to configure model prices.
 								</Link>
@@ -374,13 +384,14 @@ export const ModelFormFields: FC<{
 									<TooltipTrigger asChild>
 										<InfoIcon className="size-3 text-content-secondary" />
 									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
+									<TooltipContent side="top" className="max-w-60">
 										Percentage at which context is compressed.
 									</TooltipContent>
 								</Tooltip>
 							</Label>
 							<InputGroup
 								className={cn(
+									unitInputGroupClassName,
 									compressionThresholdField.error &&
 										"border-border-destructive",
 								)}
@@ -388,7 +399,7 @@ export const ModelFormFields: FC<{
 								<InputGroupInput
 									id={compressionThresholdField.id}
 									name={compressionThresholdField.name}
-									className="placeholder:text-content-disabled"
+									className={disabledControlClassName}
 									placeholder="70"
 									value={compressionThresholdField.value}
 									onChange={compressionThresholdField.onChange}
@@ -396,8 +407,11 @@ export const ModelFormFields: FC<{
 									disabled={isSaving || isReadOnly}
 									aria-invalid={compressionThresholdField.error}
 								/>
-								<InputGroupAddon align="inline-end">
-									<span className="text-xs text-content-disabled">%</span>
+								<InputGroupAddon
+									align="inline-end"
+									className={unitInputAddonClassName}
+								>
+									<span className={unitSuffixClassName}>%</span>
 								</InputGroupAddon>
 							</InputGroup>
 							{compressionThresholdField.error && (

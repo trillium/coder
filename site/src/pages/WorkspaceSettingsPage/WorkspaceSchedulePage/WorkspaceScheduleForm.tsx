@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -154,7 +153,7 @@ export const validationSchema = Yup.object({
 		),
 });
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 	error,
 	initialValues,
 	isLoading,
@@ -310,11 +309,11 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					</div>
 
 					<fieldset className="border-0 p-0 m-0">
-						<legend className="text-xs text-content-secondary font-medium mb-1">
+						<legend className="text-xs text-content-secondary mb-1">
 							Days of Week
 						</legend>
 
-						<div className="flex flex-row flex-wrap gap-x-4 gap-y-2 pt-1">
+						<div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
 							{checkboxes.map((checkbox) => (
 								<div key={checkbox.name} className="flex items-center gap-2">
 									<Checkbox

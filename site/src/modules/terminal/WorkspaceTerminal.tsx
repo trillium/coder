@@ -7,7 +7,6 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { cn } from "cn";
 import {
-	type Ref,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -16,7 +15,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import {
 	ExponentialBackoff,
 	type Websocket,
@@ -29,6 +27,7 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
@@ -39,7 +38,7 @@ export type WorkspaceTerminalHandle = {
 };
 
 type WorkspaceTerminalProps = {
-	ref?: Ref<WorkspaceTerminalHandle>;
+	ref?: React.Ref<WorkspaceTerminalHandle>;
 	agentId: string | undefined;
 	operatingSystem?: string;
 	className?: string;
@@ -75,7 +74,7 @@ const encodeTerminalPayload = (payload: Record<string, number | string>) => {
 	return new TextEncoder().encode(JSON.stringify(payload));
 };
 
-export const WorkspaceTerminal = ({
+export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	ref,
 	agentId,
 	operatingSystem,
@@ -98,13 +97,17 @@ export const WorkspaceTerminal = ({
 	loading = false,
 	errorMessage,
 	testId,
-}: WorkspaceTerminalProps) => {
+}) => {
 	const scopeId = useId();
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
 	const handleOpenLink = useEffectEvent((uri: string) => {
-		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
+		if (onOpenLink) {
+			onOpenLink(uri);
+		} else {
+			window.open(uri, "_blank", "noopener");
+		}
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
@@ -189,9 +192,8 @@ export const WorkspaceTerminal = ({
 		try {
 			fitAddon.fit();
 			fitAddon.fit();
-		} catch (error) {
-			// biome-ignore lint/suspicious/noConsole: Expected transient fit failure while xterm initializes.
-			console.debug("Terminal fit skipped: renderer not ready", error);
+		} catch {
+			// Expected transient fit failure while xterm initializes.
 		}
 	}, []);
 
@@ -324,6 +326,13 @@ export const WorkspaceTerminal = ({
 		nextTerminal.open(mountNode);
 		refit();
 
+		// The canvas and WebGL renderers keep reusing the fallback glyph drawn
+		// before a lazily loaded font arrives, so rebuild their glyph cache.
+		const redrawWithLoadedFonts = () => {
+			nextTerminal.clearTextureAtlas();
+		};
+		document.fonts.addEventListener("loadingdone", redrawWithLoadedFonts);
+
 		window.addEventListener("resize", refit);
 
 		const resizeObserver = new ResizeObserver(() => {
@@ -334,6 +343,7 @@ export const WorkspaceTerminal = ({
 		setTerminal(nextTerminal);
 
 		return () => {
+			document.fonts.removeEventListener("loadingdone", redrawWithLoadedFonts);
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
@@ -621,14 +631,14 @@ export const WorkspaceTerminal = ({
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: hsl(var(--surface-quaternary));
+					background-color: hsl(var(--surface-scrollbar));
 				}
 			`}</style>
 			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
 				<ContextMenuTrigger asChild disabled={isMac()}>
 					<div
 						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							"workspace-terminal size-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
 							className,
 						)}
 						ref={terminalWrapperRef}

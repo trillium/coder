@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -73,7 +66,9 @@ type TemplateBuilderPageViewProps = {
 	sessionId: string;
 };
 
-export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
+export const TemplateBuilderPageView: React.FC<
+	TemplateBuilderPageViewProps
+> = ({
 	error,
 	basesData,
 	preselectedBase,
@@ -302,7 +297,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<PageHeaderSubtitle>
 					A Terraform blueprint for reproducible workspaces.
 					<Link
-						href={docs("/admin/templates")}
+						href={docs("/templates")}
 						target="_blank"
 						className="ml-1 font-normal"
 					>
@@ -363,7 +358,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				</div>
 
 				{/* Sidebar (top position is 72px so that it can sit below nav) */}
-				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
+				<div className="w-64 shrink-0 hidden md:block sticky top-18 self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						maxReachedStep={maxReachedGroup}
@@ -402,7 +397,7 @@ type StepContentProps = {
 	showValidationErrors: boolean;
 };
 
-const StepContent: FC<StepContentProps> = ({
+const StepContent: React.FC<StepContentProps> = ({
 	stepId,
 	state,
 	dispatch,

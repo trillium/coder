@@ -380,6 +380,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		// Claude Platform is an authentication method on Anthropic, so it never
+		// belongs on another provider type.
+		if merged.ClaudePlatformAWS != nil && old.Type != database.AIProviderTypeAnthropic {
+			return errAIProviderClaudePlatformTypeMismatch
+		}
+		// Generate the server-owned external ID when the provider assumes a role
+		// and lacks one.
 		ensureBedrockExternalID(&merged)
 		settings, err := encodeAIProviderSettings(merged)
 		if err != nil {
@@ -453,9 +460,15 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, errAIProviderClaudePlatformTypeMismatch) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform settings are only valid for type=anthropic.",
+		})
+		return
+	}
 	if errors.Is(err, errAIProviderExternalIDReadOnly) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The Bedrock external ID is server-generated and cannot be changed.",
+			Message: "The STS external ID is server-generated and cannot be changed.",
 		})
 		return
 	}
@@ -554,6 +567,12 @@ func (api *API) publishAIProvidersChanged(ctx context.Context) {
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
 
+// errAIProviderClaudePlatformTypeMismatch is the sentinel returned from inside
+// the update transaction when the post-patch settings carry a Claude Platform
+// block but the provider is not anthropic-typed; the outer handler translates
+// it into a 400.
+var errAIProviderClaudePlatformTypeMismatch = xerrors.New("claude platform settings are only valid for type=anthropic")
+
 // errCopilotRejectsAPIKeys is the sentinel returned from inside the
 // update transaction when a caller attempts to attach api_keys to a
 // Copilot-typed provider; the outer handler translates it into a 400.
@@ -568,7 +587,7 @@ var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only va
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned
-// Bedrock external ID; the outer handler translates it into a 400. A
+// STS external ID; the outer handler translates it into a 400. A
 // patch may echo the stored value but not set a different one.
 var errAIProviderExternalIDReadOnly = xerrors.New("external_id is server-generated and cannot be changed")
 
@@ -928,19 +947,30 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Omitting every variant clears the settings. Bedrock and upstream
-// headers are independent variants: a patch containing one preserves the
-// other. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
-// pointers so the patch can distinguish "omitted, keep existing" (nil) from
-// "explicitly clear" (pointer to empty string) - e.g. when an admin migrates
-// from static AWS credentials to IAM role-based auth in a single PATCH.
+// value. Write-only fields (the AWS AccessKey and AccessKeySecret) use
+// pointers so the patch can distinguish "omitted, keep existing" (nil)
+// from "explicitly clear" (pointer to empty string) - e.g. when an
+// admin migrates from static AWS credentials to IAM role-based auth
+// in a single PATCH.
+//
+// A patch replaces the authentication variant wholesale rather than merging
+// across variants: switching authentication method is a full
+// reconfiguration, and carrying one variant's credentials into another would
+// be meaningless. Upstream headers are independent of the authentication
+// variant: a patch containing one preserves the other. Omitting every variant
+// clears the settings.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock == nil && patch.UpstreamHeaders == nil {
+	if patch.Bedrock == nil && patch.ClaudePlatformAWS == nil && patch.UpstreamHeaders == nil {
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := existing
-	if patch.Bedrock != nil {
+	merged := codersdk.AIProviderSettings{
+		Bedrock:           existing.Bedrock,
+		ClaudePlatformAWS: existing.ClaudePlatformAWS,
+		UpstreamHeaders:   existing.UpstreamHeaders,
+	}
+	switch {
+	case patch.Bedrock != nil:
 		b := *patch.Bedrock
 		if existing.Bedrock != nil {
 			if b.AccessKey == nil {
@@ -955,6 +985,10 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 			b.ExternalID = existing.Bedrock.ExternalID
 		}
 		merged.Bedrock = &b
+		merged.ClaudePlatformAWS = nil
+	case patch.ClaudePlatformAWS != nil:
+		merged.Bedrock = nil
+		merged.ClaudePlatformAWS = patch.ClaudePlatformAWS
 	}
 	if patch.UpstreamHeaders != nil {
 		if patch.UpstreamHeaders.IsZero() {
@@ -966,31 +1000,29 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 	return merged
 }
 
-// validateBedrockExternalIDUnchanged rejects a patch that sets a Bedrock
-// external ID different from the stored one. A patch may echo the stored
-// value (read-modify-write resends it) but not change it; the value is
-// server-owned.
+// validateBedrockExternalIDUnchanged rejects a Bedrock patch that sets an
+// STS external ID different from the stored one. A patch may echo the stored
+// value, but not change it.
 func validateBedrockExternalIDUnchanged(existing, patch codersdk.AIProviderSettings) error {
 	stored := ""
 	if existing.Bedrock != nil {
 		stored = existing.Bedrock.ExternalID
 	}
-
 	provided := ""
 	if patch.Bedrock != nil {
 		provided = patch.Bedrock.ExternalID
 	}
-
 	if provided != "" && provided != stored {
 		return errAIProviderExternalIDReadOnly
 	}
 	return nil
 }
 
-// ensureBedrockExternalID assigns a server-owned STS external ID when the
-// Bedrock provider assumes a role and none is set yet.
+// ensureBedrockExternalID assigns a server-owned STS external ID to Bedrock
+// settings when a role is configured and no ID exists yet.
 func ensureBedrockExternalID(s *codersdk.AIProviderSettings) {
-	if s.Bedrock != nil && s.Bedrock.RoleARN != "" && s.Bedrock.ExternalID == "" {
-		s.Bedrock.ExternalID = rand.Text()
+	if s.Bedrock == nil || s.Bedrock.RoleARN == "" || s.Bedrock.ExternalID != "" {
+		return
 	}
+	s.Bedrock.ExternalID = rand.Text()
 }

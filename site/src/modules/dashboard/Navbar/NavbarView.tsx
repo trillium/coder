@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -33,11 +32,11 @@ type NavbarViewProps = {
 
 const linkStyles = {
 	default:
-		"text-sm font-medium text-content-secondary no-underline block h-full px-2 flex items-center hover:text-content-primary transition-colors",
+		"text-sm font-medium text-content-secondary no-underline flex h-full px-2 items-center hover:text-content-primary transition-colors",
 	active: "text-content-primary",
 };
 
-export const NavbarView: FC<NavbarViewProps> = ({
+export const NavbarView: React.FC<NavbarViewProps> = ({
 	user,
 	buildInfo,
 	supportLinks,
@@ -53,7 +52,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
+				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-18 min-h-18 flex items-center leading-none px-6",
 				prerelease &&
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
@@ -156,7 +155,7 @@ type NavItemsProps = {
 	canCreateChat: boolean;
 };
 
-const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
+const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
@@ -205,7 +204,11 @@ type SupportButtonProps = {
 	location?: string;
 };
 
-const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
+const SupportButton: React.FC<SupportButtonProps> = ({
+	name,
+	target,
+	icon,
+}) => {
 	return (
 		<Button asChild variant="outline">
 			<a

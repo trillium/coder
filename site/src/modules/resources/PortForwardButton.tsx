@@ -8,7 +8,7 @@ import {
 	ShareIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "react-query";
 import * as Yup from "yup";
 import {
@@ -70,7 +70,7 @@ type PortForwardButtonProps = {
 	template: Template;
 };
 
-export const PortForwardButton: FC<PortForwardButtonProps> = ({
+export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 	host,
 	workspace,
 	template,
@@ -89,7 +89,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 			<PopoverTrigger asChild>
 				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
-						<span className="text-xs font-medium h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
+						<span className="text-xs h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
 							{listeningPorts?.length}
 						</span>
 					</Spinner>
@@ -99,7 +99,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="p-0 w-[404px] mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
+				className="p-0 w-101 mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
 			>
 				<PortForwardPopoverView
 					host={host}
@@ -173,7 +173,7 @@ type ShareLevelOptionsProps = {
 	canSharePublic: boolean;
 };
 
-const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
+const ShareLevelOptions: React.FC<ShareLevelOptionsProps> = ({
 	canShareAuthenticated,
 	canSharePublic,
 }) => (
@@ -204,7 +204,7 @@ const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
 	</>
 );
 
-export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
+export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 	host,
 	workspace,
 	agent,
@@ -300,7 +300,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		<>
 			<div className="max-h-80 overflow-y-auto">
 				<div className="flex flex-col p-5">
-					<div className="flex flex-row justify-between items-start">
+					<div className="flex justify-between items-start">
 						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
 						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
@@ -326,7 +326,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							>
 								<SelectTrigger
 									aria-label="Listening port protocol"
-									className="h-9 min-w-[100px] w-auto"
+									className="h-9 min-w-25 w-auto"
 								>
 									<SelectValue />
 								</SelectTrigger>
@@ -393,11 +393,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						return (
 							<div
 								key={port.port}
-								className="flex flex-row items-center justify-between"
+								className="flex items-center justify-between"
 							>
-								<div className="flex flex-row gap-3">
+								<div className="flex gap-3">
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -406,7 +406,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										{port.port}
 									</a>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -414,7 +414,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										{label}
 									</a>
 								</div>
-								<div className="flex flex-row gap-2 justify-end items-center">
+								<div className="flex gap-2 justify-end items-center">
 									{canSharePorts && (
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -467,10 +467,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							return (
 								<div
 									key={share.port}
-									className="flex flex-row justify-between items-center"
+									className="flex justify-between items-center"
 								>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -510,7 +510,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										</SelectContent>
 									</Select>
 
-									<div className="flex flex-row justify-end">
+									<div className="flex justify-end">
 										<Select
 											value={share.share_level}
 											onValueChange={(value) => {

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import {
 	type FieldError,
 	getErrorMessage,
@@ -69,7 +69,7 @@ const emptyValues: SecretFormValues = {
 const infoText = "Secret values cannot be retrieved once saved.";
 export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••••••••••";
 
-export const SecretDialog: FC<SecretDialogProps> = ({
+export const SecretDialog: React.FC<SecretDialogProps> = ({
 	open,
 	secret,
 	filePathEnabled,
@@ -335,7 +335,7 @@ type SecretFieldsProps = {
 	showValue: boolean;
 };
 
-const SecretFields: FC<SecretFieldsProps> = ({
+const SecretFields: React.FC<SecretFieldsProps> = ({
 	getFieldHelpers,
 	filePathEnabled,
 	disableName,
@@ -415,7 +415,7 @@ type BlockedFilePathFieldProps = {
 	onRestore: () => void;
 };
 
-const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
+const BlockedFilePathField: React.FC<BlockedFilePathFieldProps> = ({
 	storedFilePath,
 	isRemoved,
 	disablesSecret,
@@ -424,9 +424,7 @@ const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium text-content-primary">
-				File path
-			</span>
+			<span className="text-sm text-content-primary">File path</span>
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 				<span
 					className={cn(
@@ -458,10 +456,12 @@ const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
 };
 
 type RequiredFieldLabelProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-const RequiredFieldLabel: FC<RequiredFieldLabelProps> = ({ children }) => {
+const RequiredFieldLabel: React.FC<RequiredFieldLabelProps> = ({
+	children,
+}) => {
 	return (
 		<span className="after:ml-1 after:text-content-destructive after:content-['*']">
 			{children}
@@ -479,7 +479,7 @@ type SecretValueFieldProps = {
 	onUndoClearValue?: () => void;
 };
 
-const SecretValueField: FC<SecretValueFieldProps> = ({
+const SecretValueField: React.FC<SecretValueFieldProps> = ({
 	field,
 	placeholder,
 	required,
@@ -595,7 +595,9 @@ type SecretDescriptionFieldProps = {
 	field: ReturnType<ReturnType<typeof getFormHelpers<SecretFormValues>>>;
 };
 
-const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
+const SecretDescriptionField: React.FC<SecretDescriptionFieldProps> = ({
+	field,
+}) => {
 	const errorId = `${field.id}-error`;
 
 	return (
@@ -636,7 +638,7 @@ type ImportSecretsErrorProps = {
 	error: unknown;
 };
 
-const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
+const ImportSecretsError: React.FC<ImportSecretsErrorProps> = ({ error }) => {
 	const validations = getImportSecretValidations(error);
 	if (validations.length === 0) {
 		return <ErrorAlert error={error} showDebugDetail={false} />;

@@ -1,14 +1,15 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC, HTMLProps } from "react";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
-import type { BarColors } from "./Bar";
 
-export const Chart = (props: HTMLProps<HTMLDivElement>) => {
+/** Width in pixels of the label column. */
+export const Y_AXIS_WIDTH = 200;
+
+export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
 		<div
 			{...props}
@@ -16,15 +17,16 @@ export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 			style={{
 				"--header-height": "40px",
 				"--section-padding": "16px",
-				"--x-axis-rows-gap": "20px",
-				"--y-axis-width": "200px",
+				"--y-axis-width": `${Y_AXIS_WIDTH}px`,
 				...props.style,
 			}}
 		/>
 	);
 };
 
-export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
+export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = (
+	props,
+) => {
 	const contentRef = useRef<HTMLDivElement>(null);
 
 	// Display a scroll mask when the content is scrollable and update its
@@ -65,13 +67,13 @@ export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
 			{props.children}
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 z-1 h-[100px] transition-opacity duration-200 bottom-[calc(-1*var(--scroll-top,0px))] opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+				className="pointer-events-none absolute inset-x-0 z-1 h-25 transition-opacity duration-200 -bottom-(--scroll-top,0px) opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
 			/>
 		</div>
 	);
 };
 
-export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {
+export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
 		<div
 			{...props}
@@ -93,7 +95,7 @@ type ChartBreadcrumbsProps = {
 	breadcrumbs: ChartBreadcrumb[];
 };
 
-export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
+export const ChartBreadcrumbs: React.FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
@@ -101,11 +103,17 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 			{breadcrumbs.map((b, i) => {
 				const isLast = i === breadcrumbs.length - 1;
 				return (
-					<React.Fragment key={b.label}>
-						<li className={cn(i === 0 && "text-content-secondary")}>
-							{isLast ? (
-								b.label
-							) : (
+					<li
+						key={b.label}
+						className={cn(
+							"flex items-center gap-1",
+							i === 0 && "text-content-secondary",
+						)}
+					>
+						{isLast ? (
+							b.label
+						) : (
+							<>
 								<button
 									type="button"
 									className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-content-primary"
@@ -113,14 +121,10 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 								>
 									{b.label}
 								</button>
-							)}
-						</li>
-						{!isLast && (
-							<li role="presentation" className="text-content-secondary">
-								<ChevronRightIcon className="size-[14px]" />
-							</li>
+								<ChevronRightIcon className="size-3.5 text-content-secondary" />
+							</>
 						)}
-					</React.Fragment>
+					</li>
 				);
 			})}
 		</ul>
@@ -138,14 +142,14 @@ export const ChartSearch = (props: SearchFieldProps) => {
 
 export type ChartLegend = {
 	label: string;
-	colors?: BarColors;
+	className?: string;
 };
 
 type ChartLegendsProps = {
 	legends: ChartLegend[];
 };
 
-export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
+export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 	return (
 		<ul className="m-0 flex list-none items-center gap-6 pr-(--section-padding) p-0">
 			{legends.map((l) => (
@@ -154,11 +158,10 @@ export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 					className="flex items-center gap-2 font-medium leading-none"
 				>
 					<div
-						className="size-[18px] rounded border border-solid bg-surface-primary"
-						style={{
-							borderColor: l.colors?.stroke,
-							backgroundColor: l.colors?.fill,
-						}}
+						className={cn(
+							"size-icon-sm rounded border border-solid bg-surface-primary",
+							l.className,
+						)}
 					/>
 					{l.label}
 				</li>

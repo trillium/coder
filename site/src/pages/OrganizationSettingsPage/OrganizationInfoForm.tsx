@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type {
@@ -45,7 +44,7 @@ type OrganizationInfoFormProps = {
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 };
 
-export const OrganizationInfoForm: FC<OrganizationInfoFormProps> = ({
+export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 	organization,
 	error,
 	onSubmit,
@@ -141,7 +140,6 @@ export const OrganizationInfoForm: FC<OrganizationInfoFormProps> = ({
 							<IconField
 								{...getFieldHelpers("icon")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								onPickEmoji={(value) => form.setFieldValue("icon", value)}
 							/>
 						</FormFields>

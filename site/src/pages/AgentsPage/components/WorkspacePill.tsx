@@ -2,23 +2,17 @@ import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	CopyIcon,
-	LayoutGridIcon,
 	MonitorIcon,
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useState } from "react";
-import { useMutation } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "#/api/typesGenerated";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -27,6 +21,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -40,7 +35,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
-import { useAppLink } from "#/modules/apps/useAppLink";
+import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import {
 	canShowPortForwarding,
 	usePortsData,
@@ -53,7 +48,6 @@ type WorkspacePillProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
-	sshCommand?: string;
 	folder?: string;
 	onRemoveWorkspace?: () => void;
 	// Rendered inside the +N overflow popover: suppresses the status
@@ -62,17 +56,21 @@ type WorkspacePillProps = {
 	inOverflowPopover?: boolean;
 };
 
-export const WorkspacePill: FC<WorkspacePillProps> = ({
+export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	workspace,
 	agent,
 	chatId,
-	sshCommand,
 	folder,
 	onRemoveWorkspace,
 	inOverflowPopover,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
+	const sshHostnameSuffix = useQuery(deploymentSSHConfig()).data
+		?.hostname_suffix;
+	const sshCommand = sshHostnameSuffix
+		? `ssh ${agent.name}.${workspace.name}.${workspace.owner_name}.${sshHostnameSuffix}`
+		: undefined;
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
@@ -132,7 +130,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 		>
 			{/* Sizing (floor, growth, natural-width cap) is owned by the
 			 * wrapper in AgentChatInput; this span just fills it. */}
-			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
+			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs text-content-secondary">
 				<Tooltip
 					open={!inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -143,7 +141,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 									// Heights match the model selector trigger.
 									"h-7 w-full px-2 py-0.5 md:h-auto",
 								)}
@@ -171,7 +169,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
 			>
 				{/* Scrolls within the capped above-composer height on mobile;
 				 * no-op on desktop. overflow-x-hidden avoids a horizontal
@@ -221,12 +219,13 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								/>
 							)}
 							{userApps.map((app) => (
-								<AppMenuItem
+								<AppLink
 									key={app.id}
+									grouped
 									app={app}
 									workspace={workspace}
 									agent={agent}
-									isRunning={isRunning}
+									disabled={!isRunning}
 								/>
 							))}
 							{hasTerminal && (
@@ -283,7 +282,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	);
 };
 
-const VSCodeMenuItem: FC<{
+const VSCodeMenuItem: React.FC<{
 	variant: "vscode" | "vscode-insiders";
 	label: string;
 	workspace: Workspace;
@@ -345,38 +344,7 @@ const VSCodeMenuItem: FC<{
 	);
 };
 
-const AppMenuItem: FC<{
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-	isRunning: boolean;
-}> = ({ app, workspace, agent, isRunning }) => {
-	const link = useAppLink(app, { workspace, agent });
-
-	return (
-		<DropdownMenuItem asChild disabled={!isRunning || link.isLoading}>
-			<a
-				href={isRunning ? link.href : undefined}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
-				{app.icon ? (
-					<ExternalImage
-						src={app.icon}
-						alt=""
-						className="size-3.5 rounded-sm"
-					/>
-				) : (
-					<LayoutGridIcon className="size-3.5" />
-				)}
-				{link.label}
-			</a>
-		</DropdownMenuItem>
-	);
-};
-
-const TerminalMenuItem: FC<{
+const TerminalMenuItem: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	isRunning: boolean;
@@ -400,7 +368,7 @@ const TerminalMenuItem: FC<{
 	);
 };
 
-const CopySSHMenuItem: FC<{
+const CopySSHMenuItem: React.FC<{
 	sshCommand: string;
 }> = ({ sshCommand }) => {
 	const { copyToClipboard } = useClipboard();

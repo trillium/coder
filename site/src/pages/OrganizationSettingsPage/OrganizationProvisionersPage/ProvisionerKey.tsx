@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	ProvisionerKeyNameBuiltIn,
 	ProvisionerKeyNamePSK,
@@ -26,7 +25,7 @@ function getKeyType(name: string) {
 	}
 }
 
-const infoByType: Record<KeyType, ReactNode> = {
+const infoByType: Record<KeyType, React.ReactNode> = {
 	builtin: (
 		<>
 			These provisioners are running as part of a coderd instance. Built-in
@@ -54,12 +53,12 @@ type ProvisionerKeyProps = {
 	name: string;
 };
 
-export const ProvisionerKey: FC<ProvisionerKeyProps> = ({ name }) => {
+export const ProvisionerKey: React.FC<ProvisionerKeyProps> = ({ name }) => {
 	const type = getKeyType(name);
 	const info = infoByType[type];
 
 	return (
-		<span className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-content-secondary">
+		<span className="flex items-center gap-1 whitespace-nowrap text-xs text-content-secondary">
 			{name}
 			{info && (
 				<Tooltip>

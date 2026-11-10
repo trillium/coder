@@ -1,21 +1,20 @@
-import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 
 type AgentSettingLayoutProps = {
 	title: string;
-	description?: ReactNode;
-	children?: ReactNode;
-	error?: ReactNode;
+	description?: React.ReactNode;
+	children?: React.ReactNode;
+	error?: React.ReactNode;
 	showSave: boolean;
 	isSaving: boolean;
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
-	onSubmit: FormEventHandler<HTMLFormElement>;
+	onSubmit: React.FormEventHandler<HTMLFormElement>;
 };
 
-export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
+export const AgentSettingLayout: React.FC<AgentSettingLayoutProps> = ({
 	title,
 	description,
 	children,
@@ -51,14 +50,14 @@ export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 					{children}
 					<div className="flex min-h-10 items-center">
 						{(showSave || isSavedVisible || isSaving) &&
-							(isSavedVisible ? (
+							(isSavedVisible && !showSave ? (
 								<TemporarySavedState />
 							) : (
 								<Button
 									size="lg"
 									type="submit"
 									disabled={saveDisabled}
-									className="h-10 min-w-[88px]"
+									className="h-10 min-w-22"
 								>
 									{isSaving && <Spinner loading className="size-4" />}
 									Save

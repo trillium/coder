@@ -9,7 +9,7 @@ import {
 	SettingsIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import * as Yup from "yup";
 import type {
 	NullHCLString,
@@ -43,7 +43,6 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -57,7 +56,7 @@ type DynamicParameterProps = {
 	autofill?: boolean;
 };
 
-export const DynamicParameter: FC<DynamicParameterProps> = ({
+export const DynamicParameter: React.FC<DynamicParameterProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -101,7 +100,7 @@ type ParameterLabelProps = {
 	id: string;
 };
 
-const ParameterLabel: FC<ParameterLabelProps> = ({
+const ParameterLabel: React.FC<ParameterLabelProps> = ({
 	parameter,
 	isPreset,
 	autofill,
@@ -136,90 +135,80 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 						)}
 					</span>
 					{!parameter.mutable && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="warning">
-											<TriangleAlertIcon />
-											Immutable
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This value cannot be modified after the workspace has been
-									created.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="warning">
+										<TriangleAlertIcon />
+										Immutable
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This value cannot be modified after the workspace has been
+								created.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{parameter.ephemeral && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="green">
-											<HourglassIcon />
-											Ephemeral
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This parameter is ephemeral and will reset to the template
-									default on workspace restart.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="green">
+										<HourglassIcon />
+										Ephemeral
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This parameter is ephemeral and will reset to the template
+								default on workspace restart.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{isPreset && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<SettingsIcon />
-											Preset
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Preset parameters cannot be modified.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<SettingsIcon />
+										Preset
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Preset parameters cannot be modified.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{autofill && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<LinkIcon />
-											URL Autofill
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Autofilled from the URL.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<LinkIcon />
+										URL Autofill
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Autofilled from the URL.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{hasRequiredDiagnostic && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="destructive">
-											Required
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									{hasRequiredDiagnostic.summary || "Required parameter"}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="destructive">
+										Required
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								{hasRequiredDiagnostic.summary || "Required parameter"}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</Label>
 
@@ -243,7 +232,7 @@ type ParameterFieldProps = {
 	id: string;
 };
 
-const ParameterField: FC<ParameterFieldProps> = ({
+const ParameterField: React.FC<ParameterFieldProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -315,7 +304,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				parameter.validations[0] ?? {};
 
 			return (
-				<div className="flex flex-row items-baseline gap-3">
+				<div className="flex items-baseline gap-3">
 					<Slider
 						id={id}
 						className="mt-2"
@@ -390,6 +379,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					data-testid={`multiselect-${parameter.name}`}
 					options={options}
 					defaultOptions={selectedOptions}
+					value={selectedOptions}
 					onChange={(newValues) => {
 						const values = newValues.map((option) => option.value);
 						onChange(JSON.stringify(values));
@@ -487,7 +477,7 @@ type MaskableInputProps = Omit<React.ComponentProps<"input">, "onChange"> & {
 	masked?: boolean;
 };
 
-const MaskableInput: FC<MaskableInputProps> = ({
+const MaskableInput: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -501,7 +491,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<div className="flex flex-row items-center">
+		<div className="flex items-center">
 			<Input
 				id={id}
 				type={masked && showMaskedInput ? "text" : type}
@@ -535,7 +525,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	);
 };
 
-const MaskableTextArea: FC<MaskableInputProps> = ({
+const MaskableTextArea: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -548,12 +538,12 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<div className="flex flex-row items-center">
+		<div className="flex items-center">
 			<Textarea
 				ref={textareaRef}
 				id={id}
 				className={cn(
-					"overflow-y-auto max-h-[500px]",
+					"overflow-y-auto max-h-125",
 					masked && !showMaskedInput && "[-webkit-text-security:disc]",
 				)}
 				value={value}
@@ -618,7 +608,7 @@ type OptionDisplayProps = {
 	option: PreviewParameterOption;
 };
 
-const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
+const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 	return (
 		<div className="flex items-center gap-2">
 			{option.icon && (
@@ -630,16 +620,14 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 			)}
 			<span>{option.name}</span>
 			{option.description && (
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent side="right" sideOffset={10}>
-							{option.description}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<InfoIcon className="size-3.5 text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent side="right" sideOffset={10}>
+						{option.description}
+					</TooltipContent>
+				</Tooltip>
 			)}
 		</div>
 	);
@@ -649,7 +637,7 @@ type ParameterDiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 };
 
-const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
+const ParameterDiagnostics: React.FC<ParameterDiagnosticsProps> = ({
 	diagnostics,
 }) => {
 	return (
@@ -916,7 +904,7 @@ type DiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 };
 
-export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
 			{diagnostics.map((diagnostic, index) => (
@@ -929,7 +917,7 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 							: "text-content-primary border-border-warning bg-content-warning/15",
 					)}
 				>
-					<div className="flex flex-row items-start">
+					<div className="flex items-start">
 						{diagnostic.severity === "error" && (
 							<CircleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -13,7 +12,7 @@ import {
 
 type AdminSettingsDropdownProps = { permissions: AdminSettingsPermissions };
 
-export const AdminSettingsDropdown: FC<AdminSettingsDropdownProps> = ({
+export const AdminSettingsDropdown: React.FC<AdminSettingsDropdownProps> = ({
 	permissions,
 }) => {
 	return (
@@ -25,10 +24,8 @@ export const AdminSettingsDropdown: FC<AdminSettingsDropdownProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[180px]">
-				<nav>
-					<AdminSettingsItems permissions={permissions} />
-				</nav>
+			<DropdownMenuContent align="end" className="w-45">
+				<AdminSettingsItems permissions={permissions} />
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

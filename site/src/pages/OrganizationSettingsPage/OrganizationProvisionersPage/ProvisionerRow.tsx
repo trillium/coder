@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type {
 	ProvisionerDaemon,
@@ -38,7 +38,7 @@ type ProvisionerRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const ProvisionerRow: FC<ProvisionerRowProps> = ({
+export const ProvisionerRow: React.FC<ProvisionerRowProps> = ({
 	provisioner,
 	buildVersion,
 	defaultIsOpen = false,
@@ -112,7 +112,7 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							className={cn([
 								"text-xs text-content-secondary",
 								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-5.5 [&_dt]:font-medium",
 							])}
 						>
 							<dt>Last seen:</dt>

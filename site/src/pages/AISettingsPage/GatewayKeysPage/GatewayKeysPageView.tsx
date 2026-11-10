@@ -1,5 +1,4 @@
 import { PlusIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -34,7 +33,7 @@ type GatewayKeysPageViewProps = {
 	onDeleteKey: (key: AIGatewayKey) => void;
 };
 
-export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
+export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 	keys,
 	isLoading,
 	error,
@@ -60,7 +59,9 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 					Keys authenticate standalone AI Gateway replicas to this deployment.
 					The key value is shown only once when created.{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key")}
+						href={docs(
+							"/ai-governance/ai-gateway/standalone#create-a-gateway-key",
+						)}
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

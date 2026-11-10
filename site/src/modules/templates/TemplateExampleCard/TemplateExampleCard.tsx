@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -7,13 +6,13 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Link } from "#/components/Link/Link";
 
-type TemplateExampleCardProps = ComponentProps<"div"> & {
+type TemplateExampleCardProps = React.ComponentProps<"div"> & {
 	example: TemplateExample;
 	activeTag?: string;
 	templateBuilderEnabled?: boolean;
 };
 
-export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
+export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
 	templateBuilderEnabled,
@@ -36,7 +35,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
-						className="w-full h-full object-contain"
+						className="size-full object-contain"
 					/>
 				</div>
 
@@ -45,7 +44,12 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
 							<Badge
 								variant={activeTag === tag ? "info" : "default"}
-								className="cursor-pointer no-underline hover:border-content-primary"
+								className={cn(
+									"cursor-pointer no-underline",
+									activeTag === tag
+										? "hover:border-content-primary"
+										: "hover:bg-surface-tertiary",
+								)}
 							>
 								{tag}
 							</Badge>
@@ -60,7 +64,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 					{example.description}{" "}
 					<Link
 						size="sm"
-						className="inline-block mt-1 p-0"
+						className="inline-block mt-0 pl-0"
 						asChild
 						showExternalIcon={false}
 					>

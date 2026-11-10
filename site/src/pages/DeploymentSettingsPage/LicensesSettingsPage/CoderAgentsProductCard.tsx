@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -42,7 +41,7 @@ type CoderAgentsProductCardProps = {
 	isHardLimitExceeded: boolean;
 };
 
-const MetricLabel: FC<{ label: string; tooltip: string }> = ({
+const MetricLabel: React.FC<{ label: string; tooltip: string }> = ({
 	label,
 	tooltip,
 }) => (
@@ -65,10 +64,10 @@ const MetricLabel: FC<{ label: string; tooltip: string }> = ({
 	</div>
 );
 
-const CardContainer: FC<{
+const CardContainer: React.FC<{
 	className?: string;
-	headerEnd?: ReactNode;
-	children: ReactNode;
+	headerEnd?: React.ReactNode;
+	children: React.ReactNode;
 }> = ({ className, headerEnd, children }) => (
 	<div
 		className={cn(
@@ -77,9 +76,7 @@ const CardContainer: FC<{
 		)}
 	>
 		<div className="flex items-center justify-between gap-3">
-			<div className="text-sm font-medium text-content-primary">
-				Coder Agents
-			</div>
+			<div className="text-sm text-content-primary">Coder Agents</div>
 			{headerEnd}
 		</div>
 		{children}
@@ -100,7 +97,7 @@ const formatHoursUsed = (hours: number) =>
 		maximumFractionDigits: 1,
 	});
 
-export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
+export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 	allocation,
 	actual,
 	isSoftLimitReached,
@@ -120,7 +117,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 							label="Max concurrent agents"
 							tooltip={concurrentChatsTooltip}
 						/>
-						<div className="mt-0.5 text-sm font-medium text-content-primary">
+						<div className="mt-0.5 text-sm text-content-primary">
 							{maxConcurrentChatsOverHardLimit}
 						</div>
 					</div>
@@ -129,7 +126,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 							<div className="flex items-center gap-1 font-medium text-content-secondary">
 								<span>Agent hours used</span>
 							</div>
-							<div className="mt-0.5 text-sm font-medium text-content-primary">
+							<div className="mt-0.5 text-sm text-content-primary">
 								{formatHoursUsed(actual)}
 							</div>
 						</div>
@@ -183,7 +180,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 						label="Total Agent hours"
 						tooltip={totalAgentHoursTooltip}
 					/>
-					<div className="mt-0.5 text-sm font-medium text-content-primary">
+					<div className="mt-0.5 text-sm text-content-primary">
 						{isUnlimited ? (
 							"Unlimited"
 						) : (
@@ -218,7 +215,12 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 				</div>
 			</div>
 			<div className="mt-4 text-sm">
-				<Link href={docs("/ai-coder/agents/licensing-usage")} size="lg">
+				<Link
+					href={docs("/coder-agents/licensing-usage")}
+					size="lg"
+					target="_blank"
+					rel="noreferrer"
+				>
 					View docs
 				</Link>
 			</div>

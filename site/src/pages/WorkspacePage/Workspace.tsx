@@ -1,7 +1,5 @@
 import { BlocksIcon, HistoryIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
@@ -13,6 +11,7 @@ import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -45,7 +44,7 @@ type WorkspaceProps = {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<WorkspaceProps> = ({
+export const Workspace: React.FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
@@ -169,7 +168,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								className="-mx-4 -mt-4 mb-6 md:-mx-8 md:-mt-8"
 							/>
 						)}
-						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
+						<div className="flex flex-col gap-6 max-w-300 m-auto">
 							{workspace.latest_build.status === "deleted" && (
 								<WorkspaceDeletedBanner
 									createWorkspaceLink={createWorkspaceLink}
@@ -190,12 +189,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 
 							{workspace.latest_build.job.error && (
-								<Alert severity="error" prominent>
-									<AlertTitle>Workspace build failed</AlertTitle>
-									<AlertDescription>
-										{workspace.latest_build.job.error}
-									</AlertDescription>
-								</Alert>
+								<WorkspaceBuildFailedAlert build={workspace.latest_build} />
 							)}
 
 							{transitionStats !== undefined && (
@@ -232,7 +226,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 									{(!selectedResource.agents ||
 										selectedResource.agents?.length === 0) && (
-										<div className="flex justify-center items-center w-full h-full">
+										<div className="flex justify-center items-center size-full">
 											<div>
 												<h4 className="text-base font-medium">
 													No agents are currently assigned to this resource.

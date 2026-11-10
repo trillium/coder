@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -40,6 +39,8 @@ import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 const BREADCRUMB_SEGMENT_CLASS = cn(
 	"flex items-center flex-row flex-nowrap gap-2",
 	"max-w-40 whitespace-nowrap cursor-default",
+	"m-0 p-0 border-0 bg-transparent text-inherit rounded-sm",
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 );
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
@@ -61,7 +62,7 @@ type WorkspaceTopbarProps = {
 	handleToggleFavorite: () => void;
 };
 
-export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
+export const WorkspaceTopbar: React.FC<WorkspaceTopbarProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -260,17 +261,22 @@ type OwnerBreadcrumbProps = Readonly<{
 	ownerAvatarUrl: string;
 }>;
 
-const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
+const OwnerBreadcrumb: React.FC<OwnerBreadcrumbProps> = ({
 	ownerName,
 	ownerAvatarUrl,
 }) => {
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span className={BREADCRUMB_SEGMENT_CLASS}>
-					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
+				<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
+					<Avatar
+						size="sm"
+						fallback={ownerName}
+						src={ownerAvatarUrl}
+						aria-hidden
+					/>
 					<span className={BREADCRUMB_TEXT_CLASS}>{ownerName}</span>
-				</span>
+				</button>
 			</HelpPopoverTrigger>
 
 			<HelpPopoverContent align="center">
@@ -286,7 +292,7 @@ type OrganizationBreadcrumbProps = Readonly<{
 	orgIconUrl?: string;
 }>;
 
-const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
+const OrganizationBreadcrumb: React.FC<OrganizationBreadcrumbProps> = ({
 	orgName,
 	orgPageUrl,
 	orgIconUrl,
@@ -294,15 +300,16 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span className={BREADCRUMB_SEGMENT_CLASS}>
+				<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
 					<Avatar
 						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
+						aria-hidden
 					/>
 					<span className={BREADCRUMB_TEXT_CLASS}>{orgName}</span>
-				</span>
+				</button>
 			</HelpPopoverTrigger>
 
 			<HelpPopoverContent align="center">
@@ -343,7 +350,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	templateDisplayName: string;
 }>;
 
-const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
+const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 	workspaceName,
 	templateIconUrl,
 	rootTemplateUrl,
@@ -355,16 +362,17 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		<div className="flex items-center">
 			<HelpPopover>
 				<HelpPopoverTrigger asChild>
-					<span className={BREADCRUMB_SEGMENT_CLASS}>
+					<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
+							aria-hidden
 						/>
 
 						<span className={cn(BREADCRUMB_TEXT_CLASS, "font-medium")}>
 							{workspaceName}
 						</span>
-					</span>
+					</button>
 				</HelpPopoverTrigger>
 
 				<HelpPopoverContent align="center">

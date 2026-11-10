@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -44,7 +43,7 @@ type AgentWarningTooltipProps = {
  * icon with a help tooltip showing the title, detail, and an
  * optional troubleshooting link.
  */
-const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
+const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 	ariaLabel,
 	title,
 	detail,
@@ -52,11 +51,9 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 	variant = "warning",
 }) => {
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
+		<Tooltip interactive>
+			<TooltipTrigger aria-label={ariaLabel}>
 				<TriangleAlertIcon
-					role="status"
-					aria-label={ariaLabel}
 					className={cn(
 						"relative size-3.5",
 						variant === "warning"
@@ -77,7 +74,7 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 								target="_blank"
 								rel="noreferrer"
 								href={troubleshootingURL}
-								className="p-0 mt-2"
+								className="pl-0 mt-1"
 								showExternalIcon={false}
 							>
 								Troubleshoot
@@ -90,7 +87,7 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 	);
 };
 
-const ReadyLifecycle: FC = () => {
+const ReadyLifecycle: React.FC = () => {
 	return (
 		<div
 			role="status"
@@ -101,7 +98,7 @@ const ReadyLifecycle: FC = () => {
 	);
 };
 
-const StartingLifecycle: FC = () => {
+const StartingLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -130,7 +127,7 @@ type DevcontainerStatusProps = {
 	agent?: WorkspaceAgent;
 };
 
-const ShuttingDownLifecycle: FC = () => {
+const ShuttingDownLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -145,7 +142,7 @@ const ShuttingDownLifecycle: FC = () => {
 	);
 };
 
-const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => (
+const ShutdownTimeoutLifecycle: React.FC<AgentStatusProps> = ({ agent }) => (
 	<AgentWarningTooltip
 		ariaLabel="Shutdown script timeout"
 		title={agentScriptMessages.shutdown_timeout.title}
@@ -154,7 +151,7 @@ const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => (
 	/>
 );
 
-const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => (
+const ShutdownErrorLifecycle: React.FC<AgentStatusProps> = ({ agent }) => (
 	<AgentWarningTooltip
 		ariaLabel="Shutdown script failed"
 		title={agentScriptMessages.shutdown_error.title}
@@ -164,7 +161,7 @@ const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => (
 	/>
 );
 
-const OffLifecycle: FC = () => {
+const OffLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -179,7 +176,7 @@ const OffLifecycle: FC = () => {
 	);
 };
 
-const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
+const ConnectedStatus: React.FC<AgentStatusProps> = ({ agent }) => {
 	// This is to support legacy agents that do not support
 	// reporting the lifecycle_state field.
 	if (agent.scripts.length === 0) {
@@ -211,7 +208,7 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return <StartingLifecycle />;
 };
 
-const DisconnectedStatus: FC = () => {
+const DisconnectedStatus: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -226,7 +223,7 @@ const DisconnectedStatus: FC = () => {
 	);
 };
 
-const ConnectingStatus: FC = () => {
+const ConnectingStatus: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -241,7 +238,7 @@ const ConnectingStatus: FC = () => {
 	);
 };
 
-const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => (
+const TimeoutStatus: React.FC<AgentStatusProps> = ({ agent }) => (
 	<AgentWarningTooltip
 		ariaLabel="Timeout"
 		title={agentConnectionMessages.timeout.title}
@@ -250,7 +247,7 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => (
 	/>
 );
 
-export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
+export const AgentStatus: React.FC<AgentStatusProps> = ({ agent }) => {
 	if (agent.status === "connected") {
 		return <ConnectedStatus agent={agent} />;
 	}
@@ -263,7 +260,7 @@ export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return <ConnectingStatus />;
 };
 
-const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
+const SubAgentStatus: React.FC<SubAgentStatusProps> = ({ agent }) => {
 	if (!agent) {
 		return <DisconnectedStatus />;
 	}
@@ -279,7 +276,7 @@ const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 	return <ConnectingStatus />;
 };
 
-const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => (
+const DevcontainerStartError: React.FC<AgentStatusProps> = ({ agent }) => (
 	<AgentWarningTooltip
 		ariaLabel="Start error"
 		title="Error starting the devcontainer agent"
@@ -289,7 +286,7 @@ const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => (
 	/>
 );
 
-export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
+export const DevcontainerStatus: React.FC<DevcontainerStatusProps> = ({
 	devcontainer,
 	parentAgent,
 	agent,

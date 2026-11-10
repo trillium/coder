@@ -12,12 +12,7 @@ import {
 	StarIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useState,
-} from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { API } from "#/api/api";
@@ -60,7 +55,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -92,6 +86,7 @@ type WorkspacesTableProps = {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
@@ -101,10 +96,11 @@ type WorkspacesTableProps = {
 	chatsByWorkspace?: Record<string, string>;
 };
 
-export const WorkspacesTable: FC<WorkspacesTableProps> = ({
+export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
+	onClearFilter,
 	onCheckChange,
 	templates,
 	canCreateTemplate,
@@ -117,6 +113,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
+	const checkableWorkspaces =
+		workspaces?.filter((workspace) => !cantBeChecked(workspace)) ?? [];
 
 	return (
 		<Table>
@@ -133,15 +131,21 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								)}
 							>
 								<Checkbox
-									disabled={isEmpty}
+									disabled={
+										checkableWorkspaces.length === 0 &&
+										checkedWorkspaces.length === 0
+									}
 									checked={
-										!isEmpty && checkedWorkspaces.length === workspaces.length
+										checkedWorkspaces.length > 0 &&
+										checkableWorkspaces.every((workspace) =>
+											checkedWorkspaces.some((w) => w.id === workspace.id),
+										)
 									}
 									onCheckedChange={(checked) => {
 										if (!checked) {
 											onCheckChange([]);
 										} else {
-											onCheckChange(workspaces);
+											onCheckChange(checkableWorkspaces);
 										}
 									}}
 									aria-label="Select all workspaces"
@@ -162,7 +166,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody className="[&_td]:h-[72px]">
+			<TableBody className="[&_td]:h-18">
 				{isLoading && <TableLoader />}
 				{isEmpty && (
 					<TableRow>
@@ -170,6 +174,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<WorkspacesEmpty
 								templates={templates}
 								isUsingFilter={isUsingFilter}
+								onClearFilter={onClearFilter}
 								canCreateTemplate={canCreateTemplate}
 								canCreateWorkspace={canCreateWorkspace}
 							/>
@@ -181,14 +186,16 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
+					const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 
 					return (
 						<WorkspacesRow
 							workspace={workspace}
+							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
 						>
-							<TableCell>
+							<TableHead scope="row">
 								<div className="flex items-center gap-5">
 									<Checkbox
 										data-testid={`checkbox-${workspace.id}`}
@@ -213,9 +220,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<div className="flex items-center gap-1">
-												<span className="whitespace-nowrap">
+												<Link
+													to={workspacePageLink}
+													className="whitespace-nowrap select-none"
+												>
 													{workspace.name}
-												</span>
+												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
@@ -223,7 +233,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="xs" variant="info" hover asChild>
+													<Badge size="sm" variant="info" hover asChild>
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
 															onClick={(e) => e.stopPropagation()}
@@ -259,12 +269,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										}
 									/>
 								</div>
-							</TableCell>
+							</TableHead>
 
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+										<span className="truncate block max-w-52">
 											{getDisplayWorkspaceTemplateName(workspace)}
 										</span>
 									}
@@ -306,18 +316,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 type WorkspacesRowProps = {
 	workspace: Workspace;
-	children?: ReactNode;
+	workspacePageLink: string;
+	children?: React.ReactNode;
 	checked: boolean;
 };
 
-const WorkspacesRow: FC<WorkspacesRowProps> = ({
+const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	workspace,
+	workspacePageLink,
 	children,
 	checked,
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
@@ -350,7 +361,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
@@ -389,7 +400,7 @@ type WorkspaceActionsCellProps = {
 	onActionError: (error: unknown) => void;
 };
 
-const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
+const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 	workspace,
 	onActionSuccess,
 	onActionError,
@@ -660,35 +671,33 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	);
 };
 
-type PrimaryActionProps = PropsWithChildren<{
+type PrimaryActionProps = React.PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
 	onClick: () => void;
 }>;
 
-const PrimaryAction: FC<PrimaryActionProps> = ({
+const PrimaryAction: React.FC<PrimaryActionProps> = ({
 	onClick,
 	isLoading,
 	label,
 	children,
 }) => {
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={onClick}
-						disabled={isLoading}
-					>
-						<Spinner loading={isLoading}>{children}</Spinner>
-						<span className="sr-only">{label}</span>
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="outline"
+					size="icon-lg"
+					onClick={onClick}
+					disabled={isLoading}
+				>
+					<Spinner loading={isLoading}>{children}</Spinner>
+					<span className="sr-only">{label}</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -699,7 +708,7 @@ type WorkspaceAppsProps = {
 	workspace: Workspace;
 };
 
-const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+const WorkspaceApps: React.FC<WorkspaceAppsProps> = ({ workspace }) => {
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The
@@ -735,7 +744,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		)
 		.slice(0, remainingSlots);
 
-	const buttons: ReactNode[] = [];
+	const buttons: React.ReactNode[] = [];
 
 	if (builtinApps.has("vscode")) {
 		buttons.push(
@@ -806,7 +815,7 @@ type WorkspaceAppStatusLinksProps = {
 	workspace: Workspace;
 };
 
-const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
+const WorkspaceAppStatusLinks: React.FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
 }) => {
 	const status = workspace.latest_app_status;
@@ -843,19 +852,24 @@ type IconAppLinkProps = {
 	agent: WorkspaceAgent;
 };
 
-const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 	const link = useAppLink(app, {
 		workspace,
 		agent,
 	});
 
-	// A malformed external app URL can't be opened. Render a non-navigating
-	// icon with an explanatory tooltip instead of a broken link.
-	if (!isAppUrlValid(app)) {
+	// Render a non-navigating icon with an explanatory tooltip instead of a
+	// broken link.
+	const hasInvalidUrl = !isAppUrlValid(app);
+	if (hasInvalidUrl || link.isBlocked) {
 		return (
 			<BaseIconLink
 				key={app.id}
-				label={`${link.label} has an invalid URL`}
+				label={
+					hasInvalidUrl
+						? `${link.label} has an invalid URL`
+						: `${link.label} has an untrusted URL`
+				}
 				onClick={() => {}}
 			>
 				{app.icon ? (
@@ -894,7 +908,7 @@ type VSCodeIconLinkProps = {
 // Generates an API key on click instead of on page load, since
 // key generation is a POST request that should only fire when
 // the user actually wants to open VS Code.
-const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
+const VSCodeIconLink: React.FC<VSCodeIconLinkProps> = ({
 	variant,
 	label,
 	owner,
@@ -937,7 +951,7 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 	);
 };
 
-type BaseIconLinkCommonProps = PropsWithChildren<{
+type BaseIconLinkCommonProps = React.PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
 }>;
@@ -955,7 +969,7 @@ type BaseIconLinkButtonProps = BaseIconLinkCommonProps & {
 
 type BaseIconLinkProps = BaseIconLinkAnchorProps | BaseIconLinkButtonProps;
 
-const BaseIconLink: FC<BaseIconLinkProps> = ({
+const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 	isLoading,
 	label,
 	children,
@@ -964,47 +978,40 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 	const loadingClass = isLoading ? "animate-pulse" : "";
 
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					{rest.href !== undefined ? (
-						<Button
-							variant="outline"
-							size="icon-lg"
-							asChild
-							disabled={isLoading}
-						>
-							<a
-								target={rest.target}
-								className={loadingClass}
-								href={rest.href}
-								onClick={(e) => {
-									e.stopPropagation();
-									rest.onClick?.(e);
-								}}
-							>
-								{children}
-								<span className="sr-only">{label}</span>
-							</a>
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="icon-lg"
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{rest.href !== undefined ? (
+					<Button variant="outline" size="icon-lg" asChild disabled={isLoading}>
+						<a
+							target={rest.target}
 							className={loadingClass}
+							href={rest.href}
 							onClick={(e) => {
 								e.stopPropagation();
-								rest.onClick(e);
+								rest.onClick?.(e);
 							}}
-							disabled={isLoading}
 						>
 							{children}
 							<span className="sr-only">{label}</span>
-						</Button>
-					)}
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+						</a>
+					</Button>
+				) : (
+					<Button
+						variant="outline"
+						size="icon-lg"
+						className={loadingClass}
+						onClick={(e) => {
+							e.stopPropagation();
+							rest.onClick(e);
+						}}
+						disabled={isLoading}
+					>
+						{children}
+						<span className="sr-only">{label}</span>
+					</Button>
+				)}
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };

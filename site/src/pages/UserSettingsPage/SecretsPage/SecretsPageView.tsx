@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	ImportUserSecretsRequest,
@@ -46,7 +46,7 @@ type SecretDialogState =
 	| { mode: "add"; open: boolean }
 	| { mode: "edit"; open: boolean; secret: UserSecret };
 
-export const SecretsPageView: FC<SecretsPageViewProps> = ({
+export const SecretsPageView: React.FC<SecretsPageViewProps> = ({
 	secrets = [],
 	filePathEnabled,
 	isLoading,
@@ -101,7 +101,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					{filePathEnabled
 						? "Secrets with an environment variable or file path are injected into workspaces you own when they start. Each environment variable and file path must be unique."
 						: "File path delivery is disabled. Environment variables still work; saved paths remain blocked until delivery is enabled."}{" "}
-					<SettingsHeaderDocsLink href={docs("/user-guides/user-secrets")} />
+					<SettingsHeaderDocsLink href={docs("/workspaces/user-secrets")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -8,13 +7,15 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type WorkspacesEmptyProps = {
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	canCreateWorkspace: boolean;
 };
 
-export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
+	onClearFilter,
 	templates,
 	canCreateTemplate,
 	canCreateWorkspace,
@@ -28,7 +29,16 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		"A workspace is your personal, customizable development environment.";
 
 	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
+		return (
+			<EmptyState
+				message="No workspaces match your search."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Clear all
+					</Button>
+				}
+			/>
+		);
 	}
 
 	if (!canCreateWorkspace) {
@@ -69,7 +79,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 			description={`${defaultMessage} Select one template below to start.`}
 			cta={
 				<div>
-					<div className="flex flex-wrap gap-4 mb-6 justify-center max-w-[800px]">
+					<div className="flex flex-wrap gap-4 mb-6 justify-center max-w-200">
 						{featuredTemplates?.map((t) => (
 							<Link
 								key={t.id}
@@ -92,7 +102,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 										// descriptions, when those URLS have no hyphens or other
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
-										className="text-sm text-gray-400 leading-[1.4] m-0 pt-1 wrap-break-word"
+										className="text-sm text-content-secondary leading-[1.4] m-0 pt-1 wrap-break-word"
 									>
 										{t.description}
 									</p>

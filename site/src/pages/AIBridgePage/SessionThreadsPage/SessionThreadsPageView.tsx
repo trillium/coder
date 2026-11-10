@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useState } from "react";
+import { useState } from "react";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -11,7 +11,6 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
@@ -22,24 +21,30 @@ import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
 import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 
-const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
-	<TooltipProvider>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<div className="shrink-0 flex items-center">{children}</div>
-			</TooltipTrigger>
-			<TooltipContent
-				side="top"
-				align="start"
-				className="max-w-xs flex flex-col gap-1 text-sm font-normal p-3"
+const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<button
+				type="button"
+				aria-label="About sessions"
+				className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
-				<p className="m-0 leading-snug">
-					A session is a set of threads or interceptions logically grouped by a
-					session key issued by the client.
-				</p>
-			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
+				{children}
+			</button>
+		</TooltipTrigger>
+		<TooltipContent
+			side="top"
+			align="start"
+			className="max-w-xs flex flex-col gap-1 text-sm font-normal p-3"
+		>
+			<p className="m-0 leading-snug">
+				A session is a set of threads or interceptions logically grouped by a
+				session key issued by the client.
+			</p>
+		</TooltipContent>
+	</Tooltip>
 );
 
 type SessionThreadsPageViewProps = {
@@ -54,7 +59,7 @@ type SessionThreadsPageViewProps = {
 	onBackClicked: () => void;
 };
 
-export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
+export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	session,
 	threads,
 	loading,
@@ -109,19 +114,16 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
-					asChild
 					variant="outline"
 					size="lg"
 					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
-					<span>
-						<ArrowLeftIcon />
-						Back
-					</span>
+					<ArrowLeftIcon />
+					Back
 				</Button>
 				{session && (
-					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-md">
 						<SearchField
 							value={searchQuery}
 							onChange={setSearchQuery}
@@ -156,7 +158,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 text-content-secondary size-icon-xs" />
+							<InfoIcon className="text-content-secondary size-icon-xs" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}
@@ -172,6 +174,14 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							providers={session.providers}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}
+							cacheReadTokens={
+								session.token_usage_summary.cache_read_input_tokens
+							}
+							cacheWriteTokens={
+								session.token_usage_summary.cache_write_input_tokens
+							}
+							costMicros={session.token_usage_summary.cost_micros}
+							hasUnpricedUsage={session.token_usage_summary.has_unpriced_usage}
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}

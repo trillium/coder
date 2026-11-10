@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -23,6 +23,10 @@ type UserOrGroupAutocompleteProps = {
 	organizationId: string;
 	exclude: ExcludableOption[];
 	className?: string;
+	id?: string;
+	clearable?: boolean;
+	triggerAriaLabelledBy?: string;
+	triggerRef?: React.Ref<HTMLButtonElement>;
 };
 
 const normalizeMember = (
@@ -32,12 +36,18 @@ const normalizeMember = (
 	id: member.user_id,
 });
 
-export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
+export const UserOrGroupAutocomplete: React.FC<
+	UserOrGroupAutocompleteProps
+> = ({
 	value,
 	onChange,
 	organizationId,
 	exclude,
 	className = "w-80",
+	id,
+	clearable,
+	triggerAriaLabelledBy,
+	triggerRef,
 }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
@@ -135,7 +145,10 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
 			className={className}
-			id="workspace-user-or-group-autocomplete"
+			id={id ?? "workspace-user-or-group-autocomplete"}
+			clearable={clearable}
+			triggerAriaLabelledBy={triggerAriaLabelledBy}
+			triggerRef={triggerRef}
 		/>
 	);
 };

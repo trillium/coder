@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatDebugRetentionDays } from "#/api/typesGenerated";
@@ -41,7 +40,7 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
+export const DebugRetentionSettings: React.FC<DebugRetentionSettingsProps> = ({
 	debugRetentionDaysData,
 	isDebugRetentionDaysLoading,
 	isDebugRetentionDaysLoadError,
@@ -91,7 +90,7 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Chat debug data retention"
 			description="Chat debug runs and debug steps older than this are automatically deleted. This does not control chat message retention."
-			docsHref={docs("/ai-coder/agents/platform-controls/chat-debug-retention")}
+			docsHref={docs("/coder-agents/platform-controls/chat-debug-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable chat debug data retention"

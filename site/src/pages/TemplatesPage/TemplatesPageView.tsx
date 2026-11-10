@@ -1,6 +1,4 @@
-import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type {
@@ -38,7 +36,6 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { createDayString } from "#/utils/createDayString";
@@ -54,7 +51,7 @@ import {
 	TemplatesFilter,
 } from "./TemplatesFilter";
 
-const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
+const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 	templates,
 }) => {
 	const singleTemplate = templates.length === 1 ? templates[0] : undefined;
@@ -90,20 +87,19 @@ const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						"/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
 				>
 					How to upgrade
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
 		</Alert>
 	);
 };
 
-const TemplateHelpPopover: FC = () => {
+const TemplateHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip>
 			<TooltipTitle>What is a template?</TooltipTitle>
@@ -111,7 +107,12 @@ const TemplateHelpPopover: FC = () => {
 				With templates you can create a common configuration for your workspaces
 				using Terraform.
 				<br />
-				<Link size="sm" href={docs("/admin/templates")}>
+				<Link
+					size="sm"
+					href={docs("/templates")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Manage templates
 				</Link>
 			</TooltipMessage>
@@ -125,7 +126,7 @@ type TemplateActionsProps = {
 	templatePageLink: string;
 };
 
-const TemplateActions: FC<TemplateActionsProps> = ({
+const TemplateActions: React.FC<TemplateActionsProps> = ({
 	template,
 	workspacePermissions,
 	templatePageLink,
@@ -170,7 +171,7 @@ type TemplateRowProps = {
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 };
 
-const TemplateRow: FC<TemplateRowProps> = ({
+const TemplateRow: React.FC<TemplateRowProps> = ({
 	canUpdateTemplate,
 	showOrganizations,
 	template,
@@ -182,32 +183,38 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const organizationLabel =
+		template.organization_display_name || template.organization_name;
 	const developerCount = formatTemplateActiveDevelopersLabel(
 		template.active_user_count,
 	);
-
-	const clickableRow = useClickableTableRow({
-		onClick: () => navigate(templatePageLink),
-	});
 
 	return (
 		<TableRow
 			key={template.id}
 			data-testid={`template-${template.id}`}
-			{...clickableRow}
-			className={cn("group", clickableRow.className)}
+			hover
+			onClick={() => navigate(templatePageLink)}
+			className="group"
 		>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={
-						<span className="flex flex-row items-center gap-2">
-							{template.display_name || template.name}
-							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
+						<span className="flex items-center gap-2">
+							<Link
+								asChild
+								showExternalIcon={false}
+								className="pl-0 font-semibold text-inherit visited:text-inherit"
+							>
+								<RouterLink
+									to={templatePageLink}
+									onClick={(e) => e.stopPropagation()}
 								>
+									{template.display_name || template.name}
+								</RouterLink>
+							</Link>
+							{canUpdateTemplate && template.use_classic_parameter_flow && (
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>
@@ -224,14 +231,20 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						/>
 					}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
-						title={template.organization_display_name}
+						title={organizationLabel}
 						subtitle={`Used by ${developerCount}`}
-						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={template.organization_icon}
+								fallback={organizationLabel}
+							/>
+						}
 					/>
 				) : (
 					developerCount
@@ -269,7 +282,7 @@ type TemplatesPageViewProps = {
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 };
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	error,
 	filterState,
 	showOrganizations,
@@ -317,7 +330,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
+					<div className="flex gap-2 items-center">
 						Templates
 						<TemplateHelpPopover />
 					</div>
@@ -378,7 +391,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>

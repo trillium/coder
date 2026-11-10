@@ -6,7 +6,6 @@ import {
 	SquareArrowOutUpRightIcon,
 	TerminalIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
@@ -45,20 +44,26 @@ const CodernautsSVG = () => (
 	</svg>
 );
 
+// Radix moves focus from an item to the menu on pointerleave, which blurs the
+// item and closes its tooltip before the pointer can reach it (WCAG 1.4.13).
+const keepFocusOnPointerLeave = (event: React.PointerEvent) => {
+	event.preventDefault();
+};
+
 type UserDropdownContentProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	/** Extra content for the profile area, rendered below the profile link
 	 * (e.g. AI spend). The consumer supplies its own separator if needed. */
-	profileExtra?: ReactNode;
+	profileExtra?: React.ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	/** Premium trial entry, rendered above the build info. */
-	trialCta?: ReactNode;
+	trialCta?: React.ReactNode;
 };
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 	user,
 	buildInfo,
 	profileExtra,
@@ -128,27 +133,35 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			)}
 			{trialCta}
 			<DropdownMenuSeparator />
-			<Tooltip disableHoverableContent>
+			<Tooltip>
 				<TooltipTrigger asChild>
-					<DropdownMenuItem className="text-xs" asChild>
+					<DropdownMenuItem
+						className="text-xs"
+						onPointerLeave={keepFocusOnPointerLeave}
+						asChild
+					>
 						<a
 							href={buildInfo?.external_url}
 							className="flex items-center gap-2"
 							target="_blank"
 							rel="noreferrer"
 						>
-							<span className="flex-1">{buildInfo?.version}</span>
+							<span className="flex-1">
+								{buildInfo?.version}
+								<span className="sr-only"> (opens in new tab)</span>
+							</span>
 							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
 						</a>
 					</DropdownMenuItem>
 				</TooltipTrigger>
-				<TooltipContent side="bottom">Browse the source code</TooltipContent>
+				<TooltipContent side="left">Browse the source code</TooltipContent>
 			</Tooltip>
 			{buildInfo?.deployment_id && (
-				<Tooltip disableHoverableContent>
+				<Tooltip>
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
+							onPointerLeave={keepFocusOnPointerLeave}
 							onSelect={(e) => {
 								e.preventDefault();
 								copyToClipboard(buildInfo.deployment_id);
@@ -162,7 +175,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							)}
 						</DropdownMenuItem>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">
+					<TooltipContent side="left">
 						{showCopiedSuccess ? "Copied!" : "Copy deployment ID"}
 					</TooltipContent>
 				</Tooltip>

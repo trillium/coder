@@ -70,7 +70,18 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 							ResultDelta: delta,
 						})
 					},
-					OnAdviceReset: func() {
+					OnReasoningDelta: func(delta string) {
+						if delta == "" {
+							return
+						}
+						publish(codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+							Type:           codersdk.ChatMessagePartTypeToolResult,
+							ToolCallID:     call.ID,
+							ToolName:       ToolName,
+							ReasoningDelta: delta,
+						})
+					},
+					OnLiveOutputReset: func() {
 						publish(codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
 							Type:        codersdk.ChatMessagePartTypeToolResult,
 							ToolCallID:  call.ID,
@@ -81,7 +92,8 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 				}
 			}
 
-			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot(), runOpts)
+			snapshot := markPendingCall(opts.GetConversationSnapshot(), call.ID)
+			result, err := opts.Runtime.RunAdvisor(ctx, question, snapshot, runOpts)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

@@ -1,10 +1,9 @@
-import type { FC } from "react";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 
-export const WorkspaceHelpPopover: FC = () => {
+export const WorkspaceHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip>
 			<TooltipTitle>What is a workspace?</TooltipTitle>
@@ -12,11 +11,21 @@ export const WorkspaceHelpPopover: FC = () => {
 				A workspace is your development environment in the cloud. It includes
 				the infrastructure and tools you need to work on your project.
 				<br />
-				<Link size="sm" href={docs("/user-guides")}>
+				<Link
+					size="sm"
+					href={docs("/workspaces")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Create Workspaces
 				</Link>
 				<br />
-				<Link size="sm" href={docs("/user-guides/workspace-access")}>
+				<Link
+					size="sm"
+					href={docs("/workspaces/workspace-access")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Connect with SSH
 				</Link>
 			</TooltipMessage>

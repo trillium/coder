@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { richParameters } from "#/api/queries/templates";
 import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
@@ -25,7 +25,7 @@ type BuildParametersPopoverProps = {
 	label: string;
 };
 
-export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
+export const BuildParametersPopover: React.FC<BuildParametersPopoverProps> = ({
 	workspace,
 	disabled,
 	label,
@@ -53,7 +53,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[304px]"
+				className="bg-surface-secondary border-surface-quaternary w-76"
 			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
@@ -69,10 +69,9 @@ type BuildParametersPopoverContentProps = {
 	ephemeralParameters: TemplateVersionParameter[] | undefined;
 };
 
-const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
-	workspace,
-	ephemeralParameters,
-}) => {
+const BuildParametersPopoverContent: React.FC<
+	BuildParametersPopoverContentProps
+> = ({ workspace, ephemeralParameters }) => {
 	if (!ephemeralParameters) {
 		return <Loader />;
 	}
@@ -87,7 +86,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink
 						href={docs(
-							"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+							"/templates/extending-templates/parameters#ephemeral-parameters",
 						)}
 					>
 						Read the docs

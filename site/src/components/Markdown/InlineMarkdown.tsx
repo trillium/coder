@@ -1,5 +1,5 @@
 import isEqual from "lodash/isEqual";
-import { type FC, memo } from "react";
+import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Link } from "#/components/Link/Link";
 
@@ -29,7 +29,7 @@ type InlineMarkdownProps = {
  * content. Separated from the full Markdown component so that importing it
  * does not pull in the heavy PrismJS syntax-highlighting bundle.
  */
-export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
+export const InlineMarkdown: React.FC<InlineMarkdownProps> = (props) => {
 	const { children, allowedElements = [], className, components = {} } = props;
 
 	return (
@@ -56,7 +56,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 							href={href}
 							target={isExternal ? "_blank" : undefined}
 							showExternalIcon={isExternal}
-							className="text-[length:inherit] p-0"
+							className="text-[length:inherit] pl-0"
 						>
 							{children}
 						</Link>

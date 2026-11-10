@@ -9,8 +9,10 @@ import {
 	XIcon,
 } from "lucide-react";
 import {
-	type FC,
-	type ReactNode,
+	Children,
+	createContext,
+	isValidElement,
+	useContext,
 	useEffect,
 	useEffectEvent,
 	useId,
@@ -20,23 +22,112 @@ import {
 import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
 import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
+import { getEffectiveTabId } from "./getEffectiveTabId";
 
-/** A single tab definition for the sidebar panel. */
-export type SidebarTab = {
+type SidebarTabProps = {
 	id: string;
 	/** Label shown in the tab button. */
 	label: string;
 	/** Optional icon shown before the label. */
-	icon?: ReactNode;
-	badge?: ReactNode;
-	/** The content to render when this tab is active. */
-	content: ReactNode;
-	onClose?: () => void;
+	icon?: React.ReactNode;
+	badge?: React.ReactNode;
+	/**
+	 * Called when the user closes the tab. `nextActiveTabId` is the
+	 * neighbouring tab to select when the closed tab was the active one.
+	 */
+	onClose?: (nextActiveTabId: string | undefined) => void;
+	/** The panel. It stays mounted while the tab is inactive. */
+	children: React.ReactNode;
+};
+
+type TabPanelState = {
+	isActive: boolean;
+	/** Whether the right panel is open, regardless of the active tab. */
+	isPanelOpen: boolean;
+	isExpanded: boolean;
+};
+
+/**
+ * Outside a `SidebarTabView` a panel renders as the only, visible tab, which
+ * keeps panels usable on their own in tests and stories.
+ */
+export const TabPanelStateContext = createContext<TabPanelState>({
+	isActive: true,
+	isPanelOpen: true,
+	isExpanded: false,
+});
+
+export const useTabPanelState = () => {
+	return useContext(TabPanelStateContext);
+};
+
+type SidebarTabViewContextValue = {
+	effectiveTabId: string | null;
+	tabIdPrefix: string;
+	isPanelOpen: boolean;
+	isExpanded: boolean;
+};
+
+const SidebarTabViewContext = createContext<SidebarTabViewContextValue | null>(
+	null,
+);
+
+const useParentTabView = () => {
+	const view = useContext(SidebarTabViewContext);
+
+	if (!view) {
+		throw new Error("SidebarTab must be rendered inside a SidebarTabView.");
+	}
+
+	return view;
+};
+
+/**
+ * One tab of a `SidebarTabView`. It must be a direct child of the view,
+ * which reads its props to build the tab bar.
+ */
+export const SidebarTab: React.FC<SidebarTabProps> = ({ id, children }) => {
+	const view = useParentTabView();
+
+	const isActive = view.effectiveTabId === id;
+
+	return (
+		<div
+			role="tabpanel"
+			aria-labelledby={`${view.tabIdPrefix}-tab-${id}`}
+			className={cn(
+				"min-h-0 flex-1",
+				// Keep inactive panels in the tree but invisible: a canvas xterm
+				// preserves painted pixels while hidden, so switching back is instant.
+				!isActive && "invisible absolute inset-0",
+			)}
+			inert={!isActive}
+		>
+			<TabPanelStateContext
+				value={{
+					isActive,
+					isPanelOpen: view.isPanelOpen,
+					isExpanded: view.isExpanded,
+				}}
+			>
+				{children}
+			</TabPanelStateContext>
+		</div>
+	);
 };
 
 type SidebarTabViewProps = {
-	/** The tabs to display. */
-	tabs: SidebarTab[];
+	/** `SidebarTab` elements, in display order. */
+	children: React.ReactNode;
+	/**
+	 * The stored tab selection. When that tab is not rendered, the first
+	 * tab is shown instead.
+	 */
+	activeTabId: string | null;
+	/** Called when the user switches tabs. */
+	onActiveTabChange: (tabId: string) => void;
+	/** Whether the right panel is open. Panels read it through `useTabPanelState`. */
+	isPanelOpen: boolean;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
 	/** Callback to toggle expanded state. */
@@ -46,16 +137,10 @@ type SidebarTabViewProps = {
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
 	/**
-	 * The resolved tab ID to render as active (computed by the parent
-	 * with `getEffectiveTabId`). Keeping a single source of truth in the
-	 * parent prevents this component's highlight from drifting from
-	 * parent-side gating like `TerminalPanel.isVisible` or
-	 * `DebugPanel.isVisible`.
+	 * Renders the add-tab control. `closeTab` closes a tab the same way its
+	 * close button does, so a menu toggle selects the same neighbour.
 	 */
-	effectiveTabId: string | null;
-	/** Called when the user switches tabs. */
-	onActiveTabChange: (tabId: string) => void;
-	addTabControl?: ReactNode;
+	addTabControl?: (closeTab: (tabId: string) => void) => React.ReactNode;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -121,7 +206,7 @@ type ScrollChevronButtonProps = {
 	ariaLabel: string;
 };
 
-const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
+const ScrollChevronButton: React.FC<ScrollChevronButtonProps> = ({
 	direction,
 	onClick,
 	ariaLabel,
@@ -146,19 +231,22 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	);
 };
 
-export const SidebarTabView: FC<SidebarTabViewProps> = ({
-	tabs,
+export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
+	children,
+	activeTabId,
+	onActiveTabChange,
+	isPanelOpen,
 	isExpanded,
 	onToggleExpanded,
 	chatTitle,
 	onClose,
-	effectiveTabId,
-	onActiveTabChange,
 	addTabControl,
 }) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+
 	const tabIdPrefix = useId();
+
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -167,17 +255,41 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
 
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
+	const tabs = Children.toArray(children).map((child) => {
+		if (!isValidElement<SidebarTabProps>(child) || child.type !== SidebarTab) {
+			throw new Error("SidebarTabView children must be SidebarTab elements.");
+		}
+
+		return child.props;
+	});
+
+	const tabIds = tabs.map((tab) => tab.id);
+
+	const effectiveTabId = getEffectiveTabId(tabIds, activeTabId);
+
+	const closeTab = (tabId: string) => {
+		const tab = tabs.find((candidate) => candidate.id === tabId);
+		if (!tab?.onClose) {
+			return;
+		}
+
+		const remainingTabIds = tabIds.filter((id) => id !== tabId);
+
+		const closedTabIndex = tabIds.indexOf(tabId);
+		const nextActiveTabId =
+			effectiveTabId === tabId
+				? remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)]
+				: undefined;
+
+		tab.onClose(nextActiveTabId);
+	};
 
 	if (tabs.length === 0) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 				>
 					{onClose && (
 						<Button
@@ -197,7 +309,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</span>
 						)}
 					</div>
-					{addTabControl}
+					{addTabControl?.(closeTab)}
 					<Button
 						variant="subtle"
 						size="icon"
@@ -219,7 +331,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 			>
 				{onClose && (
 					<Button
@@ -253,12 +365,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
+						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
-							const onClose = tab.onClose;
-							const isCloseable = onClose !== undefined;
+							const isCloseable = tab.onClose !== undefined;
 							const tabButton = (
 								<Button
 									id={`${tabIdPrefix}-tab-${tab.id}`}
@@ -272,7 +383,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
-										isCloseable && "rounded-r-none border-r-0 pr-2.5",
+										isCloseable &&
+											"rounded-r-none border-r-0 pr-2.5 focus-visible:ring-inset",
 									)}
 								>
 									{tab.icon}
@@ -306,13 +418,14 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										size="icon"
 										onClick={(event) => {
 											event.stopPropagation();
-											onClose();
+											closeTab(tab.id);
 										}}
 										aria-label={`Close ${tab.label} tab`}
 										className={cn(
 											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 											isActive &&
 												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+											"focus-visible:ring-inset",
 										)}
 									>
 										<XIcon />
@@ -320,7 +433,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								</div>
 							);
 						})}
-						{addTabControl}
+						{addTabControl?.(closeTab)}
 					</div>
 					{canScrollRight && (
 						<ScrollChevronButton
@@ -348,25 +461,16 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				</Button>
 			</div>
 			<div className="relative flex min-h-0 flex-1 flex-col">
-				{allPanels.map((panel) => {
-					const isActive = effectiveTabId === panel.id;
-					return (
-						<div
-							key={panel.id}
-							role="tabpanel"
-							aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
-							className={cn(
-								"min-h-0 flex-1",
-								// Keep inactive panels in the tree but invisible: a canvas xterm
-								// preserves painted pixels while hidden, so switching back is instant.
-								!isActive && "invisible absolute inset-0",
-							)}
-							inert={!isActive}
-						>
-							{panel.content}
-						</div>
-					);
-				})}
+				<SidebarTabViewContext
+					value={{
+						effectiveTabId,
+						tabIdPrefix,
+						isPanelOpen,
+						isExpanded,
+					}}
+				>
+					{children}
+				</SidebarTabViewContext>
 			</div>
 		</div>
 	);

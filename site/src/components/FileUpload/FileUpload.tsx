@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
-import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import { useRef } from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { Spinner } from "../Spinner/Spinner";
@@ -13,11 +13,11 @@ type FileUploadProps = {
 	file?: File;
 	removeLabel: string;
 	title: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	extensions?: string[];
 };
 
-export const FileUpload: FC<FileUploadProps> = ({
+export const FileUpload: React.FC<FileUploadProps> = ({
 	isUploading,
 	onUpload,
 	onUnsupportedFile,
@@ -36,9 +36,9 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 	if (!isUploading && file) {
 		return (
-			<div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border bg-surface-primary p-4">
-				<div className="flex flex-row items-center gap-4">
-					<FolderIcon className="size-icon-sm" />
+			<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-primary p-4">
+				<div className="flex items-center gap-4">
+					<FolderIcon className="size-icon-sm shrink-0" />
 					<span>{file.name}</span>
 				</div>
 
@@ -77,7 +77,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 					<div className="flex flex-col items-center gap-1">
 						<span className="text-base leading-none">{title}</span>
-						<span className="mt-1 max-w-[400px] text-center text-sm leading-6 text-content-secondary">
+						<span className="mt-1 max-w-100 text-center text-sm leading-6 text-content-secondary">
 							{description}
 						</span>
 					</div>
@@ -107,14 +107,14 @@ const useFileDrop = (
 	extensions?: string[],
 	onUnsupportedFile?: (file: File) => void,
 ): {
-	onDragOver: (e: DragEvent<HTMLDivElement>) => void;
-	onDrop: (e: DragEvent<HTMLDivElement>) => void;
+	onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+	onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 } => {
-	const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+	const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
 	};
 
-	const onDrop = (e: DragEvent<HTMLDivElement>) => {
+	const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
 		const file = e.dataTransfer.files[0] as File | undefined;
 

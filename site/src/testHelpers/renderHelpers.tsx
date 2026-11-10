@@ -3,7 +3,6 @@ import {
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
@@ -11,7 +10,10 @@ import {
 	RouterProvider,
 } from "react-router";
 import { AppProviders } from "#/App";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import {
+	TOOLTIP_DELAY_DURATION,
+	TooltipProvider,
+} from "#/components/Tooltip/Tooltip";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import type { ProxyProvider } from "#/contexts/ProxyContext";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -50,10 +52,11 @@ export const renderWithRouter = (
 			</AppProviders>,
 		),
 		router,
+		queryClient,
 	};
 };
 
-export const render = (element: ReactNode) => {
+export const render = (element: React.ReactNode) => {
 	return renderWithRouter(
 		createMemoryRouter(
 			[
@@ -87,7 +90,7 @@ export type RenderWithAuthOptions = {
 };
 
 export function renderWithAuth(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -116,7 +119,7 @@ export function renderWithAuth(
 }
 
 export function renderWithTemplateSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -153,7 +156,7 @@ export function renderWithTemplateSettingsLayout(
 }
 
 export function renderWithWorkspaceSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -190,7 +193,7 @@ export function renderWithWorkspaceSettingsLayout(
 }
 
 export function renderWithOrganizationSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -241,7 +244,9 @@ export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<TooltipProvider delayDuration={100}>{children}</TooltipProvider>
+				<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+					{children}
+				</TooltipProvider>
 			</ThemeOverride>
 		),
 	});

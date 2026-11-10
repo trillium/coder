@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -42,7 +41,9 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
+export const RetentionPeriodSettings: React.FC<
+	RetentionPeriodSettingsProps
+> = ({
 	retentionDaysData,
 	isRetentionDaysLoading,
 	isRetentionDaysLoadError,
@@ -85,7 +86,7 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Conversation retention period"
 			description="Archived conversations and orphaned files older than this are automatically deleted."
-			docsHref={docs("/ai-coder/agents/platform-controls/chat-retention")}
+			docsHref={docs("/coder-agents/platform-controls/chat-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable conversation retention"

@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import {
 	PaginationContainer,
@@ -17,7 +16,6 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
@@ -33,27 +31,33 @@ type ListSessionsPageViewProps = {
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
 	sessionsQuery: PaginationResult;
-	filterProps: ComponentProps<typeof ListSessionsFilter>;
+	filterProps: React.ComponentProps<typeof ListSessionsFilter>;
 	onSessionRowClick?: (sessionId: string) => void;
 };
 
-const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
-	<TooltipProvider>
-		<Tooltip>
-			<TooltipTrigger asChild>{children}</TooltipTrigger>
-			<TooltipContent
-				side="top"
-				align="end"
-				className="max-w-xs text-sm font-normal"
+const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<button
+				type="button"
+				aria-label="About threads"
+				className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
-				A thread is a multi-part interaction between human and agent involving
-				an initial human prompt and a subsequent agentic loop.
-			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
+				{children}
+			</button>
+		</TooltipTrigger>
+		<TooltipContent
+			side="top"
+			align="end"
+			className="max-w-xs text-sm font-normal"
+		>
+			A thread is a multi-part interaction between human and agent involving an
+			initial human prompt and a subsequent agentic loop.
+		</TooltipContent>
+	</Tooltip>
 );
 
-export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
+export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
 	isAISessionsEntitled,
@@ -82,7 +86,10 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 		<>
 			<ListSessionsFilter {...filterProps} />
 
-			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
+			<PaginationContainer
+				query={sessionsQuery}
+				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
+			>
 				<Table className="text-sm font-normal">
 					<TableHeader>
 						<TableRow>
@@ -91,15 +98,40 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="text-nowrap">Network Requests</TableHead>
-							<TableHead className="flex items-center flex-nowrap gap-1">
-								Threads
-								<ThreadTooltip>
-									<InfoIcon className="size-icon-xs" />
-								</ThreadTooltip>
+							<TableHead className="text-nowrap">Network</TableHead>
+							<TableHead>
+								<div className="flex items-center flex-nowrap gap-1">
+									Threads
+									<ThreadTooltip>
+										<InfoIcon className="size-icon-xs" />
+									</ThreadTooltip>
+								</div>
 							</TableHead>
-							<TableHead className="text-nowrap">
-								Last Prompt At [UTC{utcOffset}]
+							<TableHead>
+								<div className="flex items-center flex-nowrap gap-1">
+									Last active
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<button
+												type="button"
+												aria-label="About last active time"
+												className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+											>
+												<InfoIcon className="size-icon-xs" />
+											</button>
+										</TooltipTrigger>
+										<TooltipContent
+											side="top"
+											align="end"
+											className="max-w-60 text-sm font-normal"
+										>
+											Times are shown in your local timezone{" "}
+											<span className="whitespace-nowrap">
+												(UTC{utcOffset}).
+											</span>
+										</TooltipContent>
+									</Tooltip>
+								</div>
 							</TableHead>
 						</TableRow>
 					</TableHeader>

@@ -1,17 +1,16 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { getRoleBadgeVariant, safeJsonStringify } from "./debugPanelUtils";
 
 type DebugDataSectionProps = {
 	title: string;
-	description?: ReactNode;
-	children: ReactNode;
+	description?: React.ReactNode;
+	children: React.ReactNode;
 	className?: string;
 };
 
-export const DebugDataSection: FC<DebugDataSectionProps> = ({
+export const DebugDataSection: React.FC<DebugDataSectionProps> = ({
 	title,
 	description,
 	children,
@@ -19,9 +18,11 @@ export const DebugDataSection: FC<DebugDataSectionProps> = ({
 }) => {
 	return (
 		<section className={cn("min-w-0 space-y-1.5", className)}>
-			<h4 className="text-xs font-medium text-content-secondary">{title}</h4>
+			<h4 className="text-xs text-content-secondary">{title}</h4>
 			{description ? (
-				<p className="text-xs leading-5 text-content-tertiary">{description}</p>
+				<p className="text-xs leading-5 text-content-secondary">
+					{description}
+				</p>
 			) : null}
 			<div>{children}</div>
 		</section>
@@ -33,7 +34,7 @@ type DebugCodeBlockProps = {
 	className?: string;
 };
 
-const DebugCodeBlock: FC<DebugCodeBlockProps> = ({ code, className }) => {
+const DebugCodeBlock: React.FC<DebugCodeBlockProps> = ({ code, className }) => {
 	return (
 		<pre
 			className={cn(
@@ -56,7 +57,7 @@ type CopyableCodeBlockProps = {
 	className?: string;
 };
 
-export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
+export const CopyableCodeBlock: React.FC<CopyableCodeBlockProps> = ({
 	code,
 	label,
 	className,
@@ -81,13 +82,13 @@ export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
 
 type PillToggleProps = {
 	label: string;
-	count?: number;
+	count: number;
 	isActive: boolean;
 	onToggle: () => void;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 };
 
-export const PillToggle: FC<PillToggleProps> = ({
+export const PillToggle: React.FC<PillToggleProps> = ({
 	label,
 	count,
 	isActive,
@@ -108,7 +109,7 @@ export const PillToggle: FC<PillToggleProps> = ({
 		>
 			{icon}
 			{label}
-			{count !== undefined && count > 0 ? ` (${count})` : null}
+			{count > 0 ? ` (${count})` : null}
 		</button>
 	);
 };
@@ -121,9 +122,9 @@ type RoleBadgeProps = {
 	role: string;
 };
 
-export const RoleBadge: FC<RoleBadgeProps> = ({ role }) => {
+export const RoleBadge: React.FC<RoleBadgeProps> = ({ role }) => {
 	return (
-		<Badge size="xs" variant={getRoleBadgeVariant(role)}>
+		<Badge size="sm" variant={getRoleBadgeVariant(role)}>
 			{role}
 		</Badge>
 	);
@@ -137,7 +138,7 @@ type EmptyHelperProps = {
 	message: string;
 };
 
-export const EmptyHelper: FC<EmptyHelperProps> = ({ message }) => {
+export const EmptyHelper: React.FC<EmptyHelperProps> = ({ message }) => {
 	return <p className="text-sm leading-6 text-content-secondary">{message}</p>;
 };
 
@@ -151,7 +152,7 @@ type KeyValueGridProps = {
 	formatValue?: (value: unknown) => string;
 };
 
-export const KeyValueGrid: FC<KeyValueGridProps> = ({
+export const KeyValueGrid: React.FC<KeyValueGridProps> = ({
 	entries,
 	formatValue,
 }) => {
@@ -164,7 +165,7 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 		<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
 			{Object.entries(entries).map(([key, value]) => (
 				<div key={key} className="contents">
-					<dt className="text-content-tertiary">{key}</dt>
+					<dt className="text-content-secondary">{key}</dt>
 					<dd className="wrap-break-word font-medium text-content-primary">
 						{fmt(value)}
 					</dd>
@@ -180,13 +181,13 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 
 type MetadataItemProps = {
 	label: string;
-	value: ReactNode;
+	value: React.ReactNode;
 };
 
-export const MetadataItem: FC<MetadataItemProps> = ({ label, value }) => {
+export const MetadataItem: React.FC<MetadataItemProps> = ({ label, value }) => {
 	return (
 		<span className="text-xs text-content-secondary">
-			<span className="text-content-tertiary">{label}:</span>{" "}
+			<span className="text-content-secondary">{label}:</span>{" "}
 			<span className="font-medium text-content-primary">{value}</span>
 		</span>
 	);

@@ -1,14 +1,5 @@
 import { cn } from "cn";
-import {
-	type CSSProperties,
-	type FC,
-	type JSX,
-	type ReactNode,
-	type Ref,
-	useCallback,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { VariableSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -40,10 +31,10 @@ type AgentLogsProps = Omit<
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	ref?: Ref<List>;
+	ref?: React.Ref<List>;
 };
 
-export const AgentLogs: FC<AgentLogsProps> = ({
+export const AgentLogs: React.FC<AgentLogsProps> = ({
 	logs,
 	sources,
 	overflowed,
@@ -137,33 +128,6 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 					const log = logs[index];
 					const logSource = getLogSource(log.sourceId);
 
-					let assignedIcon = false;
-					let icon: JSX.Element;
-					// If no icon is specified, we show a deterministic
-					// colored circle to identify unique scripts.
-					if (logSource.icon) {
-						icon = (
-							<ExternalImage
-								src={logSource.icon}
-								alt=""
-								className="size-3.5 mr-2 shrink-0"
-							/>
-						);
-					} else {
-						icon = (
-							<div
-								role="presentation"
-								className="size-3.5 mr-2 shrink-0 rounded-full"
-								style={{
-									background: determineScriptDisplayColor(
-										logSource.display_name,
-									),
-								}}
-							/>
-						);
-						assignedIcon = true;
-					}
-
 					const doesNextLineHaveDifferentSource =
 						index < logs.length - 1 &&
 						getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
@@ -176,25 +140,6 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 					const shouldHideSource =
 						index > 0 &&
 						getLogSource(logs[index - 1].sourceId).id === log.sourceId;
-					if (shouldHideSource) {
-						icon = (
-							<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
-								<div
-									// dashed-line class comes from AgentLogLine component
-									className={cn(
-										"dashed-line w-0.5 rounded-[2px] bg-surface-tertiary h-full",
-										doesNextLineHaveDifferentSource && "h-1/2",
-									)}
-								/>
-								{doesNextLineHaveDifferentSource && (
-									<div
-										role="presentation"
-										className="dashed-line h-[2px] w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-[2px] absolute bg-surface-tertiary"
-									/>
-								)}
-							</div>
-						);
-					}
 
 					return (
 						<MeasuredLogRow
@@ -206,18 +151,13 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 								line={log}
 								sourceIcon={
 									showSourceIcons ? (
-										<Tooltip>
-											<TooltipTrigger asChild>{icon}</TooltipTrigger>
-											<TooltipContent side="bottom">
-												{logSource.display_name}
-												{assignedIcon && (
-													<i>
-														<br />
-														No icon specified!
-													</i>
-												)}
-											</TooltipContent>
-										</Tooltip>
+										shouldHideSource ? (
+											<SourceContinuationLine
+												isLastInRun={doesNextLineHaveDifferentSource}
+											/>
+										) : (
+											<SourceIcon source={logSource} />
+										)
 									) : null
 								}
 							/>
@@ -231,7 +171,7 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 					<TooltipTrigger asChild>
 						<Badge
 							asChild
-							className="max-w-fit py-1.5 px-3 absolute bottom-3 left-1/2 -translate-x-1/2"
+							className="max-w-fit absolute bottom-3 left-1/2 -translate-x-1/2"
 						>
 							<span>Logs overflowed</span>
 						</Badge>
@@ -260,16 +200,16 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 type MeasuredLogRowProps = {
 	index: number;
 	// react-window's positioning style for the row (absolute top/left/width).
-	style: CSSProperties;
+	style: React.CSSProperties;
 	onMeasure: (index: number, height: number) => void;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 // Wraps a log line and reports its rendered height back to the virtualized
 // list. The height is left to the content (`height: auto`) so wrapped or
 // multi-line output is measured accurately instead of being assumed to be a
 // single fixed-height row.
-const MeasuredLogRow: FC<MeasuredLogRowProps> = ({
+const MeasuredLogRow: React.FC<MeasuredLogRowProps> = ({
 	index,
 	style,
 	onMeasure,
@@ -297,6 +237,77 @@ const MeasuredLogRow: FC<MeasuredLogRowProps> = ({
 	return (
 		<div ref={rowRef} style={{ ...style, height: "auto" }}>
 			{children}
+		</div>
+	);
+};
+
+type SourceIconProps = {
+	source: WorkspaceAgentLogSource;
+};
+
+// Marks the first line of a run of lines from the same source. It is the run's
+// only tooltip trigger, so long logs don't add a tab stop per line.
+const SourceIcon: React.FC<SourceIconProps> = ({ source }) => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={source.display_name}
+					className="mr-2 flex shrink-0 items-center rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{/* If no icon is specified, we show a deterministic
+					colored circle to identify unique scripts. */}
+					{source.icon ? (
+						<ExternalImage src={source.icon} alt="" className="size-3.5" />
+					) : (
+						<div
+							role="presentation"
+							className="size-3.5 rounded-full"
+							style={{
+								background: determineScriptDisplayColor(source.display_name),
+							}}
+						/>
+					)}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">
+				{source.display_name}
+				{!source.icon && (
+					<i>
+						<br />
+						No icon specified!
+					</i>
+				)}
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
+type SourceContinuationLineProps = {
+	isLastInRun: boolean;
+};
+
+// Decorative connector shown instead of the icon on the remaining lines of a
+// run, visually tying them to the run's first line.
+const SourceContinuationLine: React.FC<SourceContinuationLineProps> = ({
+	isLastInRun,
+}) => {
+	return (
+		<div
+			aria-hidden
+			className="size-3.5 mr-2 flex justify-center relative shrink-0"
+		>
+			<div
+				// dashed-line class comes from AgentLogLine component
+				className={cn(
+					"dashed-line w-0.5 rounded-xs bg-surface-tertiary h-full",
+					isLastInRun && "h-1/2",
+				)}
+			/>
+			{isLastInRun && (
+				<div className="dashed-line h-0.5 w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-xs absolute bg-surface-tertiary" />
+			)}
 		</div>
 	);
 };

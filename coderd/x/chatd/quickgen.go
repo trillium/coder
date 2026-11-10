@@ -2,12 +2,14 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -30,11 +32,12 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
+	"Keep the title to 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
@@ -56,35 +59,129 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 // across repeated runs over the same input. Fantasy providers drop
 // this with a call warning for models that reject it (OpenAI
 // reasoning models, Anthropic thinking models), but only for model
-// names they recognize. generateQuickgenObject handles models that
-// reject the parameter at the API instead.
+// names they recognize. quickgenParamModel handles models that reject
+// the parameter at the API instead.
 const quickgenTemperature = 0.0
 
 // generateQuickgenObject generates a structured object with provider
-// retries and the pinned quickgen temperature. Model aliases served
-// through gateways such as AI Bridge are not recognized by fantasy's
-// per-model parameter stripping and can reject temperature with a
-// bad-request error, so the call is retried without temperature when
-// the model rejects it.
+// retries and the pinned quickgen temperature. Callers pass a model
+// from resolveModelCall, whose quickgenParamModel drops parameters the
+// model rejects.
 func generateQuickgenObject[T any](
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (*fantasy.ObjectResult[T], error) {
 	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[T](retryCtx, model, call)
-		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
-			// The model rejects the temperature parameter. Drop it
-			// for this and any later retry attempts.
-			call.Temperature = nil
-			result, genErr = object.Generate[T](retryCtx, model, call)
-		}
 		return genErr
 	}, nil)
 	return result, err
+}
+
+// quickgenParamRejectionTTL bounds how long a replica remembers that a
+// model rejected a quickgen parameter, so a provider that starts
+// accepting it again, or a model name pointed at a different backend,
+// is picked up without a restart.
+const quickgenParamRejectionTTL = 6 * time.Hour
+
+// quickgenParam is an object-generation request parameter that some
+// models reject with a bad request.
+type quickgenParam int
+
+const (
+	// quickgenParamToolChoice is the forced tool_choice that tool-mode
+	// object generation sends.
+	quickgenParamToolChoice quickgenParam = iota
+	quickgenParamTemperature
+)
+
+type quickgenParamKey struct {
+	providerID uuid.UUID
+	model      string
+	param      quickgenParam
+}
+
+// withQuickgenParamFallback wraps model in a quickgenParamModel that
+// shares rejections with every other model resolved by this replica.
+func (p *Server) withQuickgenParamFallback(model chatprovider.Model, providerID uuid.UUID) chatprovider.Model {
+	return model.WithLanguageModel(&quickgenParamModel{
+		LanguageModel: model.LanguageModel(),
+		rejections:    &p.quickgenParamRejections,
+		clock:         p.clock,
+		providerID:    providerID,
+		model:         model.ModelID(),
+	})
+}
+
+// quickgenParamModel drops object-generation parameters the model
+// rejects and remembers each rejection, so later calls for the same
+// provider and model skip it. Some models, such as Claude Opus 5.5,
+// reject both the forced tool_choice of tool-mode generation and the
+// temperature parameter. Gateway model aliases cannot be matched by
+// name, so rejections are learned from bad-request errors.
+type quickgenParamModel struct {
+	fantasy.LanguageModel
+	// rejections maps a quickgenParamKey to the time.Time of the latest
+	// rejection.
+	rejections *sync.Map
+	clock      quartz.Clock
+	providerID uuid.UUID
+	model      string
+}
+
+// GenerateObject falls back to parsing a JSON text response when the
+// model rejects the forced tool_choice, and drops temperature when the
+// model rejects it. Providers report one rejected parameter per
+// response, so each attempt learns at most one.
+func (m *quickgenParamModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	const maxAttempts = 3
+	var (
+		resp *fantasy.ObjectResponse
+		err  error
+	)
+	for range maxAttempts {
+		textMode := m.rejected(quickgenParamToolChoice)
+		attempt := call
+		if m.rejected(quickgenParamTemperature) {
+			attempt.Temperature = nil
+		}
+		if textMode {
+			resp, err = object.GenerateWithText(ctx, m.LanguageModel, attempt)
+		} else {
+			resp, err = m.LanguageModel.GenerateObject(ctx, attempt)
+		}
+		switch {
+		case !textMode && isToolChoiceRejectedError(err):
+			m.reject(quickgenParamToolChoice)
+		case attempt.Temperature != nil && isTemperatureRejectedError(err):
+			m.reject(quickgenParamTemperature)
+		default:
+			return resp, err
+		}
+	}
+	return resp, err
+}
+
+func (m *quickgenParamModel) key(param quickgenParam) quickgenParamKey {
+	return quickgenParamKey{providerID: m.providerID, model: m.model, param: param}
+}
+
+func (m *quickgenParamModel) rejected(param quickgenParam) bool {
+	v, ok := m.rejections.Load(m.key(param))
+	if !ok {
+		return false
+	}
+	at, ok := v.(time.Time)
+	return ok && m.clock.Since(at) < quickgenParamRejectionTTL
+}
+
+func (m *quickgenParamModel) reject(param quickgenParam) {
+	m.rejections.Store(m.key(param), m.clock.Now())
 }
 
 // isTemperatureRejectedError reports whether a provider rejected the
@@ -104,6 +201,22 @@ func isTemperatureRejectedError(err error) bool {
 	}
 	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	return strings.Contains(text, "temperature")
+}
+
+// isToolChoiceRejectedError reports whether a provider rejected the
+// request because the model does not accept a forced tool_choice, for
+// example Anthropic's "tool_choice: type \"tool\" and \"any\" are not
+// supported for this model.".
+func isToolChoiceRejectedError(err error) bool {
+	var providerErr *fantasy.ProviderError
+	if !errors.As(err, &providerErr) {
+		return false
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return strings.Contains(text, "tool_choice")
 }
 
 const (
@@ -133,14 +246,6 @@ var preferredTitleModels = []struct {
 	{fantasybedrock.Name, "global.anthropic.claude-haiku-4-5-20251001-v1:0"},
 	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
-}
-
-// Debug attribution uses configured identities for title calls and the
-// resolved identity for status-label calls.
-type shortTextCandidate struct {
-	provider string
-	model    string
-	resolved resolvedModelCall
 }
 
 // modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
@@ -180,12 +285,11 @@ func (p *Server) resolveQuickgenModel(
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         titleGenerationOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeHard,
-		providerFailure: modelOverrideFailureModeHard,
+		context:             titleGenerationOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfUnavailable:   true,
+		failIfNoProviderKey: true,
 	})
 	if overrideErr != nil {
 		if override.Set {
@@ -326,6 +430,20 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 		return
 	}
+	p.GenerateChatTitleForMessagesAsync(ctx, chat, messages)
+}
+
+// GenerateChatTitleForMessagesAsync is GenerateChatTitleAsync for
+// callers that already hold a message snapshot taken before any worker
+// could reply. The first-message endpoint publishes the ownership hint
+// during the send, before it can schedule title generation, so a fresh
+// history read there may already contain the assistant reply and would
+// wrongly disqualify the first-user-turn eligibility check.
+func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat database.Chat, messages []database.ChatMessage) {
+	logger := p.logger.With(
+		slog.F("chat_id", chat.ID),
+		slog.F("owner_id", chat.OwnerID),
+	)
 	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		logger.Debug(ctx, "failed to load pasted-text attachments for automatic title generation",
@@ -337,7 +455,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
-	titleCtx, stopTitleCtx := p.inflightContext(ctx)
+	titleCtx, stopTitleCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
@@ -359,7 +477,6 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			messages,
 			pasteText,
 			resolved,
-			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
 		)
@@ -375,16 +492,15 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation) using
-// the resolved title generation model (see resolveQuickgenModel). It is a
-// best-effort operation that logs and swallows errors.
+// current title source is fallback) using the resolved title generation
+// model (see resolveQuickgenModel). It is a best-effort operation that
+// logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	resolved resolvedModelCall,
-	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 ) {
@@ -396,12 +512,6 @@ func (p *Server) maybeGenerateChatTitle(
 
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
-	candidate := shortTextCandidate{
-		provider: string(resolved.route.Provider.Type),
-		model:    resolved.dbConfig.Model,
-		resolved: resolved,
-	}
 
 	var historyTipMessageID int64
 	if len(messages) > 0 {
@@ -426,20 +536,18 @@ func (p *Server) maybeGenerateChatTitle(
 	candidateCtx := titleCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			titleCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindTitleGeneration,
-			triggerMessageID,
-			historyTipMessageID,
-			seedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(titleCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindTitleGeneration,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            string(resolved.route.Provider.Type),
+			Model:               resolved.dbConfig.Model,
+		}, seedSummary, shortTextDebugFinalizeTimeout)
 	}
 
-	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
+	title, err := generateTitle(candidateCtx, resolved.model.LanguageModel(), titleObjectCall(resolved), p.chatLimits.MaxGenerationRetries, input)
 	finishDebugRun(err)
 	if err != nil {
 		logger.Warn(ctx, "title model candidate failed",
@@ -450,94 +558,34 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	if title == "" || title == chat.Title {
-		return
-	}
 
-	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: title,
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       title,
+		TitleSource: database.ChatTitleSourceGenerated,
 	})
 	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		}
 		return
 	}
-	chat.Title = title
-	generatedTitle.Store(title)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-const titleMaxOutputTokens = int64(256)
+// Quickgen caps leave room for adaptive thinking, which counts toward the cap
+// on models that think by default (Claude 5+). Keep them at or below 1024:
+// for older Claude models with a configured effort, fantasy derives a
+// budget_tokens thinking budget from the cap and enables thinking once it
+// reaches 1024, and Anthropic rejects thinking with tool-mode generation's
+// forced tool_choice.
+const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
-}
-
-func prepareQuickgenDebugCandidate(
-	ctx context.Context,
-	chat database.Chat,
-	debugSvc *chatdebug.Service,
-	candidate shortTextCandidate,
-	kind chatdebug.RunKind,
-	triggerMessageID int64,
-	historyTipMessageID int64,
-	seedSummary map[string]any,
-	logger slog.Logger,
-) (context.Context, func(error)) {
-	finishDebugRun := func(error) {}
-
-	// Debug instrumentation must not eat into the quickgen budget
-	// (30s titleCtx / summaryCtx on the caller). Detach and bound
-	// the insert so a slow DB can't delay title generation or push
-	// summaries, matching prepareManualTitleDebugRun,
-	// prepareChatTurnDebugRun, and startCompactionDebugRun.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), debugCreateRunTimeout,
-	)
-	run, err := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
-		ChatID:              chat.ID,
-		TriggerMessageID:    triggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Kind:                kind,
-		Status:              chatdebug.StatusInProgress,
-		Provider:            candidate.provider,
-		Model:               candidate.model,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if err != nil {
-		logger.Warn(ctx, "failed to create short-text debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("run_kind", kind),
-			slog.F("provider", candidate.provider),
-			slog.F("model", candidate.model),
-			slog.Error(err),
-		)
-		return ctx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(run)
-	runCtx := chatdebug.ContextWithRun(ctx, &runContext)
-	finishDebugRun = func(runErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       run.ID,
-			ChatID:      chat.ID,
-			Status:      chatdebug.ClassifyError(runErr),
-			SeedSummary: seedSummary,
-			Timeout:     10 * time.Second,
-		}); finalizeErr != nil {
-			logger.Warn(ctx, "failed to finalize short-text debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_kind", kind),
-				slog.F("run_id", run.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-	return runCtx, finishDebugRun
 }
 
 func quickgenPrompt(systemPrompt, userInput string) fantasy.Prompt {
@@ -564,9 +612,10 @@ func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	input string,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, call, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, call, maxRetries, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -577,6 +626,7 @@ func generateStructuredTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -584,6 +634,7 @@ func generateStructuredTitle(
 		ctx,
 		model,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -597,6 +648,7 @@ func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
@@ -606,7 +658,7 @@ func generateStructuredTitleWithUsage(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTitle](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, call, maxRetries)
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -633,9 +685,9 @@ func validateGeneratedTitle(title string) error {
 // titleInput returns the first user message title text and whether
 // title generation should proceed. It returns false when the chat
 // already has assistant/tool replies, has more than one visible user
-// message, or the current title doesn't look like a candidate for
-// replacement. pasteText carries resolved pasted-text attachment
-// content (see titlePasteText) so paste-only messages stay eligible.
+// message, or the current title source is not fallback. pasteText
+// carries resolved pasted-text attachment content (see titlePasteText)
+// so paste-only messages stay eligible.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,
@@ -668,12 +720,7 @@ func titleInput(
 		return "", false
 	}
 
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}
 
@@ -905,7 +952,7 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Return only the title text in 2-8 words.\n")
+	write("- Keep the title to 2-8 words.\n")
 	write("- Populate the title field only.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
@@ -941,6 +988,7 @@ func generateManualTitle(
 	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (string, error) {
 	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
@@ -972,6 +1020,7 @@ func generateManualTitle(
 		titleCtx,
 		fallbackModel,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -1013,7 +1062,8 @@ const (
 	summaryTranscriptMaxRunes = 16000
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
-	summaryMaxOutputTokens              = 512
+	// Includes thinking headroom; see titleMaxOutputTokens.
+	summaryMaxOutputTokens = 1024
 	// Reject pathologically long or verbose summaries.
 	summaryMaxRunes             = 750
 	summaryHeadlineMaxRunes     = 200
@@ -1143,6 +1193,7 @@ func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	transcript string,
 ) (string, fantasy.Usage, error) {
 	transcript = strings.TrimSpace(transcript)
@@ -1152,7 +1203,7 @@ func generateChatSummary(
 
 	call.Prompt = quickgenPrompt(chatSummaryGenerationPrompt, transcript)
 	var result *fantasy.ObjectResult[generatedChatSummary]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
 		return genErr
@@ -1404,7 +1455,8 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 	"Prefer short action or state phrases such as Finished, Submitted, Fixed, Testing, Still working, or Waiting for. " +
 	"No quotes, emoji, markdown, or trailing punctuation."
 
-const turnStatusLabelMaxOutputTokens = int64(64)
+// Includes thinking headroom; see titleMaxOutputTokens.
+const turnStatusLabelMaxOutputTokens = int64(1024)
 
 func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_turn_status_label", "Propose a compact chat status label.", turnStatusLabelMaxOutputTokens)
@@ -1417,6 +1469,7 @@ func generateTurnStatusLabel(
 	status database.ChatStatus,
 	assistantText string,
 	resolved resolvedModelCall,
+	maxRetries int,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1432,34 +1485,25 @@ func generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidate := shortTextCandidate{
-		provider: resolved.resolvedProvider,
-		model:    resolved.resolvedModel,
-		resolved: resolved,
-	}
-
-	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
-
 	candidateCtx := labelCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			labelCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindQuickgen,
-			triggerMessageID,
-			historyTipMessageID,
-			statusSeedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(labelCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindQuickgen,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+		}, chatdebug.SeedSummary("Turn status label"), shortTextDebugFinalizeTimeout)
 	}
 
 	generatedLabel, err := generateStructuredTurnStatusLabel(
 		candidateCtx,
-		candidate.resolved.model.LanguageModel(),
+		resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
+		maxRetries,
 		turnStatusLabelPrompt,
 		input,
 	)
@@ -1479,6 +1523,7 @@ func generateStructuredTurnStatusLabel(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -1488,7 +1533,7 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call, maxRetries)
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}
@@ -1500,6 +1545,11 @@ func generateStructuredTurnStatusLabel(
 	return label, nil
 }
 
+// turnFinished reports whether a turn ended normally: waiting or paused.
+func turnFinished(status database.ChatStatus) bool {
+	return status == database.ChatStatusWaiting || status == database.ChatStatusPaused
+}
+
 func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
@@ -1508,6 +1558,8 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
 		return "The chat ended with an error."
+	case database.ChatStatusPaused:
+		return "The turn finished; the user is editing their next queued message before it is sent."
 	default:
 		return "The chat state is unknown."
 	}
@@ -1515,7 +1567,7 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 
 func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		return "Finished latest turn"
 	case database.ChatStatusRequiresAction:
 		return "Waiting for user input"

@@ -3,9 +3,9 @@ import {
 	CircleDotIcon,
 	FileTextIcon,
 	LinkIcon,
+	MessagesSquareIcon,
 } from "lucide-react";
-import type { FC, RefObject } from "react";
-import { type KeyboardEventHandler, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
@@ -20,6 +20,7 @@ import {
 	CHAT_SEARCH_FILTER_KEYS,
 	type ChatSearchFilterKey,
 	extractTypedFilters,
+	isCommaSeparatedChatSearchFilter,
 	isValidChatSearchFilterValue,
 	normalizeChatSearchFilterValue,
 } from "./searchQuery";
@@ -30,7 +31,7 @@ import {
 type FilterDefinition = {
 	readonly key: ChatSearchFilterKey;
 	readonly label: string;
-	readonly icon: FC<{ className?: string }>;
+	readonly icon: React.FC<{ className?: string }>;
 	readonly defaultValue: string | null;
 	readonly validate: (value: string) => boolean;
 };
@@ -49,6 +50,12 @@ const FILTER_DEFINITIONS_BY_KEY: Readonly<
 		icon: ArchiveIcon,
 		defaultValue: "true",
 		validate: (value) => isValidChatSearchFilterValue("archived", value),
+	},
+	status: {
+		label: "Status",
+		icon: MessagesSquareIcon,
+		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("status", value),
 	},
 	pr_status: {
 		label: "PR status",
@@ -80,7 +87,7 @@ type ChatSearchDialogProps = {
 
 const SEARCH_DEBOUNCE_MS = 500;
 
-export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
+export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 	open,
 	onOpenChange,
 	focusInputOnOpen = true,
@@ -89,6 +96,11 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	// Radix only restores focus to a Dialog.Trigger, which this dialog lacks.
+	const returnFocusRef = useRef<{
+		element: HTMLElement;
+		pathname: string;
+	} | null>(null);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,7 +113,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 				// input + gap-4 + summary + space-y-3 + the 300px scroll area in
 				// ChatSearchResults). The max(1rem, ...) clamp keeps the dialog
 				// fully visible on short viewports.
-				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-[560px] translate-y-0 gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
+				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-140 translate-y-0 gap-4 border-border bg-surface-primary p-6 sm:p-6"
 				// Suppress the open/close animation. The `animate-in`/`animate-out`
 				// rules applied via CVA in `dialogVariants` outrank Tailwind class
 				// overrides, so we disable them with an inline style to avoid the
@@ -114,11 +126,28 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 				// off-screen. Focus the dialog container instead to keep the
 				// element in the accessibility tree.
 				onOpenAutoFocus={(event) => {
+					const previous = document.activeElement;
+					returnFocusRef.current =
+						previous instanceof HTMLElement && previous !== document.body
+							? { element: previous, pathname: window.location.pathname }
+							: null;
 					if (focusInputOnOpen) {
 						return;
 					}
 					event.preventDefault();
 					contentRef.current?.focus({ preventScroll: true });
+				}}
+				onCloseAutoFocus={(event) => {
+					const returnFocus = returnFocusRef.current;
+					returnFocusRef.current = null;
+					if (
+						!returnFocus?.element.isConnected ||
+						returnFocus.pathname !== window.location.pathname
+					) {
+						return;
+					}
+					event.preventDefault();
+					returnFocus.element.focus({ preventScroll: true });
 				}}
 			>
 				<ChatSearchDialogContent
@@ -137,10 +166,10 @@ type ChatSearchDialogContentProps = Omit<
 	ChatSearchDialogProps,
 	"focusInputOnOpen"
 > & {
-	readonly inputRef: RefObject<HTMLInputElement | null>;
+	readonly inputRef: React.RefObject<HTMLInputElement | null>;
 };
 
-const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
+const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	open,
 	onOpenChange,
 	location,
@@ -222,10 +251,11 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			(def) => def.key === incompleteFilterKey,
 		);
 		if (incompleteFilterKey && definition?.validate(value)) {
-			const committedValue =
-				incompleteFilterKey === "pr_status"
-					? normalizeChatSearchFilterValue(incompleteFilterKey, value)
-					: value;
+			const committedValue = isCommaSeparatedChatSearchFilter(
+				incompleteFilterKey,
+			)
+				? normalizeChatSearchFilterValue(incompleteFilterKey, value)
+				: value;
 			setFilters((previous) => [
 				...previous.filter((filter) => filter.key !== incompleteFilterKey),
 				{ key: incompleteFilterKey, value: committedValue },
@@ -280,7 +310,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		? [...filters, { key: incompleteFilterKey, value: null }]
 		: filters;
 
-	const handleInputKeyDown: KeyboardEventHandler<HTMLInputElement> = (
+	const handleInputKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
 		event,
 	) => {
 		if (
@@ -289,7 +319,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			freeText.trim() &&
 			!(
 				event.key === " " &&
-				incompleteFilterKey === "pr_status" &&
+				isCommaSeparatedChatSearchFilter(incompleteFilterKey) &&
 				freeText.trimEnd().endsWith(",")
 			)
 		) {
@@ -432,7 +462,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 // Filter dropdown: appears on focus, shows clickable filter chips.
 // ---------------------------------------------------------------------------
 
-const FilterDropdown: FC<{
+const FilterDropdown: React.FC<{
 	readonly filters: readonly SearchFilter[];
 	readonly onSelectFilter: (def: FilterDefinition) => void;
 }> = ({ filters, onSelectFilter }) => {
@@ -440,9 +470,7 @@ const FilterDropdown: FC<{
 
 	return (
 		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-solid border-border bg-surface-primary p-3 shadow-md">
-			<h3 className="m-0 mb-2 text-xs font-medium text-content-secondary">
-				Filter by
-			</h3>
+			<h3 className="m-0 mb-2 text-xs text-content-secondary">Filter by</h3>
 			<div className="flex flex-wrap gap-2">
 				{FILTER_DEFINITIONS.map((def) => {
 					const Icon = def.icon;

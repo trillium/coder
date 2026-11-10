@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -27,13 +26,13 @@ type AuditPageViewProps = {
 	isNonInitialPage: boolean;
 	isAuditLogVisible: boolean;
 	error?: unknown;
-	filterProps: ComponentProps<typeof AuditFilter>;
+	filterProps: React.ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
 	permissions: Permissions;
 };
 
-export const AuditPageView: FC<AuditPageViewProps> = ({
+export const AuditPageView: React.FC<AuditPageViewProps> = ({
 	auditLogs,
 	isNonInitialPage,
 	isAuditLogVisible,
@@ -53,7 +52,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
+					<div className="flex gap-2 items-center">
 						<span>Audit</span>
 						<AuditHelpPopover />
 					</div>
@@ -70,7 +69,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 					<PaginationContainer
 						query={paginationResult}
-						paginationUnitLabel="logs"
+						paginationUnitLabel={{ singular: "log", plural: "logs" }}
 					>
 						<Table>
 							<TableBody>
@@ -112,7 +111,7 @@ type AuditTableBodyProps = {
 	showOrgDetails: boolean;
 };
 
-const AuditTableBody: FC<AuditTableBodyProps> = ({
+const AuditTableBody: React.FC<AuditTableBodyProps> = ({
 	auditLogs,
 	error,
 	isLoading,

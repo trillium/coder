@@ -8,7 +8,6 @@ import {
 	NetworkIcon,
 	RadioIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import type {
@@ -28,7 +27,7 @@ import type { PortsData } from "#/modules/resources/usePortsData";
 import { portForwardURL } from "#/utils/portForward";
 import type { PortSelection } from "../utils/rightPanelTabs";
 
-export const PortsMenuItem: FC<{
+export const PortsMenuItem: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -94,7 +93,7 @@ export const PortsMenuItem: FC<{
 				<NetworkIcon className="size-3.5" />
 				{label}
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5!">
+			<DropdownMenuSubContent className="w-56 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5!">
 				<PortsList
 					host={host}
 					agent={agent}
@@ -107,7 +106,7 @@ export const PortsMenuItem: FC<{
 	);
 };
 
-export const MobilePortsPanel: FC<{
+export const MobilePortsPanel: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -143,7 +142,7 @@ export const MobilePortsPanel: FC<{
 	);
 };
 
-const PortsList: FC<{
+const PortsList: React.FC<{
 	host: string;
 	agent: WorkspaceAgent;
 	workspace: Workspace;
@@ -180,7 +179,7 @@ const PortsList: FC<{
 				sharedPorts !== undefined &&
 				privateListeningPorts.length === 0 &&
 				sharedPorts.length === 0 && (
-					<p className="px-2 py-2 text-center text-xs text-content-tertiary">
+					<p className="px-2 py-2 text-center text-xs text-content-secondary">
 						No open ports detected.
 					</p>
 				)}
@@ -218,7 +217,7 @@ const PortsList: FC<{
 	);
 };
 
-const ListeningPortItem: FC<{
+const ListeningPortItem: React.FC<{
 	port: WorkspaceAgentListeningPort;
 	host: string;
 	agentName: string;
@@ -249,7 +248,7 @@ const ListeningPortItem: FC<{
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
+					<span className="truncate text-content-secondary">
 						{port.process_name}
 					</span>
 				)}
@@ -271,7 +270,7 @@ const ListeningPortItem: FC<{
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
+					<span className="truncate text-content-secondary">
 						{port.process_name}
 					</span>
 				)}
@@ -281,7 +280,7 @@ const ListeningPortItem: FC<{
 	);
 };
 
-const SharedPortItem: FC<{
+const SharedPortItem: React.FC<{
 	share: WorkspaceAgentPortShare;
 	host: string;
 	agentName: string;
@@ -308,7 +307,7 @@ const SharedPortItem: FC<{
 			>
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
+				<span className="truncate capitalize text-content-secondary">
 					{share.share_level}
 				</span>
 			</DropdownMenuItem>
@@ -328,7 +327,7 @@ const SharedPortItem: FC<{
 			<a href={url} target="_blank" rel="noreferrer">
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
+				<span className="truncate capitalize text-content-secondary">
 					{share.share_level}
 				</span>
 				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />

@@ -1,17 +1,22 @@
 import { LaptopIcon } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type BaseIconProps = {
 	app: WorkspaceApp;
+	// Defaults to naming the app. Pass "" when a visible label already does.
+	alt?: string;
 	onIconPathError?: () => void;
 };
 
-export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
+export const BaseIcon: React.FC<BaseIconProps> = ({
+	app,
+	alt = `${app.display_name} Icon`,
+	onIconPathError,
+}) => {
 	return app.icon ? (
 		<ExternalImage
-			alt={`${app.display_name} Icon`}
+			alt={alt}
 			src={app.icon}
 			style={{ pointerEvents: "none" }}
 			onError={() => {

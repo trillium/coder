@@ -1,4 +1,4 @@
-import { type FC, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -56,7 +56,7 @@ type AppearanceFormProps = {
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => void;
 };
 
-export const AppearanceForm: FC<AppearanceFormProps> = ({
+export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	isUpdating,
 	error,
 	onSubmit,
@@ -159,7 +159,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 			<Section
 				title={
-					<div className="flex flex-row items-center gap-2">
+					<div className="flex items-center gap-2">
 						<span>Theme</span>
 						<Spinner
 							loading={isUpdating}
@@ -219,7 +219,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 			<Section
 				title={
-					<div className="flex flex-row items-center gap-2">
+					<div className="flex items-center gap-2">
 						<span id={fontGroupLabelId}>Terminal Font</span>
 						<Spinner
 							loading={isUpdating}

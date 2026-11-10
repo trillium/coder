@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { organizationModelsPath } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
@@ -11,7 +10,7 @@ type AgentSetupNoticeProps = {
 	organization?: Organization;
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 };
 
@@ -25,12 +24,12 @@ const formatProviderList = (names: readonly string[]): string => {
 	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 };
 
-export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
+export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 	isAdmin,
 	providerCount,
 	modelCount,
 	organization,
-	unsupportedProviderNames = [],
+	unsupportedProviderNames,
 	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
@@ -64,7 +63,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 		const providerList = formatProviderList(unsupportedProviderNames);
 		const unsupportedLink = (
 			<a
-				href={docs("/ai-coder/agents/models#providers")}
+				href={docs("/coder-agents/models#providers")}
 				target="_blank"
 				rel="noreferrer"
 				className="text-content-link transition-colors hover:text-content-link/80"
@@ -149,7 +148,9 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	);
 };
 
-const NoticeContainer: FC<{ children: ReactNode }> = ({ children }) => {
+const NoticeContainer: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
 	return (
 		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-[13px] text-content-primary">
 			{children}

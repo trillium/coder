@@ -7,14 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
@@ -55,7 +48,6 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -144,7 +136,7 @@ const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 const isScriptFailed = (script: WorkspaceAgentScript | undefined): boolean =>
 	Boolean(script?.exit_code || (script?.status && script.status !== "ok"));
 
-export const AgentRow: FC<AgentRowProps> = ({
+export const AgentRow: React.FC<AgentRowProps> = ({
 	agent,
 	subAgents,
 	workspace,
@@ -164,6 +156,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
 	const showVSCode = hasVSCodeApp && !browser_only;
+	const copyLogsLabel = "Copy selected logs";
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const runningScriptsCount = agent.scripts.filter(
@@ -339,7 +332,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			return a.title.localeCompare(b.title);
 		});
 	const logTabs: {
-		startIcon?: ReactNode;
+		startIcon?: React.ReactNode;
 		title: string;
 		value: string;
 		error: boolean;
@@ -416,7 +409,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
 					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
 						<AgentStatus agent={agent} />
-						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
+						<span className="block max-w-65 truncate text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
 					</div>
@@ -447,11 +440,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 
 					{!browser_only && agent.display_apps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={agent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<AgentSSHButton workspace={workspace} agentName={agent.name} />
 					)}
 					{canShowPortForwarding(agent, proxy.preferredWildcardHostname) && (
 						<PortForwardButton
@@ -557,7 +546,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									connectivityIssues.length === 0 && (
 										<Badge
 											variant="default"
-											size="xs"
+											size="sm"
 											className="ml-1.5"
 											svgSize="sm"
 										>
@@ -572,7 +561,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								{hasConnectivityIssues && (
 									<Badge
 										variant={hasWarningConnectivityIssues ? "warning" : "info"}
-										size="xs"
+										size="sm"
 										className="ml-1.5"
 									>
 										{hasWarningConnectivityIssues ? (
@@ -594,7 +583,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							*/}
 							{shouldExpandLogs &&
 								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-[300px] flex items-center justify-center">
+									<div className="h-75 flex items-center justify-center">
 										<Spinner size="lg" loading className="block mx-auto" />
 									</div>
 								)}
@@ -637,7 +626,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 															{tab.error && (
 																<Badge
 																	variant="warning"
-																	size="xs"
+																	size="sm"
 																	className="ml-1.5"
 																>
 																	<TriangleAlertIcon />
@@ -690,7 +679,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 																			{tab.error && (
 																				<Badge
 																					variant="warning"
-																					size="xs"
+																					size="sm"
 																					className="ml-1.5"
 																				>
 																					<TriangleAlertIcon />
@@ -710,32 +699,24 @@ export const AgentRow: FC<AgentRowProps> = ({
 													"border-solid border-0 border-b border-l",
 												)}
 											>
-												<TooltipProvider>
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<Button
-																variant="subtle"
-																size="sm"
-																className="min-w-0"
-																disabled={!hasSelectedLogs}
-																onClick={() =>
-																	copyToClipboard(selectedLogsText)
-																}
-															>
-																{showCopiedSuccess ? (
-																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-															</Button>
-														</TooltipTrigger>
-														<TooltipContent>
-															{showCopiedSuccess
-																? "Copied!"
-																: "Copy selected logs"}
-														</TooltipContent>
-													</Tooltip>
-												</TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+															<span className="sr-only">{copyLogsLabel}</span>
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
+													</TooltipContent>
+												</Tooltip>
+
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}
 													logSets={downloadableLogSets}

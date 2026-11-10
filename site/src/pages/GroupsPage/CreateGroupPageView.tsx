@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -23,7 +22,7 @@ import {
 } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: nameValidator("Name", { maxLength: 255 }),
 });
 
 type CreateGroupPageViewProps = {
@@ -34,7 +33,7 @@ type CreateGroupPageViewProps = {
 	showOrganizations: boolean;
 };
 
-export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
+export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 	onSubmit,
 	onCancel,
 	error,
@@ -100,7 +99,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
-							fullWidth
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>

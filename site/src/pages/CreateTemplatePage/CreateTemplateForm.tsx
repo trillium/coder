@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
@@ -200,7 +200,9 @@ type CreateTemplateFormProps = (
 // in the render-time state adjustment pattern.
 const emptyOrgs: Organization[] = [];
 
-export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = (
+	props,
+) => {
 	const [searchParams] = useSearchParams();
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 	const {
@@ -385,7 +387,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						{...getFieldHelpers("icon")}
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
 				</FormFields>
@@ -480,12 +481,16 @@ const fillNameAndDisplayWithFilename = async (
 	]);
 };
 
-const ProvisionerWarning: FC = () => {
+const ProvisionerWarning: React.FC = () => {
 	return (
 		<Alert severity="warning" className="mb-4" prominent>
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+			<Link
+				href={docs("/admin/provisioners#organization-scoped-provisioners")}
+				target="_blank"
+				rel="noreferrer"
+			>
 				See our documentation.
 			</Link>
 		</Alert>

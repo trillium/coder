@@ -59,6 +59,27 @@ func TestTitleText(t *testing.T) {
 			want: "explain this [file-reference] app.ts:1",
 		},
 		{
+			name: "renders workspace file references as bare file names",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("Say DONE."),
+				{
+					Type:              codersdk.ChatMessagePartTypeWorkspaceFileReference,
+					WorkspaceFilePath: "/home/coder/.coder/chats/chat-id/files/frozen.zip",
+					WorkspaceFileName: " frozen.zip ",
+				},
+				{Type: codersdk.ChatMessagePartTypeWorkspaceFileReference},
+			},
+			want: "Say DONE. frozen.zip",
+		},
+		{
+			name: "renders skill invocations as slash aliases",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceProject, "triage"),
+				codersdk.ChatMessageText("the new issues"),
+			},
+			want: "/project/triage the new issues",
+		},
+		{
 			name: "falls back to paste content for file only messages",
 			parts: []codersdk.ChatMessagePart{
 				syntheticPasteFile(pasteFileID),
@@ -255,14 +276,19 @@ func TestFallbackTitle(t *testing.T) {
 			want:    "fix the flaky test",
 		},
 		{
-			name:    "truncates to six words with ellipsis",
+			name:    "keeps every word of a long message",
 			message: "one two three four five six seven",
-			want:    "one two three four five six…",
+			want:    "one two three four five six seven",
 		},
 		{
-			name:    "caps six long words at eighty runes keeping the ellipsis",
+			name:    "caps at eighty runes with an ellipsis",
 			message: strings.Repeat(longWord+" ", 7),
 			want:    strings.Repeat("x", 30) + " " + strings.Repeat("x", 30) + " " + strings.Repeat("x", 17) + "…",
+		},
+		{
+			name:    "keeps a message of exactly eighty runes verbatim",
+			message: strings.Repeat("y", 80),
+			want:    strings.Repeat("y", 80),
 		},
 	}
 

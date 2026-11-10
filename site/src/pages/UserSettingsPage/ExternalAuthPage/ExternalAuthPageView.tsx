@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, RefreshCcwIcon } from "lucide-react";
-import { type FC, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "#/api/queries/externalAuth";
 import type {
@@ -43,7 +43,7 @@ type ExternalAuthPageViewProps = {
 	onValidateExternalAuth: (provider: string) => void;
 };
 
-export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
+export const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 	isLoading,
 	getAuthsError,
 	auths,
@@ -105,7 +105,7 @@ type ExternalAuthRowProps = {
 	onValidateExternalAuth: () => void;
 };
 
-const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
+const ExternalAuthRow: React.FC<ExternalAuthRowProps> = ({
 	app,
 	unlinked,
 	link,
@@ -129,7 +129,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2">
+				<div className="flex items-center gap-2">
 					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*

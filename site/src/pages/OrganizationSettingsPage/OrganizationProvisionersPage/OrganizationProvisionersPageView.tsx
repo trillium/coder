@@ -1,5 +1,4 @@
 import { XIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -47,7 +46,7 @@ type OrganizationProvisionersPageViewProps = {
 	onFilterChange: (filter: ProvisionersFilter) => void;
 };
 
-export const OrganizationProvisionersPageView: FC<
+export const OrganizationProvisionersPageView: React.FC<
 	OrganizationProvisionersPageViewProps
 > = ({
 	showPaywall,
@@ -123,10 +122,7 @@ export const OrganizationProvisionersPageView: FC<
 								});
 							}}
 						/>
-						<label
-							htmlFor="offline-filter"
-							className="text-sm font-medium leading-none"
-						>
+						<label htmlFor="offline-filter" className="text-sm leading-none">
 							Include offline provisioners
 						</label>
 					</div>
@@ -160,7 +156,12 @@ export const OrganizationProvisionersPageView: FC<
 										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
 										cta={
 											<Button size="sm" asChild>
-												<Link href={docs("/admin/provisioners")}>
+												<Link
+													href={docs("/admin/provisioners")}
+													className="py-0 my-0"
+													target="_blank"
+													rel="noreferrer"
+												>
 													Create a provisioner
 												</Link>
 											</Button>

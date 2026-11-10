@@ -52,13 +52,14 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 ### Parameters
 
-| Name       | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------|-------|---------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`        | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
-| `label`    | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `after_id` | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `limit`    | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `offset`   | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------|-------|---------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting\|paused>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
+| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `project_id` | query | string(uuid)  | false    | Only chats in this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Example responses
 
@@ -86,6 +87,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -108,16 +110,43 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -131,6 +160,24 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -156,12 +203,15 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -181,98 +231,138 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 Status Code **200**
 
-| Name                      | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|---------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`            | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» agent_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» archived`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» build_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `» client_type`           | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
-| `»» dirty`                | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
-| `»» dirty_since`          | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
-| `»» error`                | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
-| `»» resources`            | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
-| `»»» error`               | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
-| `»»» kind`                | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» size_bytes`          | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
-| `»»» skill_description`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» skill_name`          | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `»»» source`              | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
-| `»»» status`              | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
-| `»»» tools`               | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
-| `»»»» description`        | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
-| `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
-| `» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» diff_status`           | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» additions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» approved`             | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_avatar_url`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_login`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» base_branch`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changed_files`        | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changes_requested`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» chat_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» commits`              | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» deletions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» head_branch`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pr_number`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_draft`   | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_state`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_title`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» refreshed_at`         | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» reviewer_count`       | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» stale_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» url`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» files`                 | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» created_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» mime_type`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» name`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» organization_id`      | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» owner_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» size_bytes`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» has_unread`            | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» labels`                | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» [any property]`       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_error`            | [codersdk.ChatError](schemas.md#codersdkchaterror)                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» detail`               | string                                                                             | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
-| `»» kind`                 | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                         | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
-| `»» message`              | string                                                                             | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
-| `»» provider`             | string                                                                             | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
-| `»» retryable`            | boolean                                                                            | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
-| `»» status_code`          | integer                                                                            | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
-| `» last_model_config_id`  | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_reasoning_effort` | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_turn_summary`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» mcp_server_ids`        | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_name`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_username`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» parent_chat_id`        | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» pin_order`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» plan_mode`             | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» queued_for_capacity`   | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
-| `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
-| `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
-| `» title`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» updated_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» warnings`              | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» workspace_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                       | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|----------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`             | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» agent_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» archived`               | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» build_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» children`               | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `» client_type`            | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» context`                | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `»» dirty`                 | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
+| `»» dirty_since`           | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
+| `»» error`                 | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
+| `»» resources`             | array                                                                              | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                     |
+| `»»» error`                | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `»»» kind`                 | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `»»» size_bytes`           | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `»»» skill_description`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»»» skill_name`           | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `»»» source`               | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
+| `»»» source_path`          | string                                                                             | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
+| `»»» status`               | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `»»» tools`                | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+| `»»»» description`         | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
+| `»»»» name`                | string                                                                             | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
+| `» created_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» diff_status`            | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              | Diff status is the primary pull request. It is the ref with the most recent git report.                                                                                                                                                                                    |
+| `»» additions`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» approved`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_avatar_url`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_login`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» base_branch`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changed_files`         | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changes_requested`     | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» chat_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» commits`               | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» deletions`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» git_branch`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» head_branch`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pr_number`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_draft`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_state`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_title`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» refreshed_at`          | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» remote_origin`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» reviewer_count`        | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» stale_at`              | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» url`                   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» diff_statuses`          | array                                                                              | false    |              | Diff statuses lists every ref the chat tracks. The order is stable and follows the first report of each ref. DiffStatus marks the primary.                                                                                                                                 |
+| `»» additions`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» approved`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_avatar_url`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_login`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» base_branch`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changed_files`         | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changes_requested`     | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» chat_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» commits`               | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» deletions`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» git_branch`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» head_branch`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pr_number`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_draft`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_state`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_title`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» refreshed_at`          | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» remote_origin`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» reviewer_count`        | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» stale_at`              | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» url`                   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» files`                  | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» mime_type`             | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» name`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» size_bytes`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» has_unread`             | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect and via UpdateChatRequest.Read.                                                                                                            |
+| `» id`                     | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» inline_mcp_servers`     | array                                                                              | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
+| `»» allow_in_subagents`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» forward_coder_headers` | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» has_custom_headers`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» slug`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» tool_allow_list`       | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» tool_deny_list`        | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» updated_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» url`                   | string                                                                             | false    |              | URL is empty unless the chat owner makes the request.                                                                                                                                                                                                                      |
+| `» labels`                 | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» [any property]`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_error`             | [codersdk.ChatError](schemas.md#codersdkchaterror)                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» detail`                | string                                                                             | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
+| `»» kind`                  | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                         | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
+| `»» message`               | string                                                                             | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
+| `»» provider`              | string                                                                             | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
+| `»» retryable`             | boolean                                                                            | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
+| `»» status_code`           | integer                                                                            | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
+| `» last_model_config_id`   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_reasoning_effort`  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_turn_summary`      | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» mcp_server_ids`         | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» organization_id`        | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_name`             | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_username`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» parent_chat_id`         | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» pin_order`              | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» plan_mode`              | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» project_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» queued_for_capacity`    | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
+| `» root_chat_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» shared`                 | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `» status`                 | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
+| `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
+| `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» title_source`           | [codersdk.ChatTitleSource](schemas.md#codersdkchattitlesource)                     | false    |              | Title source is where Title came from. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order fallback, generated, user.                                                                                        |
+| `» title_updated_at`       | string(date-time)                                                                  | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
+| `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» warnings`               | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» workspace_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                                                                             |
-|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                                          |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                              |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                                                                               |
+| Property       | Value(s)                                                                                                                                                                                                                                                                                            |
+|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                                         |
+| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                                   |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                                              |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -301,9 +391,34 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "labels": {
@@ -317,14 +432,14 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -366,6 +481,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -388,16 +504,43 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -411,6 +554,24 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -436,12 +597,15 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -462,6 +626,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -484,16 +649,43 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -507,6 +699,24 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -532,12 +742,15 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -551,6 +764,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 | Status | Meaning                                                                 | Description                  | Schema                                           |
 |--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request                  | [codersdk.Response](schemas.md#codersdkresponse) |
 | 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -590,6 +804,82 @@ curl -X GET http://coder-server:8080/api/v2/chats/by-workspace \
 | Status | Meaning                                                 | Description | Schema                                                                       |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.chatsByWorkspaceResponse](schemas.md#coderdchatsbyworkspaceresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/config/advisor`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AdvisorConfig](schemas.md#codersdkadvisorconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/chats/config/advisor`
+
+> Body parameter
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Request body |
+
+### Example responses
+
+> 400 Response
+
+### Responses
+
+| Status | Meaning                                                          | Description | Schema                                           |
+|--------|------------------------------------------------------------------|-------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)  | No Content  |                                                  |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse) |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)   | Forbidden   | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1222,11 +1512,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                  |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the filename as a quoted string. |
+| `body`                | body   | string       | true     | Raw file binary data                                             |
 
 ### Example responses
 
@@ -1292,6 +1582,35 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 ```json
 {
+  "changed_diff_status": {
+    "ref": {
+      "git_branch": "string",
+      "remote_origin": "string"
+    },
+    "status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  },
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
@@ -1312,6 +1631,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -1334,16 +1654,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -1357,6 +1704,24 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -1382,12 +1747,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -1460,6 +1828,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -1482,16 +1851,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -1505,6 +1901,24 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -1530,12 +1944,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -1556,6 +1973,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -1578,16 +1996,43 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -1601,6 +2046,24 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -1626,12 +2089,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1656,6 +2122,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1672,6 +2139,8 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -1684,11 +2153,69 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 | `chat` | path | string(uuid)                                                       | true     | Chat ID             |
 | `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Update chat request |
 
+### Example responses
+
+> 400 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                          | Description | Schema                                           |
+|--------|------------------------------------------------------------------|-------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)  | No Content  |                                                  |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat attachments
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/{chat}/attachments \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/{chat}/attachments`
+
+Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description                                          |
+|-------------|-------|--------------|----------|------------------------------------------------------|
+| `chat`      | path  | string(uuid) | true     | Chat ID                                              |
+| `before_id` | query | integer      | false    | Return attachments from messages with id < before_id |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatAttachmentsResponse](schemas.md#codersdkchatattachmentsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1739,6 +2266,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -1761,16 +2289,43 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -1784,6 +2339,24 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -1809,12 +2382,15 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -1835,6 +2411,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -1857,16 +2434,43 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -1880,6 +2484,24 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -1905,12 +2527,15 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1992,9 +2617,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `chat` | path | string(uuid) | true     | Chat ID     |
+| Name     | In    | Type         | Required | Description                             |
+|----------|-------|--------------|----------|-----------------------------------------|
+| `chat`   | path  | string(uuid) | true     | Chat ID                                 |
+| `origin` | query | string       | false    | Remote origin selecting the ref to diff |
+| `branch` | query | string       | false    | Git branch selecting the ref to diff    |
 
 ### Example responses
 
@@ -2032,6 +2659,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 
 `POST /api/v2/chats/{chat}/interrupt`
 
+Interrupts the active turn of a chat.
+If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -2066,6 +2696,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2088,16 +2719,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2111,6 +2769,24 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2136,12 +2812,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2162,6 +2841,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2184,16 +2864,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -2207,6 +2914,24 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2232,12 +2957,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2288,9 +3016,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2302,9 +3028,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2314,23 +3038,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
+          "reasoning_delta": "string",
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -2338,13 +3060,19 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -2359,12 +3087,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2376,9 +3103,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2388,23 +3113,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
+          "reasoning_delta": "string",
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -2412,14 +3135,22 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
-  ]
+  ],
+  "turn_start_id": 0
 }
 ```
 
@@ -2449,16 +3180,41 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "mcp_server_ids": [
@@ -2487,9 +3243,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -2501,9 +3255,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -2513,23 +3265,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
+        "reasoning_delta": "string",
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -2537,13 +3287,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -2560,9 +3316,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2574,9 +3328,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2586,23 +3338,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
+          "reasoning_delta": "string",
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -2610,13 +3360,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -2631,12 +3387,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -2648,9 +3403,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -2660,23 +3413,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
+        "reasoning_delta": "string",
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -2684,12 +3435,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -2729,9 +3487,16 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "mcp_server_ids": [
@@ -2763,9 +3528,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -2777,9 +3540,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -2789,23 +3550,21 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
+        "reasoning_delta": "string",
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -2813,13 +3572,19 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -2836,9 +3601,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -2850,9 +3613,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -2862,23 +3623,21 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
+          "reasoning_delta": "string",
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -2886,13 +3645,19 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -2995,6 +3760,63 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Edit chat queued message
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage} \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
+
+> Body parameter
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
+      "start_line": 0,
+      "text": "string",
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "editing": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Parameters
+
+| Name            | In   | Type                                                                                     | Required | Description                      |
+|-----------------|------|------------------------------------------------------------------------------------------|----------|----------------------------------|
+| `chat`          | path | string(uuid)                                                                             | true     | Chat ID                          |
+| `queuedMessage` | path | integer                                                                                  | true     | Queued message ID                |
+| `body`          | body | [codersdk.EditChatQueuedMessageRequest](schemas.md#codersdkeditchatqueuedmessagerequest) | true     | Edit chat queued message request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Promote chat queued message
 
 ### Code samples
@@ -3087,6 +3909,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -3109,16 +3932,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -3132,6 +3982,24 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -3157,12 +4025,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -3183,6 +4054,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -3205,16 +4077,43 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -3228,6 +4127,24 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -3253,12 +4170,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -3324,9 +4244,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3338,9 +4256,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3350,23 +4266,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
+          "reasoning_delta": "string",
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3374,13 +4288,19 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -3396,9 +4316,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "generation_attempt": 0,
       "history_version": 0,
       "part": {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -3410,9 +4328,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -3422,23 +4338,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
+        "reasoning_delta": "string",
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3446,19 +4360,23 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       },
       "role": "system",
       "seq": 0
     },
     "queued_messages": [
       {
+        "busy_behavior": "steer",
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
-            "args": [
-              0
-            ],
+            "args": {},
             "args_delta": "string",
             "completed_at": "2019-08-24T14:15:22Z",
             "content": "string",
@@ -3470,9 +4388,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "context_file_skill_meta_file": "string",
             "context_file_truncated": true,
             "created_at": "2019-08-24T14:15:22Z",
-            "data": [
-              0
-            ],
+            "data": "string",
             "end_line": 0,
             "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
@@ -3482,23 +4398,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
             "media_type": "string",
             "name": "string",
+            "narration": true,
             "parsed_commands": [
               [
                 "string"
               ]
             ],
             "provider_executed": true,
-            "provider_metadata": [
-              0
-            ],
-            "result": [
-              0
-            ],
+            "reasoning_delta": "string",
+            "result": {},
             "result_delta": "string",
             "result_reset": true,
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
+            "skill_source": "personal",
             "source_id": "string",
             "start_line": 0,
             "text": "string",
@@ -3506,12 +4420,19 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "tool_call_id": "string",
             "tool_name": "string",
             "type": "text",
-            "url": "string"
+            "url": "string",
+            "workspace_file_media_type": "string",
+            "workspace_file_name": "string",
+            "workspace_file_path": "string",
+            "workspace_file_size": 0,
+            "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
           }
         ],
         "created_at": "2019-08-24T14:15:22Z",
+        "editing_since": "2019-08-24T14:15:22Z",
         "id": 0,
-        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "reasoning_effort": "string"
       }
     ],
     "retry": {
@@ -3560,7 +4481,7 @@ Status Code **200**
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -3572,7 +4493,7 @@ Status Code **200**
 | `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» data`                         | string(byte)                                                                     | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3582,15 +4503,17 @@ Status Code **200**
 | `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
-| `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files, and shown to the model for an invoked workspace skill so it can run the skill's scripts.                                                                                                                                             |
+| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» skill_source`                 | [codersdk.ChatSkillSource](schemas.md#codersdkchatskillsource)                   | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» start_line`                   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» text`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3599,10 +4522,16 @@ Status Code **200**
 | `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» url`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» workspace_file_media_type`    | string                                                                           | false    |              | Workspace file media type is the best-effort declared MIME type.                                                                                                                                                                                                                                                                                                                                           |
+| `»»» workspace_file_name`          | string                                                                           | false    |              | Workspace file name is the sanitized basename of a workspace upload.                                                                                                                                                                                                                                                                                                                                       |
+| `»»» workspace_file_path`          | string                                                                           | false    |              | Workspace file path is the absolute path of a workspace upload. The bytes live on the workspace filesystem; only metadata is persisted on the message.                                                                                                                                                                                                                                                     |
+| `»»» workspace_file_size`          | integer                                                                          | false    |              | Workspace file size is the byte size of a workspace upload.                                                                                                                                                                                                                                                                                                                                                |
+| `»»» workspace_file_workspace_id`  | string(uuid)                                                                     | false    |              | Workspace file workspace ID identifies the workspace whose filesystem holds the uploaded bytes. References are only readable while the chat stays bound to that workspace.                                                                                                                                                                                                                                 |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_by`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» queued_message_id`             | integer                                                                          | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it.                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» usage`                         | [codersdk.ChatMessageUsage](schemas.md#codersdkchatmessageusage)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» cache_creation_tokens`        | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3610,7 +4539,7 @@ Status Code **200**
 | `»»» context_limit`                | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» input_tokens`                 | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» output_tokens`                | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» reasoning_tokens`             | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» reasoning_tokens`             | integer                                                                          | false    |              | Reasoning tokens counts reasoning, which output_tokens already includes, so do not add the two.                                                                                                                                                                                                                                                                                                            |
 | `»»» total_tokens`                 | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» message_part`                   | [codersdk.ChatStreamMessagePart](schemas.md#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» generation_attempt`            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3618,12 +4547,15 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» queued_messages`                | array                                                                            | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                                                                                                                                                                                                                                    |
+| `»» busy_behavior`                 | [codersdk.ChatBusyBehavior](schemas.md#codersdkchatbusybehavior)                 | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                                                                                                                                                                   |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat.                                                                                                                                         |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» reasoning_effort`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» attempt`                       | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |
 | `»» delay_ms`                      | integer                                                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.                                                                                                                                                                                                                                                                                                                                            |
@@ -3638,12 +4570,14 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `stream_silence_timeout`, `timeout`, `usage_limit`                                             |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `reauth_required`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                             |
+| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
+| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
+| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                        |
+| `status`        | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3752,9 +4686,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
@@ -3767,6 +4699,137 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 |--------|------|----------------------------------------------------------------------------------|----------|--------------|
 | `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
 | `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upload a file to a chat's workspace
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/chats/{chat}/workspace-files \
+  -H 'Content-Type: */*' \
+  -H 'Accept: application/json' \
+  -H 'Content-Disposition: string' \
+  -H 'Coder-Session-Token: API_KEY' \
+  --data-binary '@archive.zip'
+```
+
+`POST /api/v2/chats/{chat}/workspace-files`
+
+Streams the request body into the chat workspace's
+upload directory. The request Content-Type header is
+recorded as the file's media type. There is no
+server-imposed size cap; client cancellation aborts the
+stream and the agent leaves no partial target file behind.
+
+### Parameters
+
+| Name                  | In     | Type         | Required | Description                                     |
+|-----------------------|--------|--------------|----------|-------------------------------------------------|
+| `chat`                | path   | string(uuid) | true     | Chat ID                                         |
+| `Content-Disposition` | header | string       | true     | Filename of the file (attachment; filename=...) |
+| `body`                | body   | string       | true     | Raw file binary data                            |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "media_type": "string",
+  "name": "string",
+  "path": "string",
+  "size": 0,
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description           | Schema                                                                                         |
+|--------|----------------------------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)               | Created               | [codersdk.UploadChatWorkspaceFileResponse](schemas.md#codersdkuploadchatworkspacefileresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Bad Request           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)             | Forbidden             | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)              | Conflict              | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 429    | [Too Many Requests](https://tools.ietf.org/html/rfc6585#section-4)         | Too Many Requests     | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 502    | [Bad Gateway](https://tools.ietf.org/html/rfc7231#section-6.6.3)           | Bad Gateway           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get organization chat system prompt
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/config/system-prompt \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/chats/config/system-prompt`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationChatSystemPromptResponse](schemas.md#codersdkorganizationchatsystempromptresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization chat system prompt
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/config/system-prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
+
+> Body parameter
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                                               | Required | Description     |
+|----------------|------|--------------------------------------------------------------------------------------------------------------------|----------|-----------------|
+| `organization` | path | string(uuid)                                                                                                       | true     | Organization ID |
+| `body`         | body | [codersdk.UpdateOrganizationChatSystemPromptRequest](schemas.md#codersdkupdateorganizationchatsystempromptrequest) | true     | Request body    |
 
 ### Responses
 
@@ -3805,6 +4868,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -4204,6 +5268,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",

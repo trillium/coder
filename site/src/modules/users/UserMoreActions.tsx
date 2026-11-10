@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { User } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -21,7 +20,7 @@ type UserMoreActionsProps = {
 	showEdit?: boolean;
 };
 
-export const UserMoreActions: FC<UserMoreActionsProps> = ({
+export const UserMoreActions: React.FC<UserMoreActionsProps> = ({
 	user,
 	me,
 	onAction,
@@ -36,7 +35,7 @@ export const UserMoreActions: FC<UserMoreActionsProps> = ({
 					size="icon-lg"
 					variant="subtle"
 					type="button"
-					aria-label="Open menu"
+					aria-label={`Open menu for ${user.username}`}
 				>
 					<EllipsisVerticalIcon aria-hidden="true" />
 				</Button>

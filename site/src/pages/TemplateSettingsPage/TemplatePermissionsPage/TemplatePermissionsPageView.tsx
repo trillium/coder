@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -56,7 +56,7 @@ type AddTemplateUserOrGroupProps = {
 	) => void;
 };
 
-const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
+const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 	isLoading,
 	templateID,
 	templateACL,
@@ -91,7 +91,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<div className="flex flex-row items-center gap-1">
+			<div className="flex items-center gap-1">
 				<UserOrGroupAutocomplete
 					exclude={excludeFromAutocomplete}
 					templateID={templateID}
@@ -108,7 +108,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 						setSelectedRole(value as TemplateRole);
 					}}
 				>
-					<SelectTrigger className="w-[100px]">
+					<SelectTrigger className="w-25">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -137,7 +137,7 @@ type RoleSelectProps = {
 	onValueChange: (value: TemplateRole) => void;
 };
 
-const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
 	disabled,
 	onValueChange,
@@ -148,22 +148,19 @@ const RoleSelect: FC<RoleSelectProps> = ({
 			disabled={disabled}
 			onValueChange={(nextValue) => onValueChange(nextValue as TemplateRole)}
 		>
-			<SelectTrigger className="h-auto w-[200px]">
+			<SelectTrigger className="h-auto w-50">
 				<SelectValue>
 					<span className="capitalize">{value}</span>
 				</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
-				<SelectItem value="use" className="w-[250px] flex-col items-start py-2">
+				<SelectItem value="use" className="w-62.5 flex-col items-start py-2">
 					<div className="text-content-primary">Use</div>
 					<div className="text-xs leading-[140%] text-content-secondary">
 						Can read and use this template to create workspaces.
 					</div>
 				</SelectItem>
-				<SelectItem
-					value="admin"
-					className="w-[250px] flex-col items-start py-2"
-				>
+				<SelectItem value="admin" className="w-62.5 flex-col items-start py-2">
 					<div className="text-content-primary">Admin</div>
 					<div className="text-xs leading-[140%] text-content-secondary">
 						Can modify all aspects of this template including permissions,
@@ -201,7 +198,7 @@ type TemplatePermissionsPageViewProps = {
 	onRemoveGroup: (group: Group) => void;
 };
 
-export const TemplatePermissionsPageView: FC<
+export const TemplatePermissionsPageView: React.FC<
 	TemplatePermissionsPageViewProps
 > = ({
 	templateACL,
@@ -272,7 +269,7 @@ type MembersTableBodyProps = {
 	onRemoveGroup: (group: Group) => void;
 };
 
-const MembersTableBody: FC<MembersTableBodyProps> = ({
+const MembersTableBody: React.FC<MembersTableBodyProps> = ({
 	templateACL,
 	canUpdatePermissions,
 	updatingUserId,

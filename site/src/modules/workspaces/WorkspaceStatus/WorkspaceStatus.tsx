@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { lastUsedMessage } from "#/utils/workspace";
 import { WorkspaceDormantBadge } from "../WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -8,7 +7,9 @@ type WorkspaceStatusProps = {
 	workspace: Workspace;
 };
 
-export const WorkspaceStatus: FC<WorkspaceStatusProps> = ({ workspace }) => {
+export const WorkspaceStatus: React.FC<WorkspaceStatusProps> = ({
+	workspace,
+}) => {
 	return (
 		<div className="flex flex-col">
 			<WorkspaceStatusIndicator workspace={workspace}>
@@ -18,7 +19,7 @@ export const WorkspaceStatus: FC<WorkspaceStatusProps> = ({ workspace }) => {
 			</WorkspaceStatusIndicator>
 			<time
 				dateTime={workspace.last_used_at}
-				className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap"
+				className="text-xs text-content-secondary ml-6 whitespace-nowrap"
 			>
 				{lastUsedMessage(workspace.last_used_at)}
 			</time>

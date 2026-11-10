@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RefreshCwIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	Alert,
@@ -63,7 +63,7 @@ export const WorkspaceTerminalAlerts = ({
 	);
 };
 
-const ErrorScriptAlert: FC = () => {
+const ErrorScriptAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			severity="warning"
@@ -74,7 +74,7 @@ const ErrorScriptAlert: FC = () => {
 			<Link
 				title="startup script has exited with an error"
 				href={docs(
-					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
+					"/templates/troubleshooting#startup-script-exited-with-an-error",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -85,7 +85,7 @@ const ErrorScriptAlert: FC = () => {
 			, we recommend reloading this session and{" "}
 			<Link
 				title=" debugging the startup script"
-				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
+				href={docs("/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
 				rel="noreferrer"
 			>
@@ -95,7 +95,7 @@ const ErrorScriptAlert: FC = () => {
 			<Link
 				title="your workspace may be incomplete."
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -106,7 +106,7 @@ const ErrorScriptAlert: FC = () => {
 	);
 };
 
-const LoadingScriptsAlert: FC = () => {
+const LoadingScriptsAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			dismissible
@@ -118,7 +118,7 @@ const LoadingScriptsAlert: FC = () => {
 			<Link
 				title="your workspace may be incomplete."
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -130,7 +130,7 @@ const LoadingScriptsAlert: FC = () => {
 	);
 };
 
-const LoadedScriptsAlert: FC = () => {
+const LoadedScriptsAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			severity="success"
@@ -142,7 +142,7 @@ const LoadedScriptsAlert: FC = () => {
 			<Link
 				title="session was started before the startup scripts finished"
 				href={docs(
-					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+					"/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
 				target="_blank"
 				rel="noreferrer"
@@ -162,13 +162,13 @@ const severityBorderColors: Record<AlertColor, string> = {
 	error: "border-l-content-destructive",
 };
 
-const TerminalAlert: FC<AlertProps> = (props) => {
+const TerminalAlert: React.FC<AlertProps> = (props) => {
 	const severity = props.severity ?? "info";
 	return (
 		<Alert
 			{...props}
 			className={cn(
-				"rounded-none border-0 border-b border-l-[3px] border-b-border-default bg-surface-primary mb-px",
+				"rounded-none border-0 border-b border-l-[3px] border-b-border bg-surface-primary mb-px",
 				severityBorderColors[severity],
 			)}
 		/>
@@ -177,7 +177,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 
 // Since the terminal connection is always trying to reconnect, we show this
 // alert to indicate that the terminal is trying to connect.
-const DisconnectedAlert: FC<AlertProps> = (props) => {
+const DisconnectedAlert: React.FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
 			{...props}
@@ -189,7 +189,7 @@ const DisconnectedAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-const RefreshSessionButton: FC = () => {
+const RefreshSessionButton: React.FC = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	return (

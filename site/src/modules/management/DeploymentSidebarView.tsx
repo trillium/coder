@@ -1,5 +1,4 @@
 import { ArrowUpRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { BuildInfoResponse } from "#/api/typesGenerated";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
@@ -20,7 +19,7 @@ type DeploymentSidebarViewProps = {
  * Displays navigation for deployment settings.  If active, highlight the main
  * menu heading.
  */
-export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
+export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 	permissions,
 	showOrganizations,
 	hidePremiumTab,
@@ -77,8 +76,17 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<div className="flex flex-row items-center gap-1">
-							Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
+						<div className="flex items-center gap-1">
+							Groups
+							{showOrganizations && (
+								<>
+									<ArrowUpRightIcon size={16} />
+									<span className="sr-only">
+										{" "}
+										(opens organization settings)
+									</span>
+								</>
+							)}
 						</div>
 					</SidebarNavItem>
 				)}
@@ -89,7 +97,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewNotificationTemplate && (
 					<SidebarNavItem href="/deployment/notifications">
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<span>Notifications</span>
 						</div>
 					</SidebarNavItem>

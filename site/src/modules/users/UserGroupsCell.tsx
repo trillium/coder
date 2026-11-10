@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Group } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -14,7 +13,7 @@ type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
 };
 
-export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
+export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 	return (
 		<TableCell>
 			{userGroups === undefined ? (
@@ -31,7 +30,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 									: `View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`
 							}
 						>
-							<div className="flex flex-row gap-2 items-center">
+							<div className="flex gap-2 items-center">
 								<UsersIcon
 									className={cn([
 										"size-4 opacity-50",
@@ -49,7 +48,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 					<PopoverContent
 						align="start"
 						sideOffset={8}
-						className="w-auto min-w-[240px] max-w-sm max-h-[400px] p-0"
+						className="w-auto min-w-60 max-w-sm max-h-100 p-0"
 					>
 						<ul className="m-0 list-none flex flex-col flex-nowrap gap-0 px-0.5 py-1 text-sm">
 							{userGroups.map((group) => {
@@ -57,7 +56,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 								return (
 									<li
 										key={group.id}
-										className="flex gap-x-[10px] items-center px-2 py-1.5"
+										className="flex gap-x-2.5 items-center px-2 py-1.5"
 									>
 										<Avatar
 											size="sm"
@@ -66,7 +65,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 											fallback={groupName}
 										/>
 
-										<span className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none">
+										<span className="m-0 min-w-0 truncate leading-none">
 											{groupName || <em>N/A</em>}
 										</span>
 									</li>

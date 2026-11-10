@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -8,9 +7,9 @@ type WorkspaceBuildLogsSectionProps = {
 	logs?: ProvisionerJobLog[];
 };
 
-export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
-	logs,
-}) => {
+export const WorkspaceBuildLogsSection: React.FC<
+	WorkspaceBuildLogsSectionProps
+> = ({ logs }) => {
 	return (
 		<div className="rounded-lg border border-solid overflow-hidden bg-surface-primary">
 			<header
@@ -22,7 +21,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 			>
 				Build logs
 			</header>
-			<div className="h-[400px] overflow-y-auto">
+			<div className="h-100 overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
@@ -30,7 +29,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 						className="rounded-none border-none"
 					/>
 				) : (
-					<div className="flex items-center justify-center w-full h-full">
+					<div className="flex items-center justify-center size-full">
 						<Loader />
 					</div>
 				)}

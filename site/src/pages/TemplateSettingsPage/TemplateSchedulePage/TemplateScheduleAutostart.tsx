@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	sortedDays,
@@ -12,15 +11,12 @@ type TemplateScheduleAutostartProps = {
 	onChange: (value: TemplateAutostartRequirementDaysValue[]) => void;
 };
 
-export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
-	value,
-	isSubmitting,
-	enabled,
-	onChange,
-}) => {
+export const TemplateScheduleAutostart: React.FC<
+	TemplateScheduleAutostartProps
+> = ({ value, isSubmitting, enabled, onChange }) => {
 	return (
 		<div className="flex flex-col gap-2 items-start">
-			<div className="flex flex-row items-baseline justify-center w-full gap-0.5">
+			<div className="flex items-baseline justify-center w-full gap-0.5">
 				{(
 					[
 						{ value: "monday", key: "Mon" },
@@ -65,7 +61,7 @@ type AutostartHelperTextProps = {
 	days: TemplateAutostartRequirementDaysValue[];
 };
 
-const AutostartHelperText: FC<AutostartHelperTextProps> = ({
+const AutostartHelperText: React.FC<AutostartHelperTextProps> = ({
 	allowed,
 	days: unsortedDays,
 }) => {

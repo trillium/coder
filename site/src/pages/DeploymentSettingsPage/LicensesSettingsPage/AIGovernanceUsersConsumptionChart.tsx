@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
@@ -13,7 +12,7 @@ type AIGovernanceUsersConsumptionProps = {
 	licenses?: GetLicensesResponse[];
 };
 
-export const AIGovernanceUsersConsumption: FC<
+export const AIGovernanceUsersConsumption: React.FC<
 	AIGovernanceUsersConsumptionProps
 > = ({ aiGovernanceUserFeature, licenses }) => {
 	const hasAddOnLicense = hasAiGovernanceAddOnLicense(
@@ -35,7 +34,7 @@ export const AIGovernanceUsersConsumption: FC<
 				<div className="flex flex-col items-center justify-center">
 					<div className="flex flex-col items-center justify-center">
 						<span className="text-base">AI Governance add-on usage</span>
-						<span className="text-content-secondary text-center max-w-[464px] mt-2">
+						<span className="text-content-secondary text-center max-w-116 mt-2">
 							AI Governance is not included in your current license. Contact{" "}
 							<Link href="mailto:sales@coder.com">sales</Link> to upgrade your
 							license and unlock this addon.

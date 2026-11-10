@@ -1,5 +1,4 @@
 import { Share2Icon } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
@@ -14,12 +13,12 @@ import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/
 
 type ShareButtonProps = {
 	workspace: Workspace;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 };
 
-export const ShareButton: FC<ShareButtonProps> = ({
+export const ShareButton: React.FC<ShareButtonProps> = ({
 	workspace,
-	canUpdatePermissions,
+	canShareWorkspace,
 }) => {
 	const sharing = useWorkspaceSharing(workspace);
 
@@ -31,14 +30,14 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					Share
 				</TopbarButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-[580px] p-4">
+			<PopoverContent align="end" className="w-145 p-4">
 				<div className="flex items-center gap-2 mb-4">
 					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
-					canUpdatePermissions={canUpdatePermissions}
+					canShareWorkspace={canShareWorkspace}
 					error={sharing.error ?? sharing.mutationError}
 					updatingUserId={sharing.updatingUserId}
 					onUpdateUser={sharing.updateUser}

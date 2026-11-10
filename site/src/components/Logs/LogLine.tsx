@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 import type { LogLevel } from "#/api/typesGenerated";
 
 const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
@@ -14,9 +13,9 @@ export type Line = {
 
 type LogLineProps = {
 	level: LogLevel;
-} & ComponentProps<"pre">;
+} & React.ComponentProps<"pre">;
 
-export const LogLine: FC<LogLineProps> = ({
+export const LogLine: React.FC<LogLineProps> = ({
 	level,
 	className,
 	style,
@@ -30,11 +29,11 @@ export const LogLine: FC<LogLineProps> = ({
 				"m-0 break-all flex items-center h-auto",
 				"text-xs font-normal text-content-primary font-mono",
 				level === "error" &&
-					"bg-surface-error text-content-error [&_.dashed-line]:bg-border-error",
+					"bg-surface-red text-content-destructive [&_.dashed-line]:bg-border-destructive",
 				level === "debug" &&
-					"bg-surface-sky text-content-sky [&_.dashed-line]:bg-border-sky",
+					"bg-surface-sky text-highlight-sky [&_.dashed-line]:bg-border-pending",
 				level === "warn" &&
-					"bg-surface-warning text-content-warning [&_.dashed-line]:bg-border-warning",
+					"bg-surface-orange text-content-warning [&_.dashed-line]:bg-border-warning",
 				className,
 			)}
 			style={{
@@ -47,7 +46,7 @@ export const LogLine: FC<LogLineProps> = ({
 	);
 };
 
-export const LogLinePrefix: FC<ComponentProps<"pre">> = ({
+export const LogLinePrefix: React.FC<React.ComponentProps<"pre">> = ({
 	className,
 	...props
 }) => {

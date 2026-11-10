@@ -1,6 +1,5 @@
 import type { FormikContextType } from "formik";
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import { Input } from "#/components/Input/Input";
 import {
 	Select,
@@ -28,11 +27,9 @@ type MCPServerBehaviorSectionProps = {
 	disabled: boolean;
 };
 
-export const MCPServerBehaviorSection: FC<MCPServerBehaviorSectionProps> = ({
-	form,
-	formId,
-	disabled,
-}) => {
+export const MCPServerBehaviorSection: React.FC<
+	MCPServerBehaviorSectionProps
+> = ({ form, formId, disabled }) => {
 	return (
 		<>
 			<Field
@@ -148,7 +145,7 @@ export const MCPServerBehaviorSection: FC<MCPServerBehaviorSectionProps> = ({
 	);
 };
 
-const SwitchField: FC<{
+const SwitchField: React.FC<{
 	label: string;
 	checked: boolean;
 	onCheckedChange: (checked: boolean) => void;
@@ -167,7 +164,7 @@ const SwitchField: FC<{
 			<TooltipTrigger asChild>
 				<InfoIcon className="size-3 text-content-secondary" />
 			</TooltipTrigger>
-			<TooltipContent side="top" className="max-w-[260px]">
+			<TooltipContent side="top" className="max-w-65">
 				{tooltip}
 			</TooltipContent>
 		</Tooltip>

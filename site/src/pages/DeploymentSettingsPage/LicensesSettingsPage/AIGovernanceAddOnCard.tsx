@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +13,7 @@ type AIGovernanceAddOnCardProps = {
 	isExceeded: boolean;
 };
 
-export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
+export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 	title,
 	unit,
 	actual,
@@ -32,7 +31,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 			<div className="flex items-center gap-1 px-6 py-1.5">
 				<div className="flex flex-1 items-center gap-1">
 					<div className="flex items-center gap-1">
-						<span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-content-primary">
+						<span className="truncate text-sm text-content-primary">
 							{title}
 						</span>
 						<Tooltip>
@@ -51,7 +50,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 						</Tooltip>
 					</div>
 
-					<div className="min-w-[100px] flex-1 pl-8 pr-3">
+					<div className="min-w-25 flex-1 pl-8 pr-3">
 						<div className="text-xs">
 							<div className="font-medium text-content-secondary">{unit}</div>
 							<div className="font-normal text-content-primary">

@@ -1,6 +1,5 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -67,7 +66,7 @@ type SetupPageViewProps = {
 	authMethods: TypesGen.AuthMethods | undefined;
 };
 
-export const SetupPageView: FC<SetupPageViewProps> = ({
+export const SetupPageView: React.FC<SetupPageViewProps> = ({
 	onSubmit,
 	error,
 	isLoading,
@@ -107,7 +106,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 	return (
 		<div className="grow basis-0 min-h-screen flex justify-center items-center py-12">
-			<div className="flex flex-col w-full max-w-[500px] px-4">
+			<div className="flex flex-col w-full max-w-125 px-4">
 				<header className="mb-8">
 					<ProductLogo />
 					<h1 className="text-2xl font-semibold mt-4 mb-0">Welcome to Coder</h1>

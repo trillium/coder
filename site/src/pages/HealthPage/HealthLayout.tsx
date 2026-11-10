@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
 import { health, refreshHealth } from "#/api/queries/debug";
@@ -21,15 +21,15 @@ import { pageTitle } from "#/utils/page";
 import { HealthIcon } from "./Content";
 
 const linkStyles = {
-	normal: `
-		text-content-secondary border-none text-sm w-full flex items-center gap-3
-		text-left h-9 px-6 cursor-pointer no-underline transition-colors
-		hover:bg-surface-secondary hover:text-content-primary
-	`,
+	normal: cn(
+		"text-content-secondary border-none text-sm w-full flex items-center gap-3",
+		"text-left h-9 px-6 cursor-pointer no-underline transition-colors",
+		"hover:bg-surface-secondary hover:text-content-primary",
+	),
 	active: "bg-surface-secondary text-content-primary",
 };
 
-export const HealthLayout: FC = () => {
+export const HealthLayout: React.FC = () => {
 	const queryClient = useQueryClient();
 	const {
 		data: healthStatus,
@@ -92,7 +92,11 @@ export const HealthLayout: FC = () => {
 												}}
 											>
 												{isRefreshing ? (
-													<Spinner size="sm" loading />
+													<Spinner
+														size="sm"
+														loading
+														className="text-content-secondary"
+													/>
 												) : (
 													<RotateCcwIcon className="size-5" />
 												)}

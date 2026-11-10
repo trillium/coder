@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -11,9 +10,9 @@ type WildcardHostnameWarningProps = {
 	resources?: WorkspaceResource[];
 };
 
-export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
-	resources,
-}) => {
+export const WildcardHostnameWarning: React.FC<
+	WildcardHostnameWarningProps
+> = ({ resources }) => {
 	const { proxy } = useProxy();
 	const { permissions } = useAuthenticated();
 
@@ -42,7 +41,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 			prominent
 			className={
 				hasResources
-					? "rounded-none border-0 border-l-2 border-l-warning border-b-divider"
+					? "rounded-none border-0 border-l-2 border-l-content-warning border-b-border"
 					: undefined
 			}
 		>

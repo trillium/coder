@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import {
 	Dialog,
 	DialogActions,
@@ -12,7 +11,7 @@ import {
 type ConfirmDialogType = "delete" | "info" | "success";
 
 type ConfirmDialogTypeConfig = {
-	confirmText: ReactNode;
+	confirmText: React.ReactNode;
 	hideCancel: boolean;
 };
 
@@ -38,9 +37,9 @@ export type ConfirmDialogProps = {
 	readonly title: string;
 	readonly open: boolean;
 	readonly onClose: () => void;
-	readonly description: ReactNode;
+	readonly description: React.ReactNode;
 	readonly cancelText?: string;
-	readonly confirmText?: ReactNode;
+	readonly confirmText?: React.ReactNode;
 	readonly confirmLoading?: boolean;
 	readonly disabled?: boolean;
 	/**
@@ -53,6 +52,7 @@ export type ConfirmDialogProps = {
 	 * Defaults to shown for "delete", hidden for "info"/"success".
 	 */
 	readonly hideCancel?: boolean;
+	readonly onOpenAutoFocus?: (event: Event) => void;
 	/**
 	 * Forwarded to Radix. This dialog renders no `DialogTrigger`, so Radix has
 	 * nothing to return focus to on close and it lands on `<body>`. Callers that
@@ -65,7 +65,7 @@ export type ConfirmDialogProps = {
 /**
  * Quick-use dialog for yes/no style confirmations without custom layout.
  */
-export const ConfirmDialog: FC<ConfirmDialogProps> = ({
+export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 	cancelText = "Cancel",
 	confirmLoading = false,
 	confirmText,
@@ -73,6 +73,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	disabled = false,
 	hideCancel,
 	onClose,
+	onOpenAutoFocus,
 	onCloseAutoFocus,
 	onConfirm,
 	open = false,
@@ -96,6 +97,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 			<DialogContent
 				variant={type === "delete" ? "destructive" : "default"}
 				data-testid="dialog"
+				onOpenAutoFocus={onOpenAutoFocus}
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogHeader>

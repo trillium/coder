@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
@@ -21,7 +20,7 @@ type ChatSummaryProps = {
 	isSubagent?: boolean;
 };
 
-export const ChatSummary: FC<ChatSummaryProps> = ({
+export const ChatSummary: React.FC<ChatSummaryProps> = ({
 	summary,
 	createdAt,
 	updatedAt,
@@ -91,8 +90,8 @@ type ChatSummaryBodyProps = {
 	summary: string;
 };
 
-const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
-	<div className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary wrap-anywhere">
+const ChatSummaryBody: React.FC<ChatSummaryBodyProps> = ({ summary }) => (
+	<div className="w-full wrap-break-word font-sans text-sm font-normal leading-6 text-content-primary">
 		<InlineMarkdown
 			allowedElements={["ul", "ol", "li"]}
 			components={{
@@ -120,10 +119,10 @@ const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
 
 type ChatSummaryRowProps = {
 	label: string;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-const ChatSummaryRow: FC<ChatSummaryRowProps> = ({ label, children }) => (
+const ChatSummaryRow: React.FC<ChatSummaryRowProps> = ({ label, children }) => (
 	<div className="grid grid-cols-[65px_minmax(0,1fr)] gap-x-2 text-sm leading-6">
 		<dt className="text-content-secondary">{label}</dt>
 		<dd className="m-0 font-sans text-sm font-normal leading-6 text-content-primary">

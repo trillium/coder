@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
@@ -51,7 +50,7 @@ type StarterTemplatesProps = {
 	templateBuilderEnabled: boolean;
 };
 
-export const StarterTemplates: FC<StarterTemplatesProps> = ({
+export const StarterTemplates: React.FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
 	templateBuilderEnabled,
 }) => {
@@ -65,10 +64,10 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		: undefined;
 
 	return (
-		<div className="flex flex-row items-start gap-8">
+		<div className="flex items-start gap-8">
 			{starterTemplatesByTag && tags && (
-				<div className="sticky top-[88px] flex w-[202px] shrink-0 flex-col gap-4">
-					<h2 className="m-0 text-base font-normal text-content-primary">
+				<div className="sticky top-22 flex w-50.5 shrink-0 flex-col gap-4">
+					<h2 className="m-0 text-base text-content-primary">
 						Choose a starter template
 					</h2>
 					<span className="text-xs font-semibold uppercase tracking-widest text-content-secondary">

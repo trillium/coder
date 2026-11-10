@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, JSX } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -19,7 +18,10 @@ import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 // Elevated states show a corner badge with a distinct icon per state.
 const severityIndicators: Partial<
-	Record<UsageSeverity, { badge: string; icon: JSX.Element; label: string }>
+	Record<
+		UsageSeverity,
+		{ badge: string; icon: React.JSX.Element; label: string }
+	>
 > = {
 	warning: {
 		badge: "bg-surface-orange text-highlight-orange",
@@ -42,7 +44,7 @@ type UserDropdownProps = {
 	canViewLicenses: boolean;
 };
 
-export const UserDropdown: FC<UserDropdownProps> = ({
+export const UserDropdown: React.FC<UserDropdownProps> = ({
 	buildInfo,
 	user,
 	supportLinks,
@@ -89,7 +91,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					{indicator && (
 						<span
 							className={cn(
-								"absolute -top-2 -right-2 flex size-[18px] items-center",
+								"absolute -top-2 -right-2 flex size-icon-sm items-center",
 								"justify-center rounded",
 								indicator.badge,
 							)}
@@ -100,7 +102,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[260px]">
+			<DropdownMenuContent align="end" className="w-65">
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}

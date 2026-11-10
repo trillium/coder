@@ -1,5 +1,5 @@
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import {
@@ -12,7 +12,7 @@ type SensitiveValueProps = {
 	value: string;
 };
 
-export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
+export const SensitiveValue: React.FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);
 	const displayValue = shouldDisplay ? value : "••••••••";
 	const buttonLabel = shouldDisplay ? "Hide value" : "Show value";
@@ -24,10 +24,7 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 
 	return (
 		<div className="flex items-center gap-1">
-			<CopyableValue
-				value={value}
-				className="w-[calc(100%-22px)] overflow-hidden whitespace-nowrap text-ellipsis"
-			>
+			<CopyableValue value={value} className="w-[calc(100%-22px)] truncate">
 				{displayValue}
 			</CopyableValue>
 			<Tooltip>

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { workspaceAvailableUsers } from "#/api/queries/users";
@@ -41,10 +41,9 @@ type WorkspaceUserAutocompleteProps = CommonAutocompleteProps<MinimalUser> & {
 	organizationId: string;
 };
 
-export const WorkspaceUserAutocomplete: FC<WorkspaceUserAutocompleteProps> = ({
-	organizationId,
-	...props
-}) => {
+export const WorkspaceUserAutocomplete: React.FC<
+	WorkspaceUserAutocompleteProps
+> = ({ organizationId, ...props }) => {
 	const [filter, setFilter] = useState<string>();
 
 	const availableUsersQuery = useQuery({
@@ -154,6 +153,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 				<ComboboxContent
 					className="w-(--radix-popover-trigger-width) p-0"
 					shouldFilter={shouldFilter}
+					label="Username or email"
 				>
 					<ComboboxInput
 						placeholder="Username or email"

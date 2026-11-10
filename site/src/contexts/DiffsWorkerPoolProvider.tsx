@@ -3,17 +3,14 @@ import {
 	WorkerPoolContextProvider,
 	type WorkerPoolOptions,
 } from "@pierre/diffs/react";
-import type { FC, ReactNode } from "react";
+import { coderShikiThemes } from "#/components/SyntaxHighlighter/shikiTheme";
 
 type DiffsWorkerPoolProviderProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 const highlighterOptions: WorkerInitializationRenderOptions = {
-	theme: {
-		dark: "github-dark-high-contrast",
-		light: "github-light",
-	},
+	theme: coderShikiThemes,
 };
 
 const getPoolSize = (): number => {
@@ -24,9 +21,9 @@ const getPoolSize = (): number => {
 
 const hasWorkerSupport = (): boolean => typeof Worker !== "undefined";
 
-export const DiffsWorkerPoolProvider: FC<DiffsWorkerPoolProviderProps> = ({
-	children,
-}) => {
+export const DiffsWorkerPoolProvider: React.FC<
+	DiffsWorkerPoolProviderProps
+> = ({ children }) => {
 	if (!hasWorkerSupport()) {
 		return children;
 	}

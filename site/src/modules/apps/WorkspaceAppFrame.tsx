@@ -4,7 +4,7 @@ import {
 	ExternalLinkIcon,
 	HouseIcon,
 } from "lucide-react";
-import { type ComponentProps, type FC, useRef } from "react";
+import { useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -28,7 +28,7 @@ type WorkspaceAppFrameProps = {
 	active: boolean;
 };
 
-export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
+export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 	workspace,
 	app,
 	active,
@@ -55,7 +55,7 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 	}
 
 	return (
-		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
+		<div className={cn([active ? "flex" : "hidden", "size-full flex-col"])}>
 			{showToolbar && (
 				<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
 					<Button
@@ -100,7 +100,7 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 			{app.health === "healthy" || app.health === "disabled" ? (
 				<WorkspaceIframe ref={frameRef} src={link.href} title={link.label} />
 			) : app.health === "unhealthy" ? (
-				<div className="w-full h-full flex flex-col items-center justify-center p-4">
+				<div className="size-full flex flex-col items-center justify-center p-4">
 					<h3 className="m-0 font-medium text-content-primary text-base text-center">
 						App "{app.display_name}" is unhealthy
 					</h3>
@@ -134,11 +134,11 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 					</div>
 				</div>
 			) : app.health === "initializing" ? (
-				<div className="w-full h-full flex items-center justify-center">
+				<div className="size-full flex items-center justify-center">
 					<Spinner loading />
 				</div>
 			) : (
-				<div className="w-full h-full flex flex-col items-center justify-center">
+				<div className="size-full flex flex-col items-center justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Error
 					</h3>
@@ -151,9 +151,9 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 	);
 };
 
-type WorkspaceIframeProps = ComponentProps<"iframe">;
+type WorkspaceIframeProps = React.ComponentProps<"iframe">;
 
-export const WorkspaceIframe: FC<WorkspaceIframeProps> = ({
+export const WorkspaceIframe: React.FC<WorkspaceIframeProps> = ({
 	className,
 	ref,
 	...props
@@ -162,7 +162,7 @@ export const WorkspaceIframe: FC<WorkspaceIframeProps> = ({
 		<iframe
 			ref={ref}
 			loading="eager"
-			className={cn("w-full h-full border-0", className)}
+			className={cn("size-full border-0", className)}
 			allow="clipboard-read; clipboard-write"
 			{...props}
 		/>

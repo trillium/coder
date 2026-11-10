@@ -15,6 +15,11 @@ import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
+const graphemeSegmenter =
+	typeof Intl.Segmenter === "function"
+		? new Intl.Segmenter("en", { granularity: "grapheme" })
+		: undefined;
+
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
@@ -23,6 +28,7 @@ const avatarVariants = cva(
 				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
 				md: "size-(--avatar-default) text-2xs",
 				sm: "size-(--avatar-sm) text-[8px]",
+				xs: "size-(--avatar-xs) text-[6px]",
 			},
 			variant: {
 				default: null,
@@ -46,7 +52,12 @@ const avatarVariants = cva(
 			{
 				size: "sm",
 				variant: "icon",
-				className: "p-[3px]",
+				className: "p-0.75",
+			},
+			{
+				size: "xs",
+				variant: "icon",
+				className: "p-0.5",
 			},
 		],
 	},
@@ -78,8 +89,17 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
+	const fallbackCharacters = fallback
+		? graphemeSegmenter
+			? Array.from(
+					graphemeSegmenter.segment(fallback),
+					({ segment }) => segment,
+				)
+			: Array.from(fallback)
+		: [];
 	const isEmoji = src?.startsWith("/emojis/");
-	const avatarSizeToken = size === "lg" || size === "sm" ? size : "default";
+	const avatarSizeToken =
+		size === "lg" || size === "sm" || size === "xs" ? size : "default";
 
 	return (
 		<AvatarPrimitive.Root
@@ -105,8 +125,8 @@ export const Avatar: React.FC<AvatarProps> = ({
 				style={getExternalImageStylesFromUrl(externalImages, src)}
 			/>
 			{fallback && (
-				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.slice(0, 2).toUpperCase()}
+				<AvatarPrimitive.Fallback className="flex size-full items-center justify-center rounded-full">
+					{fallbackCharacters.slice(0, 2).join("").toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}
 			{children}

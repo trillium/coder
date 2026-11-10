@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badge/PresetBadges";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -25,7 +24,7 @@ type PublishTemplateVersionDialogProps = {
 	onConfirm: (data: PublishVersionData) => void;
 };
 
-export const PublishTemplateVersionDialog: FC<
+export const PublishTemplateVersionDialog: React.FC<
 	PublishTemplateVersionDialogProps
 > = ({
 	open,
@@ -110,7 +109,7 @@ export const PublishTemplateVersionDialog: FC<
 								)}
 							</div>
 
-							<div className="flex flex-row items-center gap-4">
+							<div className="flex items-center gap-4">
 								<div className="flex items-center gap-2">
 									<Checkbox
 										id="isActiveVersion"
@@ -137,8 +136,10 @@ export const PublishTemplateVersionDialog: FC<
 										<Link
 											size="sm"
 											href={docs(
-												"/admin/templates/managing-templates#template-update-policies",
+												"/templates/managing-templates#template-update-policies",
 											)}
+											target="_blank"
+											rel="noreferrer"
 										>
 											Review the documentation
 										</Link>

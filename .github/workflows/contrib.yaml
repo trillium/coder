@@ -24,17 +24,21 @@ concurrency: pr-${{ github.event.pull_request.number || github.event.issue.numbe
 jobs:
   community-label:
     runs-on: ubuntu-latest
+    environment: main
     permissions:
       pull-requests: write
+    # Needs the coder org's membership app and secrets, which forks lack.
     if: >-
       ${{
+        github.repository_owner == 'coder' &&
         github.event_name == 'pull_request_target' &&
-        github.event.action == 'opened'
+        github.event.action == 'opened' &&
+        github.event.pull_request.base.ref == 'main'
       }}
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ vars.ORG_MEMBERSHIP_APP_ID }}
           private-key: ${{ secrets.ORG_MEMBERSHIP_APP_PRIVATE_KEY }}
@@ -97,11 +101,18 @@ jobs:
 
   cla:
     runs-on: ubuntu-latest
+    environment: main
+    # Signatures live in the coder/cla repository, which forks cannot write.
+    if: >-
+      ${{
+        github.repository_owner == 'coder' &&
+        ((github.event_name == 'issue_comment' && (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA')) ||
+        (github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main'))
+      }}
     permissions:
       pull-requests: write
     steps:
       - name: cla
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,7 +126,7 @@ jobs:
           # branch should not be protected
           branch: "main"
           # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
-          allowlist: "coryb,aaronlehmann,dependabot*,blink-so*,blinkagent*"
+          allowlist: "coryb,aaronlehmann,dependabot*,blink-so*,blinkagent*,coder[bot],coder-backporter-app[bot]"
 
   title:
     runs-on: ubuntu-latest
@@ -134,7 +145,7 @@ jobs:
               "perf", "test", "build", "ci", "chore", "revert",
             ];
             const expectedFormat = `"type(scope): description" or "type: description"`;
-            const guidelinesLink = `See: https://github.com/coder/coder/blob/main/docs/about/contributing/CONTRIBUTING.md#commit-messages`;
+            const guidelinesLink = `See: https://github.com/coder/coder/blob/main/CONTRIBUTING.md#commit-messages`;
             const scopeHint = (type) =>
               `Use a broader scope or no scope (e.g., "${type}: ...") for cross-cutting changes.\n` +
               guidelinesLink;
@@ -200,11 +211,14 @@ jobs:
               return;
             }
 
-            // Verify all changed files fall under the scope.
+            // Verify all changed files fall under the scope. Docs changes
+            // can accompany a change in any scope.
+            const isDocsScope = scope === "docs" || scope.startsWith("docs/");
             const outsideFiles = changedPaths.filter(f => {
               if (isDir && f.startsWith(scope + "/")) return false;
               if (f === scope) return false;
               if (isStem && f.startsWith(scope + ".")) return false;
+              if (!isDocsScope && f.startsWith("docs/")) return false;
               return true;
             });
 

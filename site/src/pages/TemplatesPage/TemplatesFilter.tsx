@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -71,7 +70,7 @@ type TemplatesFilterProps = {
 	userMenu?: UserFilterMenu;
 };
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({
+export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	filter,
 	error,
 	userMenu,
@@ -109,7 +108,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 				},
 			]}
 			// TODO: Add docs for this
-			// learnMoreLink={docs("/admin/templates#template-filtering")}
+			// learnMoreLink={docs("/templates#template-filtering")}
 			isLoading={false}
 			filter={filter}
 			error={error}

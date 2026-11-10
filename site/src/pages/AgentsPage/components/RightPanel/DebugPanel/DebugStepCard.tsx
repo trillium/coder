@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDownIcon, WrenchIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatDebugStep } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -40,15 +40,11 @@ import {
 
 type DebugStepCardProps = {
 	step: ChatDebugStep;
-	defaultOpen?: boolean;
 };
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
 
-export const DebugStepCard: FC<DebugStepCardProps> = ({
-	step,
-	defaultOpen = false,
-}) => {
+export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 	// Single active metadata pill: only one section open at a time.
 	const [activeSection, setActiveSection] = useState<SectionKey | null>(null);
 
@@ -114,15 +110,15 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 	const errorText = getErrorMessage(rawError, safeJsonStringify(rawError));
 
 	return (
-		<Collapsible defaultOpen={defaultOpen}>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/10">
+		<Collapsible>
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40 bg-surface-secondary/10">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
-							<span className="shrink-0 text-xs font-medium text-content-tertiary">
+							<span className="shrink-0 text-xs text-content-secondary">
 								Step {step.step_number}
 							</span>
 							{model ? (
@@ -130,18 +126,18 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 									{model}
 								</span>
 							) : null}
-							<span className="shrink-0 whitespace-nowrap text-xs text-content-tertiary">
+							<span className="shrink-0 whitespace-nowrap text-xs text-content-secondary">
 								{durationLabel}
 							</span>
 							{tokenLabel ? (
-								<span className="shrink-0 whitespace-nowrap text-xs text-content-tertiary">
+								<span className="shrink-0 whitespace-nowrap text-xs text-content-secondary">
 									{tokenLabel}
 								</span>
 							) : null}
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
 							<Badge
-								size="xs"
+								size="sm"
 								variant={getStatusBadgeVariant(step.status)}
 								className="shrink-0"
 							>
@@ -157,7 +153,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
@@ -183,7 +179,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 							/>
 						) : null}
 						{attemptCount > 0 ? (
-							<span className="text-xs text-content-tertiary">
+							<span className="text-xs text-content-secondary">
 								{attemptCount} {attemptCount === 1 ? "attempt" : "attempts"}
 							</span>
 						) : null}
@@ -234,7 +230,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 							{request.tools.map((tool) => (
 								<div
 									key={tool.name}
-									className="rounded-md border border-solid border-border-default/40 bg-surface-secondary/10 p-2.5"
+									className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5"
 								>
 									<ToolBadge label={tool.name} />
 									{tool.description ? (
@@ -321,7 +317,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 								<div className="space-y-2">
 									{/* Primary response content: visually prominent. */}
 									{response.content ? (
-										<p className="max-h-112 overflow-auto wrap-anywhere whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
+										<p className="max-h-112 overflow-auto wrap-anywhere whitespace-pre-wrap text-sm leading-6 text-content-primary">
 											{response.content}
 										</p>
 									) : null}
@@ -344,7 +340,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 
 									{/* Secondary metadata: finish reason + warnings. */}
 									{response.finishReason ? (
-										<span className="block text-2xs text-content-tertiary">
+										<span className="block text-2xs text-content-secondary">
 											Finish: {response.finishReason}
 										</span>
 									) : null}

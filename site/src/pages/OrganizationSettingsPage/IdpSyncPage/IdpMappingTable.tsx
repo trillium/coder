@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	Table,
@@ -16,7 +15,7 @@ type IdpMappingTableProps = {
 	children: React.ReactNode;
 };
 
-export const IdpMappingTable: FC<IdpMappingTableProps> = ({
+export const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 	type,
 	rowCount,
 	children,
@@ -45,6 +44,8 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 									href={docs(
 										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
 									)}
+									target="_blank"
+									rel="noreferrer"
 								>
 									How to setup IdP {type.toLocaleLowerCase()} sync
 								</Link>

@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { useId, useState } from "react";
 import * as Yup from "yup";
 import type { Role, RoleSyncSettings } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -62,7 +62,7 @@ type IdpRoleSyncFormProps = {
 	onSyncFieldChange: (value: string) => void;
 };
 
-export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
+export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
 	claimFieldValues,
 	roleMappingCount,
@@ -99,7 +99,9 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 		form.handleSubmit();
 	};
 
-	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+	const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+		event,
+	) => {
 		if (
 			event.key === "Enter" &&
 			comboInputValue &&
@@ -130,7 +132,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 					<div className="flex flex-col gap-2">
-						<div className="flex flex-row items-end gap-2">
+						<div className="flex items-end gap-2">
 							<div className="flex flex-col gap-2">
 								<Label htmlFor={`${id}-sync-field`}>Role sync field</Label>
 								<Input
@@ -171,7 +173,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							Map IdP roles to Coder roles.
 						</SettingsHeaderDescription>
 					</SettingsHeader>
-					<div className="flex flex-row gap-2 justify-between items-start">
+					<div className="flex gap-2 justify-between items-start">
 						<div className="grid items-center gap-1 w-72">
 							<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 								IdP role name
@@ -194,7 +196,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 											placeholder="Select IdP role"
 										/>
 									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
+									<ComboboxContent className="w-72" label="Search IdP roles">
 										<ComboboxInput
 											value={comboInputValue}
 											onValueChange={setComboInputValue}
@@ -312,7 +314,7 @@ type RoleRowProps = {
 	onDelete: (idpOrg: string) => void;
 };
 
-const RoleRow: FC<RoleRowProps> = ({
+const RoleRow: React.FC<RoleRowProps> = ({
 	idpRole,
 	exists = true,
 	coderRoles,
@@ -321,7 +323,7 @@ const RoleRow: FC<RoleRowProps> = ({
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2 text-content-primary">
+				<div className="flex items-center gap-2 text-content-primary">
 					{idpRole}
 					{!exists && <IdpUnseenClaimWarning />}
 				</div>

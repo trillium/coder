@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ProvisionerJob } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -21,7 +21,10 @@ type JobRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
+export const JobRow: React.FC<JobRowProps> = ({
+	job,
+	defaultIsOpen = false,
+}) => {
 	const metadata = job.metadata;
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const queue = {
@@ -89,7 +92,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 						{job.status === "failed" && (
 							<div
 								className={cn([
-									"inline-flex items-center gap-2 rounded border border-solid border-boder p-2",
+									"inline-flex items-center gap-2 rounded border border-solid border-border p-2",
 									"text-content-primary bg-surface-secondary mb-4",
 								])}
 							>
@@ -101,7 +104,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							className={cn([
 								"text-xs text-content-secondary",
 								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-5.5 [&_dt]:font-medium",
 							])}
 						>
 							<dt>Job ID:</dt>

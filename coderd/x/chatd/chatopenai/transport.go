@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 )
@@ -38,17 +37,15 @@ func (t Transport) UsesResponses() bool {
 	}
 }
 
-// TransportFor resolves the wire format for a provider and model. OpenAI
-// models use override when set and otherwise consult the provider SDK's
-// known-model list. OpenAI-compatible models use Chat Completions unless an
-// explicit override selects Responses, preserving their generic default.
+// TransportFor resolves the wire format for a provider and model. For OpenAI,
+// a non-nil override takes precedence over the provider SDK's known-model list.
+// OpenAI-compatible models use Chat Completions unless an explicit override
+// selects Responses, preserving their generic default.
 func TransportFor(provider, modelID string, override *bool) Transport {
 	var useResponses bool
 	switch provider {
 	case fantasyopenai.Name:
 		useResponses = UsesResponsesAPI(modelID, override)
-	case fantasyazure.Name:
-		useResponses = fantasyopenai.IsResponsesModel(modelID)
 	case fantasyopenaicompat.Name:
 		useResponses = override != nil && *override
 	default:
@@ -72,4 +69,9 @@ func UsesResponsesAPI(modelID string, override *bool) bool {
 // IsGPT6Astra matches gpt-6-astra and its dated snapshots.
 func IsGPT6Astra(modelID string) bool {
 	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6-astra")
+}
+
+// IsGPT61Sol matches gpt-6.1-sol and its dated snapshots.
+func IsGPT61Sol(modelID string) bool {
+	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6.1-sol")
 }

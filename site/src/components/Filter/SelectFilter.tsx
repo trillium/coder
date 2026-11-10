@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import {
 	Combobox,
 	ComboboxButton,
@@ -14,7 +13,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 const BASE_WIDTH = 200;
 
 export type SelectFilterOption = {
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	label: string;
 	value: string;
 };
@@ -31,10 +30,12 @@ type SelectFilterProps = {
 	onSelect: (option: SelectFilterOption | undefined) => void;
 	width?: number;
 	// SelectFilterSearch element
-	selectFilterSearch?: ReactNode;
+	selectFilterSearch?: React.ReactNode;
+	// Accessible name for selectFilterSearch
+	searchLabel?: string;
 };
 
-export const SelectFilter: FC<SelectFilterProps> = ({
+export const SelectFilter: React.FC<SelectFilterProps> = ({
 	label,
 	options,
 	selectedOption,
@@ -43,6 +44,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	emptyText = "No options found",
 	width = BASE_WIDTH,
 	selectFilterSearch,
+	searchLabel,
 }) => {
 	return (
 		<Combobox
@@ -65,12 +67,13 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 					// When including selectFilterSearch, we aim for the width to be as
 					// wide as possible.
 					selectFilterSearch && "w-full",
-					"max-w-[260px]",
+					"max-w-65",
 				])}
 				style={{
 					minWidth: width,
 				}}
 				align="end"
+				label={searchLabel}
 				// We want the backend to handle the filtering, not the client.
 				shouldFilter={false}
 			>

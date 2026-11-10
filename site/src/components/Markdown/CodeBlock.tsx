@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CopyIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useRef } from "react";
+import { useRef } from "react";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -23,7 +23,7 @@ const copyOverlayClassName = cn(
 	"[&_button]:bg-surface-secondary [&_button]:shadow-md",
 );
 
-type CodeBlockProps = PropsWithChildren<{
+type CodeBlockProps = React.PropsWithChildren<{
 	/**
 	 * The exact text copied to the clipboard when the button is clicked.
 	 */
@@ -35,7 +35,7 @@ type CodeBlockProps = PropsWithChildren<{
  * button appears top-right on hover (or keyboard focus) and copies the exact
  * block text. UI layer only; no gateway or agent behavior changes.
  */
-export const CodeBlock: FC<CodeBlockProps> = ({ code, children }) => {
+export const CodeBlock: React.FC<CodeBlockProps> = ({ code, children }) => {
 	return (
 		<div className="relative group/codeblock">
 			{children}
@@ -49,7 +49,7 @@ export const CodeBlock: FC<CodeBlockProps> = ({ code, children }) => {
 	);
 };
 
-type CopyablePreProps = PropsWithChildren<{
+type CopyablePreProps = React.PropsWithChildren<{
 	label?: string;
 }>;
 
@@ -58,7 +58,7 @@ type CopyablePreProps = PropsWithChildren<{
  * element children instead of plain text). Reads the rendered text at click
  * time so the copied value is still the exact block text.
  */
-export const CopyablePre: FC<CopyablePreProps> = ({
+export const CopyablePre: React.FC<CopyablePreProps> = ({
 	label = "Copy code",
 	children,
 }) => {

@@ -1,7 +1,10 @@
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useState } from "react";
-
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -9,38 +12,61 @@ import {
 	useDesktopConnection,
 } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
+import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
+import {
+	DesktopWorkspaceState,
+	type DesktopWorkspaceStateProps,
+	isDesktopReachable,
+	useStartDesktopWorkspace,
+} from "./DesktopWorkspaceState";
 
 type DesktopPanelProps = {
 	chatId: string;
-	/** When true the panel is the active sidebar tab. */
-	isVisible?: boolean;
+	workspace: Workspace;
+	/** Absent while the workspace is stopped or rebuilding. */
+	workspaceAgent: WorkspaceAgent | undefined;
 };
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
+export const DesktopPanel: React.FC<DesktopPanelProps> = ({
+	chatId,
+	workspace,
+	workspaceAgent,
+}) => {
+	const { isActive } = useTabPanelState();
+
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
 	// switched away.
 	const [activated, setActivated] = useState(false);
-	if (isVisible && !activated) {
+	if (isActive && !activated) {
 		setActivated(true);
 	}
 
+	const { startWorkspace, isStartingWorkspace } =
+		useStartDesktopWorkspace(workspace);
+
 	const [isControlling, setIsControlling] = useState(false);
-	if (!isVisible && isControlling) {
+	if (!isActive && isControlling) {
 		setIsControlling(false);
 	}
 
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isPoppedOut, setIsPoppedOut] = useState(false);
 
+	// Gating the connection on the live workspace watch tears the session
+	// down when the workspace stops and dials again as soon as the agent
+	// reconnects, without manual retries.
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: isPoppedOut ? undefined : chatId,
-		activated: activated && !isPoppedOut,
+		activated:
+			activated &&
+			!isPoppedOut &&
+			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
 		scaleViewport: scaleMode === "fit",
 	});
 
-	useZoomShortcuts(setScaleMode, isVisible);
+	useZoomShortcuts(setScaleMode, isActive);
 
 	// Listen for BroadcastChannel messages from the pop-out window.
 	useEffect(() => {
@@ -95,6 +121,10 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	return (
 		<DesktopPanelView
 			status={status}
+			workspace={workspace}
+			agentStatus={workspaceAgent?.status}
+			onStartWorkspace={startWorkspace}
+			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
 			attach={attach}
 			scaleMode={scaleMode}
@@ -107,8 +137,9 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	);
 };
 
-export type DesktopPanelViewProps = {
+export type DesktopPanelViewProps = DesktopWorkspaceStateProps & {
 	status: DesktopConnectionStatus;
+	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -116,11 +147,15 @@ export type DesktopPanelViewProps = {
 	isControlling: boolean;
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
-	onPopOut?: () => void;
+	onPopOut: () => void;
 };
 
-export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
+export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({
 	status,
+	workspace,
+	agentStatus,
+	onStartWorkspace,
+	isStartingWorkspace,
 	reconnect,
 	attach,
 	scaleMode,
@@ -130,6 +165,16 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onReleaseControl,
 	onPopOut,
 }) => {
+	if (!isDesktopReachable(workspace.latest_build.status, agentStatus)) {
+		return (
+			<DesktopWorkspaceState
+				workspace={workspace}
+				onStartWorkspace={onStartWorkspace}
+				isStartingWorkspace={isStartingWorkspace}
+			/>
+		);
+	}
+
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
@@ -173,7 +218,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div className="flex h-full w-full flex-col">
+		<div className="flex size-full flex-col">
 			<DesktopToolbar
 				scaleMode={scaleMode}
 				onScaleModeChange={onScaleModeChange}
@@ -188,7 +233,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 					ref={(el) => {
 						if (el) attach(el);
 					}}
-					className="h-full w-full"
+					className="size-full"
 					inert={!isControlling ? true : undefined}
 					role="application"
 					aria-label={

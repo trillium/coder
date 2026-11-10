@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import {
@@ -12,7 +12,6 @@ import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Textarea } from "#/components/Textarea/Textarea";
@@ -37,6 +36,8 @@ export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
+const emptyOrgs: readonly Organization[] = [];
+
 const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),
 	display_name: displayNameValidator("Display name"),
@@ -57,7 +58,7 @@ type TemplateCustomizationsStepProps = {
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 };
 
-export const TemplateCustomizationsStep: FC<
+export const TemplateCustomizationsStep: React.FC<
 	TemplateCustomizationsStepProps
 > = ({ state, onCreate, onProvisionerStatusChange }) => {
 	const permittedOrgsQuery = useQuery(
@@ -66,7 +67,7 @@ export const TemplateCustomizationsStep: FC<
 			action: "create",
 		}),
 	);
-	const orgOptions = permittedOrgsQuery.data ?? [];
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: {
@@ -118,7 +119,7 @@ export const TemplateCustomizationsStep: FC<
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 			onSubmit={form.handleSubmit}
 			noValidate
-			className="min-w-[654px]"
+			className="min-w-163.5"
 		>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
@@ -143,46 +144,41 @@ export const TemplateCustomizationsStep: FC<
 
 					{/* Right column */}
 					{orgOptions.length > 0 && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">
-								Organization
-								<span className="text-xs font-bold text-content-destructive ml-1">
-									*
-								</span>
-							</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								onChange={handleOrgChange}
-								options={orgOptions}
-							/>
-							{organizationField.error && (
-								<span className="text-xs text-content-destructive">
-									{organizationField.helperText}
-								</span>
+						<FormField
+							field={organizationField}
+							label="Organization"
+							required
+							id="organization"
+							control={(props) => (
+								<OrganizationAutocomplete
+									{...props}
+									required
+									value={selectedOrg}
+									onChange={handleOrgChange}
+									options={orgOptions}
+								/>
 							)}
-						</div>
+						/>
 					)}
 
 					{/* Left column */}
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-description">Description</Label>
-						<Textarea
-							{...form.getFieldProps("description")}
+						<FormField
+							field={descriptionField}
+							label="Description"
 							id="template-description"
-							placeholder="Describe what this template is for"
-							rows={3}
-							aria-invalid={descriptionField.error}
-							className={cn(
-								descriptionField.error && "border-border-destructive",
+							control={(props) => (
+								<Textarea
+									{...props}
+									{...form.getFieldProps("description")}
+									placeholder="Describe what this template is for"
+									rows={3}
+									className={cn(
+										descriptionField.error && "border-border-destructive",
+									)}
+								/>
 							)}
 						/>
-						{descriptionField.error && (
-							<span className="text-xs text-content-destructive">
-								{descriptionField.helperText}
-							</span>
-						)}
 						<p className="text-xs text-content-secondary">
 							Used by both humans and Agents to identify templates.
 						</p>
@@ -217,19 +213,23 @@ export const TemplateCustomizationsStep: FC<
 	);
 };
 
-const ProvisionerWarning: FC = () => {
+const ProvisionerWarning: React.FC = () => {
 	return (
 		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+			<Link
+				href={docs("/admin/provisioners#organization-scoped-provisioners")}
+				target="_blank"
+				rel="noreferrer"
+			>
 				See our documentation
 			</Link>
 		</Alert>
 	);
 };
 
-const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
+const BaseTemplateCard: React.FC<{ base: SelectedBaseMeta }> = ({ base }) => {
 	return (
 		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
 			{base.iconUrl && <Avatar src={base.iconUrl} size="lg" variant="icon" />}
