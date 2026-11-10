@@ -31,10 +31,11 @@ jobs:
           # essentially disabled for now while we work through polish issues
           days-before-stale: 3650
 
-          # Pull Requests become stale more quickly due to merge conflicts.
-          # Also, we promote minimizing WIP.
-          days-before-pr-stale: 7
-          days-before-pr-close: 3
+          # Upstream marks PRs stale after 7 idle days and closes them 3 days
+          # later. On this fork that closed long-lived sync and stacked PRs
+          # (PR 22 was closed unmerged by this job), so PR handling is off.
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
           # We rarely take action in response to the message, so avoid
           # cluttering the issue and just close the oldies.
           stale-pr-message: ""

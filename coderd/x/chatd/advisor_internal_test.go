@@ -595,10 +595,10 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			ctx,
 			chat,
 			advisorRuntimeConfig{
-				Enabled:         true,
 				MaxUsesPerRun:   3,
 				MaxOutputTokens: 16384,
 			},
+			0,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
