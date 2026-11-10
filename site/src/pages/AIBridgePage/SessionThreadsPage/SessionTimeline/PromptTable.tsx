@@ -6,7 +6,6 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipMessage,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatPricePerMillionTokens } from "#/modules/aiModels/knownModels/catalog";
@@ -51,45 +50,46 @@ const ModelPrices: React.FC<ModelPricesProps> = ({ pricedModel }) => {
 type ModelBadgeProps = {
 	model: string;
 	pricedModel?: AIBridgePricedModel;
+	hasUnpricedUsage: boolean;
 };
 
-const ModelBadge: React.FC<ModelBadgeProps> = ({ model, pricedModel }) => {
+const ModelBadge: React.FC<ModelBadgeProps> = ({
+	model,
+	pricedModel,
+	hasUnpricedUsage,
+}) => {
 	let warning: string | undefined;
-	if (!pricedModel) {
+	if (!pricedModel && hasUnpricedUsage) {
 		warning = "No price was recorded for this model.";
-	} else if (pricedModel.model !== model) {
+	} else if (pricedModel && pricedModel.model !== model) {
 		warning = `Priced as ${pricedModel.model}, the model reported by the provider.`;
 	}
 
 	return (
 		<span className="inline-flex items-center gap-1 min-w-0 max-w-full">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Badge
-							asChild
-							className="gap-1.5 max-w-full min-w-0 overflow-hidden"
-						>
-							<button type="button" className="cursor-default">
-								<AIBridgeModelIcon model={model} className="size-icon-xs" />
-								<span className="truncate min-w-0 flex-1">{model}</span>
-							</button>
-						</Badge>
-					</TooltipTrigger>
-					<TooltipContent>
-						<div className="text-content-primary text-sm">
-							{pricedModel?.model ?? model}
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge asChild className="gap-1.5 max-w-full min-w-0 overflow-hidden">
+						<button type="button" className="cursor-default">
+							<AIBridgeModelIcon model={model} className="size-icon-xs" />
+							<span className="truncate min-w-0 flex-1">{model}</span>
+						</button>
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent>
+					<div className="text-content-primary text-sm">
+						{pricedModel?.model ?? model}
+					</div>
+					{pricedModel ? (
+						<ModelPrices pricedModel={pricedModel} />
+					) : (
+						<div className="mt-1 text-sm text-content-secondary">
+							No price recorded
 						</div>
-						{pricedModel ? (
-							<ModelPrices pricedModel={pricedModel} />
-						) : (
-							<div className="mt-1 text-sm text-content-secondary">
-								No price recorded
-							</div>
-						)}
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+					)}
+				</TooltipContent>
+			</Tooltip>
+
 			{warning && (
 				<InfoTooltip type="warning" size="small" ariaLabel="Pricing warning">
 					<TooltipMessage>{warning}</TooltipMessage>
@@ -146,7 +146,11 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 			<div className="flex items-center justify-between">
 				<dt className="shrink-0 whitespace-nowrap">Model</dt>
 				<dd className="ml-4 min-w-0 truncate flex justify-end">
-					<ModelBadge model={model} pricedModel={pricedModel} />
+					<ModelBadge
+						model={model}
+						pricedModel={pricedModel}
+						hasUnpricedUsage={hasUnpricedUsage}
+					/>
 				</dd>
 			</div>
 

@@ -595,6 +595,22 @@ export const MockUserMember: TypesGen.User = {
 	name: "Mock User The Second",
 };
 
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
+};
+
 export const SuspendedMockUser: TypesGen.User = {
 	id: "suspended-mock-user",
 	username: "SuspendedMockUser",
@@ -1898,13 +1914,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-outdated-workspace-require-active-version",
+	outdated: true,
+	template_require_active_version: true,
+};
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
 	{
@@ -3191,7 +3206,7 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
-export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockConnectedSSHConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3213,10 +3228,11 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: undefined,
 		disconnect_time: undefined,
 		exit_code: undefined,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
-export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+export const MockDisconnectedSSHConnectionLog = {
 	id: "893e75e0-1518-4ac8-9629-35923a39533a",
 	connect_time: "2022-05-19T16:45:57.122Z",
 	organization: {
@@ -3238,8 +3254,9 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 		disconnect_reason: "server shut down",
 		disconnect_time: "2022-05-19T16:49:57.122Z",
 		exit_code: 0,
+		client_session_id: "3f2a9c4e8b1d4f6a9e0c7b5d2a1f8e3c",
 	},
-};
+} satisfies TypesGen.ConnectionLog;
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
@@ -3414,6 +3431,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {

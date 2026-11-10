@@ -62,8 +62,11 @@ export type BlockListProps = {
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
-	onImageClick: (src: string) => void;
-	onTextFileClick: (attachment: PreviewTextAttachment) => void;
+	onImageClick: (src: string, trigger: HTMLButtonElement) => void;
+	onTextFileClick: (
+		attachment: PreviewTextAttachment,
+		trigger: HTMLButtonElement,
+	) => void;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -167,7 +170,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								key={`${keyPrefix}-file-reference-${index}`}
 								className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
 							>
-								<span className="shrink-0 text-xs font-medium text-content-link">
+								<span className="shrink-0 text-xs text-content-link">
 									{block.file_name}:
 									{block.start_line === block.end_line
 										? block.start_line
@@ -253,6 +256,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 								parsedCommands={tool.parsedCommands}
 								startedAt={tool.startedAt}
 								hookRewritten={tool.hookRewritten}
+								providerExecuted={tool.providerExecuted}
+								foundPages={tool.foundPages}
 							/>
 						);
 					}
@@ -321,6 +326,8 @@ export const BlockList: React.FC<BlockListProps> = ({
 					parsedCommands={tool.parsedCommands}
 					startedAt={tool.startedAt}
 					hookRewritten={tool.hookRewritten}
+					providerExecuted={tool.providerExecuted}
+					foundPages={tool.foundPages}
 				/>
 			))}
 		</>
